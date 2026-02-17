@@ -392,20 +392,20 @@ export default function AssemblyPage() {
 
   const handleJoinQueue = () => {
     if (!user || !assembly) return;
-    const queueRef = collection(firestore, 'assemblies', assembly.id, 'speakerQueue');
+    const queueItemRef = doc(firestore, 'assemblies', assembly.id, 'speakerQueue', user.uid);
     const queueItem = {
         userId: user.uid,
         assemblyId: assembly.id,
         joinedAt: serverTimestamp(),
         status: 'Na Fila',
     };
-    addDocumentNonBlocking(queueRef, queueItem);
+    setDocumentNonBlocking(queueItemRef, queueItem, { merge: true });
     toast({ title: 'Inscrição Realizada', description: 'Você foi adicionado à fila para falar.' });
   };
 
   const handleLeaveQueue = () => {
     if (!userInQueue) return;
-    const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', userInQueue.id);
+    const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
     deleteDocumentNonBlocking(itemRef);
     toast({ title: 'Inscrição Cancelada', description: 'Você foi removido da fila.' });
   };
@@ -436,8 +436,8 @@ export default function AssemblyPage() {
     if (!assembly?.zoomUrl || !user?.displayName) {
       return assembly?.zoomUrl || '';
     }
-    // `btoa` is a browser API, but this is a client component, so it's fine.
-    const userNameBase64 = btoa(user.displayName);
+    // `btoa` can't handle non-latin1 characters. The common workaround is to use `unescape` and `encodeURIComponent`.
+    const userNameBase64 = btoa(unescape(encodeURIComponent(user.displayName)));
     const joiner = assembly.zoomUrl.includes('?') ? '&' : '?';
     return `${assembly.zoomUrl}${joiner}uname=${userNameBase64}`;
   }, [assembly?.zoomUrl, user?.displayName]);
@@ -453,12 +453,10 @@ export default function AssemblyPage() {
   const handleUpdateUrl = () => {
     if (!assembly || !firestore) return;
     const assemblyDocRef = doc(firestore, 'assemblies', assembly.id);
-    const youtubeEmbedUrl = convertToEmbedUrl(newYoutubeUrl);
-    const zoomEmbedUrl = newZoomUrl ? convertToZoomEmbedUrl(newZoomUrl) : '';
     
     updateDocumentNonBlocking(assemblyDocRef, { 
-      youtubeUrl: youtubeEmbedUrl,
-      zoomUrl: zoomEmbedUrl,
+      youtubeUrl: newYoutubeUrl,
+      zoomUrl: newZoomUrl,
     });
     toast({ title: 'Links atualizados!', description: 'Os links da transmissão foram atualizados com sucesso.' });
     setEditUrlOpen(false);
@@ -529,7 +527,6 @@ export default function AssemblyPage() {
                               placeholder="https://www.youtube.com/watch?v=..."
                               className="mt-1"
                           />
-                          <p className="text-sm text-muted-foreground pt-1">Qualquer formato de link do YouTube é aceito.</p>
                         </div>
                         <div>
                           <Label htmlFor="zoomUrl" className="text-sm font-medium">Link da Reunião do Zoom</Label>
@@ -540,7 +537,6 @@ export default function AssemblyPage() {
                               placeholder="https://zoom.us/j/..."
                               className="mt-1"
                           />
-                          <p className="text-sm text-muted-foreground pt-1">Cole o link completo da reunião do Zoom.</p>
                         </div>
                       </div>
                       <DialogFooter>
