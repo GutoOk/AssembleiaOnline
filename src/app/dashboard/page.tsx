@@ -95,7 +95,7 @@ export default function DashboardPage() {
   const isLoading = isAdminLoading || areAssembliesLoading;
 
   return (
-    <div className="container mx-auto p-0">
+    <>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Assembleias</h1>
         {isAdmin ? (
@@ -136,6 +136,6 @@ export default function DashboardPage() {
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }

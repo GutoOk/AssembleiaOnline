@@ -132,99 +132,97 @@ export default function CreateAssemblyPage() {
   }
 
   return (
-    <div className="container mx-auto p-0">
-      <Card>
-        <CardHeader>
-          <CardTitle>Criar Nova Assembleia</CardTitle>
-          <CardDescription>Preencha os detalhes abaixo para agendar uma nova assembleia.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Título</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Assembleia Geral Ordinária 2025" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Descreva o propósito e a agenda da assembleia." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Data e Hora</FormLabel>
-                    <FormControl>
-                      <Input type="datetime-local" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <FormItem>
-                <FormLabel>Imagem de Capa</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="file" 
-                    accept="image/png, image/jpeg, image/webp" 
-                    onChange={handleImageChange}
-                    disabled={form.formState.isSubmitting || isUploading}
-                  />
-                </FormControl>
-                <FormDescription>
-                  Selecione uma imagem para a capa da assembleia (máximo 2MB).
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-              {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {imagePreview && !isUploading && (
-                <div className="relative aspect-video w-full max-w-lg overflow-hidden rounded-md border">
-                  <Image src={imagePreview} alt="Pré-visualização da imagem" fill className="object-cover" />
-                </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Criar Nova Assembleia</CardTitle>
+        <CardDescription>Preencha os detalhes abaixo para agendar uma nova assembleia.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Título</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Assembleia Geral Ordinária 2025" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-              <FormField
-                control={form.control}
-                name="youtubeUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Link ou ID do Vídeo do YouTube</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://www.youtube.com/watch?v=..." {...field} />
-                    </FormControl>
-                     <FormDescription>
-                      Cole qualquer link do YouTube (de vídeo, ao vivo ou de incorporação) ou apenas o ID do vídeo.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" disabled={form.formState.isSubmitting || isUploading}>
-                {(form.formState.isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Criar Assembleia
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-    </div>
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descrição</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Descreva o propósito e a agenda da assembleia." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Data e Hora</FormLabel>
+                  <FormControl>
+                    <Input type="datetime-local" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormItem>
+              <FormLabel>Imagem de Capa</FormLabel>
+              <FormControl>
+                <Input 
+                  type="file" 
+                  accept="image/png, image/jpeg, image/webp" 
+                  onChange={handleImageChange}
+                  disabled={form.formState.isSubmitting || isUploading}
+                />
+              </FormControl>
+              <FormDescription>
+                Selecione uma imagem para a capa da assembleia (máximo 2MB).
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+            {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {imagePreview && !isUploading && (
+              <div className="relative aspect-video w-full max-w-lg overflow-hidden rounded-md border">
+                <Image src={imagePreview} alt="Pré-visualização da imagem" fill className="object-cover" />
+              </div>
+            )}
+            <FormField
+              control={form.control}
+              name="youtubeUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Link ou ID do Vídeo do YouTube</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://www.youtube.com/watch?v=..." {...field} />
+                  </FormControl>
+                   <FormDescription>
+                    Cole qualquer link do YouTube (de vídeo, ao vivo ou de incorporação) ou apenas o ID do vídeo.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" disabled={form.formState.isSubmitting || isUploading}>
+              {(form.formState.isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Criar Assembleia
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
 }

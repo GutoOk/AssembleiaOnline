@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LayoutDashboard, Menu, Users } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -12,52 +12,84 @@ import { UserNav } from './user-nav';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAdmin } from '@/hooks/use-admin';
+import { cn } from '@/lib/utils';
 
 export function Header() {
   const pathname = usePathname();
   const { isAdmin } = useAdmin();
 
+  const navLinks = (className?: string) => (
+    <>
+      <Link
+        href="/dashboard"
+        className={cn(
+          "transition-colors hover:text-foreground",
+          (pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/users')) ? "text-foreground" : "text-muted-foreground",
+          className
+        )}
+      >
+        Assembleias
+      </Link>
+      {isAdmin && (
+        <Link
+          href="/dashboard/users"
+          className={cn(
+            "transition-colors hover:text-foreground",
+            pathname.startsWith('/dashboard/users') ? "text-foreground" : "text-muted-foreground",
+            className
+          )}
+        >
+          Usuários
+        </Link>
+      )}
+    </>
+  );
+
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button size="icon" variant="outline" className="sm:hidden">
-            <Menu className="h-5 w-5" />
-            <span className="sr-only">Toggle Menu</span>
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="sm:max-w-xs">
-          <nav className="grid gap-6 text-lg font-medium">
-            <Link
-              href="#"
-              className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:text-base"
+    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
+      {/* Desktop Navigation */}
+      <nav className="hidden flex-row items-center gap-5 text-sm font-medium md:flex lg:gap-6">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 text-lg font-semibold"
+        >
+          <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={28} height={28} />
+          <span className="ml-1">Assembleia Mensa</span>
+        </Link>
+        {navLinks()}
+      </nav>
+
+      {/* Mobile Navigation */}
+      <div className="flex-1 md:hidden">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="shrink-0"
             >
-              <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={20} height={20} className="transition-all group-hover:scale-110" />
-              <span className="sr-only">Assembleia Mensa</span>
-            </Link>
-            <Link
-              href="/dashboard"
-              className={`flex items-center gap-4 px-2.5 ${pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/users') ? 'text-foreground' : 'text-muted-foreground'} hover:text-foreground`}
-            >
-              <LayoutDashboard className="h-5 w-5" />
-              Assembleias
-            </Link>
-             {isAdmin && (
-               <Link
-                href="/dashboard/users"
-                className={`flex items-center gap-4 px-2.5 ${pathname.startsWith('/dashboard/users') ? 'text-foreground' : 'text-muted-foreground'} hover:text-foreground`}
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Alternar menu de navegação</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left">
+            <nav className="grid gap-6 text-lg font-medium">
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 text-lg font-semibold"
               >
-                <Users className="h-5 w-5" />
-                Usuários
+                <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={28} height={28} />
+                <span className="ml-1">Assembleia Mensa</span>
               </Link>
-            )}
-          </nav>
-        </SheetContent>
-      </Sheet>
-      <div className="relative ml-auto flex-1 md:grow-0">
-        {/* Breadcrumbs could go here */}
+              {navLinks("text-base")}
+            </nav>
+          </SheetContent>
+        </Sheet>
       </div>
-      <UserNav />
+
+      <div className="flex flex-1 items-center justify-end">
+        <UserNav />
+      </div>
     </header>
   );
 }
