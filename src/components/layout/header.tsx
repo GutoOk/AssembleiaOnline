@@ -13,10 +13,17 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAdmin } from '@/hooks/use-admin';
 import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 
 export function Header() {
   const pathname = usePathname();
   const { isAdmin } = useAdmin();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
 
   const navLinks = (className?: string) => (
     <>
@@ -61,30 +68,32 @@ export function Header() {
 
       {/* Mobile Navigation */}
       <div className="flex-1 md:hidden">
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              className="shrink-0"
-            >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Alternar menu de navegação</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left">
-            <nav className="grid gap-6 text-lg font-medium">
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 text-lg font-semibold"
+        {isMounted && (
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0"
               >
-                <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={28} height={28} />
-                <span className="ml-1">Assembleia Mensa</span>
-              </Link>
-              {navLinks("text-base")}
-            </nav>
-          </SheetContent>
-        </Sheet>
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Alternar menu de navegação</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left">
+              <nav className="grid gap-6 text-lg font-medium">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-2 text-lg font-semibold"
+                >
+                  <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={28} height={28} />
+                  <span className="ml-1">Assembleia Mensa</span>
+                </Link>
+                {navLinks("text-base")}
+              </nav>
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
 
       <div className="flex flex-1 items-center justify-end">
