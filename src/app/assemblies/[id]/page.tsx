@@ -1,7 +1,7 @@
 'use client';
 import { MOCK_DATA } from '@/lib/data';
 import type { Assembly, User, Poll, Speaker } from '@/lib/data';
-import { notFound } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -188,7 +188,8 @@ function SpeakingQueue({ queue, assemblyId, user, isAdmin }: { queue: Speaker[],
   )
 }
 
-export default function AssemblyPage({ params }: { params: { id: string } }) {
+export default function AssemblyPage() {
+  const params = useParams<{ id: string }>();
   const assembly = MOCK_DATA.assemblies.find((a) => a.id === params.id);
   const { user, isAdmin } = useAuth();
 
