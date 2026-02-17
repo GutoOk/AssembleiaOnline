@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
+import { convertToEmbedUrl } from '@/lib/utils';
 
 const assemblySchema = z.object({
   title: z.string().min(10, 'O título deve ter pelo menos 10 caracteres.'),
@@ -24,7 +25,7 @@ const assemblySchema = z.object({
   date: z.string().refine((val) => !isNaN(Date.parse(val)), {
     message: 'Data inválida.',
   }),
-  youtubeUrl: z.string().url('URL do YouTube inválida.'),
+  youtubeUrl: z.string().min(11, 'URL ou ID do YouTube inválido.'),
 });
 
 export default function CreateAssemblyPage() {
@@ -100,11 +101,14 @@ export default function CreateAssemblyPage() {
       return;
     }
 
+    const embedUrl = convertToEmbedUrl(values.youtubeUrl);
+
     const assembliesRef = collection(firestore, 'assemblies');
     addDocumentNonBlocking(assembliesRef, {
       ...values,
       date: new Date(values.date),
       imageUrl: imagePreview,
+      youtubeUrl: embedUrl,
       administratorId: user.uid,
       status: 'scheduled',
       createdAt: serverTimestamp(),
@@ -202,12 +206,12 @@ export default function CreateAssemblyPage() {
                 name="youtubeUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>URL do YouTube</FormLabel>
+                    <FormLabel>Link ou ID do Vídeo do YouTube</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://www.youtube.com/embed/..." {...field} />
+                      <Input placeholder="https://www.youtube.com/watch?v=..." {...field} />
                     </FormControl>
                      <FormDescription>
-                      Use o link de incorporação (embed) do vídeo.
+                      Cole qualquer link do YouTube (de vídeo, ao vivo ou de incorporação) ou apenas o ID do vídeo.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

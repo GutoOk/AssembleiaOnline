@@ -25,7 +25,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-
+import { convertToEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
@@ -359,6 +359,11 @@ export default function AssemblyPage() {
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
   const { data: polls, isLoading: arePollsLoading } = useCollection<Poll>(pollsQuery);
 
+  const displayEmbedUrl = useMemo(() => {
+    return assembly ? convertToEmbedUrl(assembly.youtubeUrl) : '';
+  }, [assembly]);
+
+
   useEffect(() => {
     if (assembly) {
       setNewYoutubeUrl(assembly.youtubeUrl);
@@ -368,7 +373,8 @@ export default function AssemblyPage() {
   const handleUpdateUrl = () => {
     if (!assembly || !firestore) return;
     const assemblyDocRef = doc(firestore, 'assemblies', assembly.id);
-    updateDocumentNonBlocking(assemblyDocRef, { youtubeUrl: newYoutubeUrl });
+    const embedUrl = convertToEmbedUrl(newYoutubeUrl);
+    updateDocumentNonBlocking(assemblyDocRef, { youtubeUrl: embedUrl });
     toast({ title: 'Link atualizado!', description: 'O link da transmissão foi atualizado com sucesso.' });
     setEditUrlOpen(false);
   };
@@ -415,7 +421,7 @@ export default function AssemblyPage() {
                     <DialogHeader>
                         <DialogTitle>Editar Link da Transmissão</DialogTitle>
                         <DialogDescription>
-                          Cole o novo link de incorporação (embed) do YouTube abaixo.
+                          Cole o novo link do YouTube abaixo (qualquer formato é aceito).
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4">
@@ -423,7 +429,7 @@ export default function AssemblyPage() {
                           id="youtubeUrl"
                           value={newYoutubeUrl}
                           onChange={(e) => setNewYoutubeUrl(e.target.value)}
-                          placeholder="https://www.youtube.com/embed/..."
+                          placeholder="https://www.youtube.com/watch?v=..."
                       />
                     </div>
                     <DialogFooter>
@@ -439,7 +445,7 @@ export default function AssemblyPage() {
                 <iframe
                   width="100%"
                   height="100%"
-                  src={newYoutubeUrl}
+                  src={displayEmbedUrl}
                   title="YouTube video player"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
