@@ -93,11 +93,14 @@ service cloud.firestore {
     }
 
     /**
-     * Validates that immutable fields are not changed during an update.
+     * Validates that only allowed fields are changed during an update.
      */
     function hasValidUpdatedUserData() {
-      // A user is not allowed to change their id, email, or createdAt fields.
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'createdAt']);
+      // Explicitly allow only 'name' and 'avatarUrl' to be updated.
+      // This is more secure and robust than blacklisting fields.
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let allowedToChange = ['name', 'avatarUrl'];
+      return changedKeys.removeAll(allowedToChange).size() == 0;
     }
 
     // --------------------------------------------------------------------------------
