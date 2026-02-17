@@ -408,6 +408,16 @@ export default function AssemblyPage() {
     return assembly ? convertToEmbedUrl(assembly.youtubeUrl) : '';
   }, [assembly]);
 
+  const zoomEmbedUrlWithUser = useMemo(() => {
+    if (!assembly?.zoomUrl || !user?.displayName) {
+      return assembly?.zoomUrl || '';
+    }
+    // `btoa` is a browser API, but this is a client component, so it's fine.
+    const userNameBase64 = btoa(user.displayName);
+    const joiner = assembly.zoomUrl.includes('?') ? '&' : '?';
+    return `${assembly.zoomUrl}${joiner}uname=${userNameBase64}`;
+  }, [assembly?.zoomUrl, user?.displayName]);
+
 
   useEffect(() => {
     if (assembly) {
@@ -513,7 +523,7 @@ export default function AssemblyPage() {
                    <iframe
                     width="100%"
                     height="100%"
-                    src={assembly.zoomUrl}
+                    src={zoomEmbedUrlWithUser}
                     title="Zoom Meeting"
                     allow="fullscreen; microphone; camera; display-capture"
                   ></iframe>
