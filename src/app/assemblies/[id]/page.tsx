@@ -15,6 +15,7 @@ import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import Link from 'next/link';
 import { CreatePollDialog } from '@/components/CreatePollDialog';
+import { ManageQueueDialog } from '@/components/ManageQueueDialog';
 import {
   Dialog,
   DialogContent,
@@ -232,6 +233,7 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
   const firestore = useFirestore();
   const { user, isAdmin } = useAdmin();
   const { toast } = useToast();
+  const [isManageQueueOpen, setManageQueueOpen] = useState(false);
 
   const queueQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -322,7 +324,22 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
         <CardDescription>Membros que solicitaram a palavra.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isAdmin && <Button className="w-full" disabled><PlusCircle className="mr-2 h-4 w-4" /> Gerenciar Inscrições</Button>}
+        {isAdmin && (
+           <>
+            <Button className="w-full" onClick={() => setManageQueueOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Gerenciar Inscrições
+            </Button>
+            {queue && (
+              <ManageQueueDialog
+                open={isManageQueueOpen}
+                onOpenChange={setManageQueueOpen}
+                assemblyId={assemblyId}
+                queue={queue}
+                userProfiles={userProfiles}
+              />
+            )}
+          </>
+        )}
         {!userInQueue && !isAdmin && <Button className="w-full" onClick={handleJoinQueue} disabled={isLoading}><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
         {userInQueue && <Button variant="outline" className="w-full" onClick={handleLeaveQueue}>Cancelar Inscrição</Button>}
         
