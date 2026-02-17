@@ -390,6 +390,7 @@ export default function AssemblyPage() {
   const [isEditUrlOpen, setEditUrlOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
   const [newZoomMeetingId, setNewZoomMeetingId] = useState('');
+  const [newZoomPasscode, setNewZoomPasscode] = useState('');
 
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -414,6 +415,7 @@ export default function AssemblyPage() {
       setNewYoutubeUrl(assembly.youtubeUrl);
       const zoomId = assembly.zoomUrl ? assembly.zoomUrl.split('/').pop()?.split('?')[0] : '';
       setNewZoomMeetingId(zoomId || '');
+      setNewZoomPasscode(assembly.zoomPasscode || '');
     }
   }, [assembly]);
 
@@ -421,10 +423,13 @@ export default function AssemblyPage() {
     if (!assembly || !firestore) return;
     const assemblyDocRef = doc(firestore, 'assemblies', assembly.id);
     const youtubeEmbedUrl = convertToEmbedUrl(newYoutubeUrl);
-    const zoomEmbedUrl = newZoomMeetingId ? `https://zoom.us/wc/join/${newZoomMeetingId.replace(/\s/g, '')}` : '';
+    const zoomEmbedUrl = newZoomMeetingId 
+        ? `https://zoom.us/wc/join/${newZoomMeetingId.replace(/\s/g, '')}${newZoomPasscode ? `?pwd=${btoa(newZoomPasscode)}`: ''}` 
+        : '';
     updateDocumentNonBlocking(assemblyDocRef, { 
       youtubeUrl: youtubeEmbedUrl,
       zoomUrl: zoomEmbedUrl,
+      zoomPasscode: newZoomPasscode,
     });
     toast({ title: 'Links atualizados!', description: 'Os links da transmissão foram atualizados com sucesso.' });
     setEditUrlOpen(false);
@@ -498,6 +503,17 @@ export default function AssemblyPage() {
                         />
                          <p className="text-sm text-muted-foreground pt-1">Insira apenas o ID da reunião, sem espaços ou links.</p>
                       </div>
+                      <div>
+                        <Label htmlFor="zoomPasscode" className="text-sm font-medium">Senha do Zoom (Opcional)</Label>
+                        <Input
+                            id="zoomPasscode"
+                            value={newZoomPasscode}
+                            onChange={(e) => setNewZoomPasscode(e.target.value)}
+                            placeholder="Senha da reunião"
+                            className="mt-1"
+                        />
+                         <p className="text-sm text-muted-foreground pt-1">Se a reunião tiver uma senha de acesso.</p>
+                      </div>
                     </div>
                     <DialogFooter>
                       <Button type="button" variant="outline" onClick={() => setEditUrlOpen(false)}>Cancelar</Button>
@@ -561,3 +577,5 @@ export default function AssemblyPage() {
     </div>
   );
 }
+
+    

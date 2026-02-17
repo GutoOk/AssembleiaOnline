@@ -27,6 +27,7 @@ const assemblySchema = z.object({
   }),
   youtubeUrl: z.string().min(11, 'URL ou ID do YouTube inválido.'),
   zoomMeetingId: z.string().optional(),
+  zoomPasscode: z.string().optional(),
 });
 
 export default function CreateAssemblyPage() {
@@ -45,6 +46,7 @@ export default function CreateAssemblyPage() {
       date: '',
       youtubeUrl: '',
       zoomMeetingId: '',
+      zoomPasscode: '',
     },
   });
 
@@ -104,7 +106,9 @@ export default function CreateAssemblyPage() {
     }
 
     const embedUrl = convertToEmbedUrl(values.youtubeUrl);
-    const zoomUrl = values.zoomMeetingId ? `https://zoom.us/wc/join/${values.zoomMeetingId.replace(/\s/g, '')}` : '';
+    const zoomUrl = values.zoomMeetingId 
+      ? `https://zoom.us/wc/join/${values.zoomMeetingId.replace(/\s/g, '')}${values.zoomPasscode ? `?pwd=${btoa(values.zoomPasscode)}` : ''}` 
+      : '';
 
     const { zoomMeetingId, ...restOfValues } = values;
 
@@ -238,6 +242,22 @@ export default function CreateAssemblyPage() {
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="zoomPasscode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Senha do Zoom (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Senha da reunião" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Se a reunião do Zoom tiver uma senha, insira-a aqui.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <Button type="submit" disabled={form.formState.isSubmitting || isUploading}>
               {(form.formState.isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Criar Assembleia
@@ -248,3 +268,5 @@ export default function CreateAssemblyPage() {
     </Card>
   );
 }
+
+    
