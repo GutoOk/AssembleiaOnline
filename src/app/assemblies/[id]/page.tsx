@@ -8,21 +8,47 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Link as LinkIcon, Hand, Loader2 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2 } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import Link from 'next/link';
 
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useDoc, useFirestore, useMemoFirebase, useCollection, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
-import type { Assembly, User, Poll, Speaker } from '@/lib/data';
-import { MOCK_DATA } from '@/lib/data';
+import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote } from '@/lib/data';
+import { useUserProfiles } from '@/hooks/use-user-profiles';
+import { useToast } from '@/hooks/use-toast';
 
-// This is now mock, will be replaced later
-const getUserById = (id: string) => MOCK_DATA.users.find(u => u.id === id);
+function UserDisplay({ userId }: { userId: string }) {
+  const firestore = useFirestore();
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !userId) return null;
+    return doc(firestore, 'users', userId);
+  }, [firestore, userId]);
+
+  const { data: userProfile, isLoading } = useDoc<UserProfile>(userProfileRef);
+
+  if (isLoading) {
+    return <div className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>;
+  }
+
+  if (!userProfile) {
+    return <span>Usuário não encontrado</span>;
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Avatar className="h-6 w-6">
+        <AvatarImage src={userProfile.avatarUrl} alt={userProfile.name} />
+        <AvatarFallback>{userProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <span>{userProfile.name}</span>
+    </div>
+  );
+}
 
 function Countdown({ endDate }: { endDate: Date }) {
   const [timeLeft, setTimeLeft] = useState(endDate.getTime() - Date.now());
@@ -30,7 +56,11 @@ function Countdown({ endDate }: { endDate: Date }) {
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setInterval(() => {
-      setTimeLeft(endDate.getTime() - Date.now());
+      const newTimeLeft = endDate.getTime() - Date.now();
+      if (newTimeLeft <= 0) {
+        clearInterval(timer);
+      }
+      setTimeLeft(newTimeLeft);
     }, 1000);
     return () => clearInterval(timer);
   }, [endDate, timeLeft]);
@@ -39,21 +69,75 @@ function Countdown({ endDate }: { endDate: Date }) {
     return <span className="text-sm text-destructive">Encerrada</span>;
   }
 
+  const hours = Math.floor((timeLeft / (1000 * 60 * 60)) % 24);
   const minutes = Math.floor((timeLeft / 1000 / 60) % 60);
   const seconds = Math.floor((timeLeft / 1000) % 60);
 
-  return <span className="text-sm font-mono text-muted-foreground">{`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`}</span>;
+  return (
+    <span className="text-sm font-mono text-muted-foreground">
+      {hours > 0 && `${hours.toString().padStart(2, '0')}:`}
+      {`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`}
+    </span>
+  );
 }
 
-function PollCard({ poll, user }: { poll: Poll, user: User | null }) {
-  const [selectedOption, setSelectedOption] = useState<string | undefined>();
-  const userVote = poll.votes.find(v => v.userId === user?.id);
-  const pollEnded = new Date() > poll.endDate;
 
-  const voteData = poll.options.map(option => ({
-    name: option.text,
-    votos: poll.votes.filter(vote => vote.optionId === option.id).length,
-  }));
+function PollCard({ poll, assemblyId }: { poll: Poll; assemblyId: string }) {
+  const firestore = useFirestore();
+  const { user } = useAdmin();
+  const { toast } = useToast();
+  const [selectedOption, setSelectedOption] = useState<string | undefined>();
+
+  const optionsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'options'), orderBy('text', 'asc'));
+  }, [firestore, assemblyId, poll.id]);
+
+  const votesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes');
+  }, [firestore, assemblyId, poll.id]);
+
+  const { data: options, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
+  const { data: votes, isLoading: isLoadingVotes } = useCollection<Vote>(votesQuery);
+
+  const userVote = useMemo(() => votes?.find(v => v.id === user?.uid), [votes, user]);
+  const pollEndDate = poll.endDate.toDate();
+  const pollEnded = isPast(pollEndDate) || poll.status === 'closed';
+
+  const userIdsInVotes = useMemo(() => votes?.map(v => v.userId) ?? [], [votes]);
+  const { profiles: userProfiles } = useUserProfiles(userIdsInVotes);
+
+
+  const handleVote = () => {
+    if (!selectedOption || !user) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'Selecione uma opção para votar.' });
+        return;
+    };
+    const voteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', user.uid);
+    const voteData = {
+        userId: user.uid,
+        pollId: poll.id,
+        assemblyId: assemblyId,
+        pollOptionId: selectedOption,
+        timestamp: serverTimestamp(),
+    };
+    setDocumentNonBlocking(voteRef, voteData, {});
+    toast({ title: 'Voto Registrado!', description: 'Seu voto foi computado com sucesso.' });
+  };
+  
+  const voteData = useMemo(() => {
+    if (!options || !votes) return [];
+    return options.map(option => ({
+      name: option.text,
+      votos: votes.filter(vote => vote.pollOptionId === option.id).length,
+    }));
+  }, [options, votes]);
+
+  const isLoading = isLoadingOptions || isLoadingVotes;
+  if(isLoading) {
+    return <Card><CardContent className="p-6"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></CardContent></Card>
+  }
 
   return (
     <Card>
@@ -62,12 +146,12 @@ function PollCard({ poll, user }: { poll: Poll, user: User | null }) {
           <div>
             <CardTitle className="text-lg">{poll.question}</CardTitle>
             <CardDescription className="flex items-center gap-2 mt-1">
-              <Users className="h-4 w-4" /> {poll.votes.length} votos
+              <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            <Countdown endDate={poll.endDate} />
+            <Countdown endDate={pollEndDate} />
           </div>
         </div>
       </CardHeader>
@@ -86,38 +170,43 @@ function PollCard({ poll, user }: { poll: Poll, user: User | null }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <Separator className="my-4" />
-             <h3 className="font-semibold mb-2 text-sm">Votos individuais:</h3>
-            <div className="space-y-2">
-              {poll.votes.map(vote => {
-                const voter = getUserById(vote.userId);
-                const option = poll.options.find(o => o.id === vote.optionId);
-                return (
-                  <div key={vote.userId} className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6">
-                        <AvatarImage src={voter?.avatarUrl} />
-                        <AvatarFallback>{voter?.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <span>{voter?.name}</span>
+            {votes && votes.length > 0 && (
+                <>
+                <Separator className="my-4" />
+                <h3 className="font-semibold mb-2 text-sm">Votos individuais:</h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                {votes.map(vote => {
+                    const voter = userProfiles[vote.userId];
+                    const option = options?.find(o => o.id === vote.pollOptionId);
+                    return (
+                    <div key={vote.id} className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-6 w-6">
+                              <AvatarImage src={voter?.avatarUrl} />
+                              <AvatarFallback>{voter?.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span>{voter?.name ?? 'Carregando...'}</span>
+                        </div>
+                        <span className="font-medium">{option?.text}</span>
                     </div>
-                    <span className="font-medium">{option?.text}</span>
-                  </div>
-                )
-              })}
-            </div>
+                    )
+                })}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
             <RadioGroup onValueChange={setSelectedOption} value={selectedOption}>
-              {poll.options.map(option => (
+              {options?.map(option => (
                 <div key={option.id} className="flex items-center space-x-2">
                   <RadioGroupItem value={option.id} id={option.id} />
                   <Label htmlFor={option.id}>{option.text}</Label>
                 </div>
               ))}
             </RadioGroup>
-            <Button disabled={!selectedOption}>
+            <Button onClick={handleVote} disabled={!selectedOption || isLoadingVotes}>
+              {isLoadingVotes && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Send className="mr-2 h-4 w-4" />
               Votar
             </Button>
@@ -128,23 +217,63 @@ function PollCard({ poll, user }: { poll: Poll, user: User | null }) {
   )
 }
 
-function SpeakingQueue({ queue, assemblyId, user, isAdmin }: { queue: Speaker[], assemblyId: string, user: User | null, isAdmin: boolean }) {
-  const userInQueue = queue.find(s => s.userId === user?.id);
+function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
+  const firestore = useFirestore();
+  const { user, isAdmin } = useAdmin();
+  const { toast } = useToast();
 
-  const renderSpeaker = (speaker: Speaker, index: number) => {
-    const speakerUser = getUserById(speaker.userId);
-    if (!speakerUser) return null;
+  const queueQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'assemblies', assemblyId, 'speakerQueue'), orderBy('joinedAt', 'asc'));
+  }, [firestore, assemblyId]);
 
-    const statusBadge = (status: Speaker['status']) => {
+  const { data: queue, isLoading } = useCollection<SpeakerQueueItem>(queueQuery);
+
+  const userIdsInQueue = useMemo(() => queue?.map(s => s.userId) ?? [], [queue]);
+  const { profiles: userProfiles } = useUserProfiles(userIdsInQueue);
+
+  const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.id), [queue, user]);
+
+  const handleJoinQueue = () => {
+    if (!user) return;
+    const queueRef = collection(firestore, 'assemblies', assemblyId, 'speakerQueue');
+    const queueItem = {
+        userId: user.uid,
+        assemblyId: assemblyId,
+        joinedAt: serverTimestamp(),
+        status: 'requested',
+    };
+    addDocumentNonBlocking(queueRef, queueItem);
+    toast({ title: 'Inscrição Realizada', description: 'Você foi adicionado à fila para falar.' });
+  };
+
+  const handleLeaveQueue = () => {
+    if (!userInQueue) return;
+    const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', userInQueue.id);
+    deleteDocumentNonBlocking(itemRef);
+    toast({ title: 'Inscrição Cancelada', description: 'Você foi removido da fila.' });
+  };
+
+  const renderSpeaker = (speaker: SpeakerQueueItem, index: number) => {
+    const speakerUser = userProfiles[speaker.userId];
+    if (!speakerUser) return (
+      <div key={speaker.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+          <Loader2 className="h-4 w-4 animate-spin"/>
+      </div>
+    );
+
+    const statusBadge = (status: SpeakerQueueItem['status']) => {
       switch(status) {
         case 'speaking': return <Badge variant="destructive">Falando</Badge>;
-        case 'next': return <Badge variant="outline" className="border-primary text-primary">Próximo</Badge>;
-        case 'waiting': return <Badge variant="secondary">Aguardando</Badge>;
+        case 'queued': return <Badge variant="outline" className="border-primary text-primary">Na Fila</Badge>;
+        case 'requested': return <Badge variant="secondary">Requisitado</Badge>;
+        case 'completed': return <Badge>Finalizado</Badge>;
+        case 'cancelled': return <Badge variant="secondary">Cancelado</Badge>;
       }
     };
 
     return (
-      <div key={speaker.userId} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+      <div key={speaker.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
         <div className="flex items-center gap-3">
           <span className="font-mono text-lg text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
           <Avatar className="h-9 w-9">
@@ -154,7 +283,7 @@ function SpeakingQueue({ queue, assemblyId, user, isAdmin }: { queue: Speaker[],
           <div>
             <p className="font-medium">{speakerUser.name}</p>
             <p className="text-xs text-muted-foreground">
-              {formatDistanceToNow(speaker.joinedAt, { locale: ptBR, addSuffix: true })}
+              {formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
             </p>
           </div>
         </div>
@@ -182,13 +311,15 @@ function SpeakingQueue({ queue, assemblyId, user, isAdmin }: { queue: Speaker[],
         <CardDescription>Membros que solicitaram a palavra.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isAdmin && <Button className="w-full"><PlusCircle className="mr-2 h-4 w-4" /> Gerenciar Inscrições</Button>}
-        {/* Still using mock user for this part */}
-        {!userInQueue && !isAdmin && <Button className="w-full"><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
-        {userInQueue && <Button variant="outline" className="w-full">Cancelar Inscrição</Button>}
-        <div className="space-y-3">
-          {queue.sort((a,b) => a.joinedAt.getTime() - b.joinedAt.getTime()).map(renderSpeaker)}
-        </div>
+        {isAdmin && <Button className="w-full" disabled><PlusCircle className="mr-2 h-4 w-4" /> Gerenciar Inscrições</Button>}
+        {!userInQueue && !isAdmin && <Button className="w-full" onClick={handleJoinQueue} disabled={isLoading}><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
+        {userInQueue && <Button variant="outline" className="w-full" onClick={handleLeaveQueue}>Cancelar Inscrição</Button>}
+        
+        {isLoading ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /> : (
+            <div className="space-y-3">
+            {queue && queue.length > 0 ? queue.map(renderSpeaker) : <p className="text-sm text-muted-foreground text-center pt-4">Ninguém na fila.</p>}
+            </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -201,18 +332,19 @@ export default function AssemblyPage() {
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
 
   const assemblyRef = useMemoFirebase(() => {
-    if (!firestore || !params.id || !user) return null;
+    if (!firestore || !params.id ) return null;
     return doc(firestore, 'assemblies', params.id);
-  }, [firestore, params.id, user]);
+  }, [firestore, params.id]);
+
+  const pollsQuery = useMemoFirebase(() => {
+    if (!firestore || !params.id) return null;
+    return query(collection(firestore, 'assemblies', params.id, 'polls'), orderBy('createdAt', 'desc'));
+  }, [firestore, params.id]);
 
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
-  const isLoading = isAdminLoading || isAssemblyLoading;
+  const { data: polls, isLoading: arePollsLoading } = useCollection<Poll>(pollsQuery);
 
-  // Still using mock data for polls and queue for now.
-  const mockAssembly = MOCK_DATA.assemblies.find(a => a.id === '1');
-  const polls = mockAssembly?.polls ?? [];
-  const speakingQueue = mockAssembly?.speakingQueue ?? [];
-  const mockUserForQueue = MOCK_DATA.users.find(u => u.role === (isAdmin ? 'admin' : 'member')) ?? null;
+  const isLoading = isAdminLoading || isAssemblyLoading;
 
   if (isLoading) {
     return (
@@ -226,7 +358,7 @@ export default function AssemblyPage() {
     notFound();
   }
 
-  const assemblyDate = assembly.date instanceof Date ? assembly.date : (assembly.date as any).toDate();
+  const assemblyDate = assembly.date.toDate();
 
   return (
     <div className="container mx-auto p-0 space-y-8">
@@ -258,17 +390,21 @@ export default function AssemblyPage() {
           </Card>
 
           <div className="space-y-4">
-             {isAdmin && <Button><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>}
-            {/* Polls are still mock data */}
-            {polls.map(poll => (
-              <PollCard key={poll.id} poll={poll} user={mockUserForQueue} />
-            ))}
+             {isAdmin && <Button disabled><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>}
+             {arePollsLoading && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
+             
+             {polls && polls.length > 0 ? (
+                polls.map(poll => (
+                  <PollCard key={poll.id} poll={poll} assemblyId={assembly.id} />
+                ))
+             ) : (
+                !arePollsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação para esta assembleia.</p>
+             )}
           </div>
         </div>
 
         <div className="md:col-span-1 space-y-8">
-            {/* Speaking queue is still mock data */}
-            <SpeakingQueue queue={speakingQueue} assemblyId={assembly.id} user={mockUserForQueue} isAdmin={isAdmin}/>
+            <SpeakingQueue assemblyId={assembly.id} />
         </div>
       </div>
     </div>

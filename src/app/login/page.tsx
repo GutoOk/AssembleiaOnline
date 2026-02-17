@@ -9,12 +9,16 @@ import { Icons } from '@/components/icons';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import type { UserProfile } from '@/lib/data';
+
 
 export default function LoginPage() {
   const router = useRouter();
   const auth = useAuth();
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const [userInput, setUserInput] = useState('');
@@ -28,6 +32,10 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!firestore) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível conectar ao banco de dados.' });
+        return;
+    }
     setIsLoading(true);
 
     const value = userInput.toLowerCase().trim();
@@ -50,23 +58,28 @@ export default function LoginPage() {
     }
 
     try {
-      // Try to sign in first.
       await signInWithEmailAndPassword(auth, email, password);
     } catch (signInError: any) {
-      // If sign in fails, check if it's because the user doesn't exist.
-      // 'auth/invalid-credential' can mean user not found OR wrong password.
       if (signInError.code === 'auth/invalid-credential') {
         try {
-          // Try to create the user. This will succeed if the user does not exist.
-          await createUserWithEmailAndPassword(auth, email, password);
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          const newUser = userCredential.user;
+          if (newUser) {
+              const userDocRef = doc(firestore, 'users', newUser.uid);
+              const name = newUser.email?.split('@')[0] ?? 'Novo Usuário';
+              const userProfile: Omit<UserProfile, 'id'> = {
+                  name: name.charAt(0).toUpperCase() + name.slice(1),
+                  email: newUser.email!,
+                  avatarUrl: `https://avatar.vercel.sh/${newUser.uid}.svg`,
+                  createdAt: serverTimestamp() as any,
+              };
+              await setDoc(userDocRef, userProfile);
+          }
           toast({
             title: 'Conta de teste criada!',
             description: `A conta para '${value}' foi criada com sucesso.`,
           });
         } catch (signUpError: any) {
-          // This block will run if createUser fails.
-          // The most likely reason is 'auth/email-already-in-use',
-          // which means the user exists but the password was wrong in the first sign-in attempt.
           let description = 'Não foi possível fazer o login ou criar a conta de teste.';
           if (signUpError.code === 'auth/email-already-in-use') {
             description = "O usuário de teste já existe, mas a senha está incorreta. A senha deve ser 'password123'.";
@@ -78,7 +91,6 @@ export default function LoginPage() {
           });
         }
       } else {
-        // Handle other sign-in errors (network, etc.)
         console.error('Sign-in error:', signInError);
         toast({
           variant: 'destructive',
