@@ -43,7 +43,6 @@ export type SpeakerQueueItem = {
   userId: string;
   joinedAt: Timestamp; // Renamed from requestTime
   status: 'Na Fila' | 'Entrada Autorizada';
-  zoomLink?: string;
   // Denormalized fields for rules
   assemblyId: string;
   administratorId: string;

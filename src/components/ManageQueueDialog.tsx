@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Input } from './ui/input';
 
 interface ManageQueueDialogProps {
   open: boolean;
@@ -38,7 +36,6 @@ interface ManageQueueDialogProps {
 export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userProfiles }: ManageQueueDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [zoomLinks, setZoomLinks] = useState<Record<string, string>>({});
 
   const handleStatusChange = (itemId: string, newStatus: SpeakerQueueItem['status']) => {
     if (!firestore) return;
@@ -46,20 +43,6 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
     updateDocumentNonBlocking(itemRef, { status: newStatus });
     toast({ title: 'Status Atualizado', description: 'O status do participante foi alterado.' });
   };
-
-  const handleZoomLinkChange = (itemId: string, url: string) => {
-    setZoomLinks(prev => ({...prev, [itemId]: url}));
-  };
-
-  const handleSaveZoomLink = (itemId: string) => {
-     if (!firestore) return;
-     const zoomLink = zoomLinks[itemId];
-     if (typeof zoomLink !== 'string') return;
-
-     const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', itemId);
-     updateDocumentNonBlocking(itemRef, { zoomLink });
-     toast({ title: 'Link do Zoom Salvo', description: 'O link foi associado ao participante.' });
-  }
 
   const handleDelete = (itemId: string) => {
     if (!firestore) return;
@@ -74,7 +57,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
         <DialogHeader>
           <DialogTitle>Gerenciar Fila de Inscrição</DialogTitle>
           <DialogDescription>
-            Altere o status, adicione links do Zoom e remova participantes da fila.
+            Altere o status e remova participantes da fila.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 max-h-[60vh] overflow-y-auto">
@@ -83,7 +66,6 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
               <TableRow>
                 <TableHead>Participante</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Link do Zoom</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -117,25 +99,6 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                         </SelectContent>
                       </Select>
                     </TableCell>
-                     <TableCell>
-                        <div className="flex items-center gap-2">
-                           <Input 
-                                type="text" 
-                                placeholder="Cole o link do Zoom..." 
-                                defaultValue={item.zoomLink ?? ''}
-                                onChange={(e) => handleZoomLinkChange(item.id, e.target.value)}
-                                className="w-48"
-                            />
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => handleSaveZoomLink(item.id)} 
-                              disabled={zoomLinks[item.id] === undefined || zoomLinks[item.id] === (item.zoomLink ?? '')}
-                            >
-                              Salvar
-                            </Button>
-                        </div>
-                    </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -146,7 +109,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                 )
               }) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={3} className="h-24 text-center">
                     Nenhum participante na fila.
                   </TableCell>
                 </TableRow>

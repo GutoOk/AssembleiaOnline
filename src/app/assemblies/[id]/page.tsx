@@ -233,6 +233,7 @@ function PollCard({ poll, assemblyId }: { poll: Poll; assemblyId: string }) {
 
 function SpeakingQueue({ 
     assemblyId, 
+    assemblyZoomUrl,
     onEnterSpeakerMode,
     onJoinQueue,
     onLeaveQueue,
@@ -242,6 +243,7 @@ function SpeakingQueue({
     isLoading
   }: { 
     assemblyId: string; 
+    assemblyZoomUrl?: string;
     onEnterSpeakerMode: (zoomLink: string) => void;
     onJoinQueue: () => void;
     onLeaveQueue: () => void;
@@ -289,8 +291,8 @@ function SpeakingQueue({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isCurrentUser && speaker.status === 'Entrada Autorizada' && speaker.zoomLink && (
-            <Button size="sm" onClick={() => onEnterSpeakerMode(speaker.zoomLink!)}>
+          {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl && (
+            <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl)}>
               <Video className="h-4 w-4 mr-2" /> Entrar para Falar
             </Button>
           )}
@@ -604,6 +606,7 @@ export default function AssemblyPage() {
         <div className="md:col-span-1 space-y-8">
             <SpeakingQueue 
               assemblyId={assembly.id}
+              assemblyZoomUrl={assembly.zoomUrl}
               queue={queue}
               userInQueue={userInQueue}
               userProfiles={userProfiles}
