@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useUser, useFirestore, useAuth, updateDocumentNonBlocking, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -97,6 +97,12 @@ export default function ProfilePage() {
     }
   }, [userProfile, user, form]);
 
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.replace('/login');
+    }
+  }, [isUserLoading, user, router]);
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
         const file = e.target.files[0];
@@ -180,10 +186,12 @@ export default function ProfilePage() {
     }
 
     try {
+      // The user's name is updated in the auth profile.
       await updateProfile(auth.currentUser, {
-          displayName: dataToUpdate.name,
+        displayName: dataToUpdate.name,
       });
 
+      // The user's profile document is updated in Firestore.
       const userDocRef = doc(firestore, 'users', user.uid);
       updateDocumentNonBlocking(userDocRef, dataToUpdate);
 
@@ -204,17 +212,12 @@ export default function ProfilePage() {
   
   const isLoading = form.formState.isSubmitting || isUserLoading || isUploading || isProfileLoading;
 
-  if (isUserLoading || isProfileLoading) {
+  if (isLoading || !user) {
     return (
       <div className="flex h-full w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
-  }
-  
-   if (!user) {
-    router.replace('/login');
-    return null;
   }
   
   const displayName = userProfile?.name ?? user.displayName ?? 'Usuário';
