@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -231,48 +231,31 @@ function PollCard({ poll, assemblyId }: { poll: Poll; assemblyId: string }) {
   )
 }
 
-function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
-  const firestore = useFirestore();
+function SpeakingQueue({ 
+    assemblyId, 
+    onEnterSpeakerMode,
+    onJoinQueue,
+    onLeaveQueue,
+    queue,
+    userInQueue,
+    userProfiles,
+    isLoading
+  }: { 
+    assemblyId: string; 
+    onEnterSpeakerMode: (zoomLink: string) => void;
+    onJoinQueue: () => void;
+    onLeaveQueue: () => void;
+    queue: SpeakerQueueItem[] | null;
+    userInQueue: SpeakerQueueItem | undefined;
+    userProfiles: Record<string, UserProfile>;
+    isLoading: boolean;
+  }) {
   const { user, isAdmin } = useAdmin();
-  const { toast } = useToast();
   const [isManageQueueOpen, setManageQueueOpen] = useState(false);
-
-  const queueQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'assemblies', assemblyId, 'speakerQueue'), orderBy('joinedAt', 'asc'));
-  }, [firestore, assemblyId, user]);
-
-  const { data: queue, isLoading: isQueueLoading } = useCollection<SpeakerQueueItem>(queueQuery);
-
-  const userIdsInQueue = useMemo(() => queue?.map(s => s.userId) ?? [], [queue]);
-  const { profiles: userProfiles, isLoading: areProfilesLoading } = useUserProfiles(userIdsInQueue);
-
-  const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.uid), [queue, user]);
-
-  const handleJoinQueue = () => {
-    if (!user) return;
-    const queueRef = collection(firestore, 'assemblies', assemblyId, 'speakerQueue');
-    const queueItem = {
-        userId: user.uid,
-        assemblyId: assemblyId,
-        joinedAt: serverTimestamp(),
-        status: 'requested',
-    };
-    addDocumentNonBlocking(queueRef, queueItem);
-    toast({ title: 'Inscrição Realizada', description: 'Você foi adicionado à fila para falar.' });
-  };
-
-  const handleLeaveQueue = () => {
-    if (!userInQueue) return;
-    const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', userInQueue.id);
-    deleteDocumentNonBlocking(itemRef);
-    toast({ title: 'Inscrição Cancelada', description: 'Você foi removido da fila.' });
-  };
   
-  const isLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
-
   const renderSpeaker = (speaker: SpeakerQueueItem) => {
     const speakerUser = userProfiles[speaker.userId];
+    const isCurrentUser = speaker.userId === user?.uid;
 
     if (!speakerUser) {
        return (
@@ -286,16 +269,6 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
         </div>
       );
     }
-
-    const statusBadge = (status: SpeakerQueueItem['status']) => {
-      switch(status) {
-        case 'speaking': return <Badge variant="destructive">Falando</Badge>;
-        case 'queued': return <Badge variant="outline" className="border-primary text-primary">Na Fila</Badge>;
-        case 'requested': return <Badge variant="secondary">Requisitado</Badge>;
-        case 'completed': return <Badge>Finalizado</Badge>;
-        case 'cancelled': return <Badge variant="secondary">Cancelado</Badge>;
-      }
-    };
 
     return (
       <div key={speaker.id} className="flex items-start justify-between p-3 bg-muted/50 rounded-lg">
@@ -311,16 +284,16 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
                 <p className="text-xs text-muted-foreground">
                 {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
                 </p>
-                {statusBadge(speaker.status)}
+                 <Badge variant={speaker.status === 'Entrada Autorizada' ? 'default' : 'outline'}>
+                    {speaker.status}
+                </Badge>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {(isAdmin || user?.uid === speaker.userId) && speaker.status === 'speaking' && speaker.zoomLink && (
-            <Button size="sm" asChild>
-              <Link href={speaker.zoomLink} target="_blank">
-                <Video className="h-4 w-4 mr-2" /> Entrar no Zoom
-              </Link>
+          {isCurrentUser && speaker.status === 'Entrada Autorizada' && speaker.zoomLink && (
+            <Button size="sm" onClick={() => onEnterSpeakerMode(speaker.zoomLink!)}>
+              <Video className="h-4 w-4 mr-2" /> Entrar para Falar
             </Button>
           )}
         </div>
@@ -354,8 +327,8 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
             )}
           </>
         )}
-        {!userInQueue && !isAdmin && <Button className="w-full" onClick={handleJoinQueue} disabled={isQueueLoading}><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
-        {userInQueue && <Button variant="outline" className="w-full" onClick={handleLeaveQueue}>Cancelar Inscrição</Button>}
+        {!userInQueue && !isAdmin && <Button className="w-full" onClick={onJoinQueue} disabled={isLoading}><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
+        {userInQueue && <Button variant="outline" className="w-full" onClick={onLeaveQueue}>Cancelar Inscrição</Button>}
         
         {isLoading ? (
           <div className="space-y-3">
@@ -390,6 +363,9 @@ export default function AssemblyPage() {
   const [isEditUrlOpen, setEditUrlOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
   const [newZoomUrl, setNewZoomUrl] = useState('');
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakerZoomLink, setSpeakerZoomLink] = useState('');
+
 
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -400,9 +376,57 @@ export default function AssemblyPage() {
     if (!firestore || !params.id || !user) return null;
     return query(collection(firestore, 'assemblies', params.id, 'polls'), orderBy('createdAt', 'desc'));
   }, [firestore, params.id, user]);
+  
+  const queueQuery = useMemoFirebase(() => {
+    if (!firestore || !params.id || !user) return null;
+    return query(collection(firestore, 'assemblies', params.id, 'speakerQueue'), orderBy('joinedAt', 'asc'));
+  }, [firestore, params.id, user]);
 
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
   const { data: polls, isLoading: arePollsLoading } = useCollection<Poll>(pollsQuery);
+  const { data: queue, isLoading: isQueueLoading } = useCollection<SpeakerQueueItem>(queueQuery);
+
+  const userIdsInQueue = useMemo(() => queue?.map(s => s.userId) ?? [], [queue]);
+  const { profiles: userProfiles, isLoading: areProfilesLoading } = useUserProfiles(userIdsInQueue);
+  const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.uid), [queue, user]);
+
+  const handleJoinQueue = () => {
+    if (!user || !assembly) return;
+    const queueRef = collection(firestore, 'assemblies', assembly.id, 'speakerQueue');
+    const queueItem = {
+        userId: user.uid,
+        assemblyId: assembly.id,
+        joinedAt: serverTimestamp(),
+        status: 'Na Fila',
+    };
+    addDocumentNonBlocking(queueRef, queueItem);
+    toast({ title: 'Inscrição Realizada', description: 'Você foi adicionado à fila para falar.' });
+  };
+
+  const handleLeaveQueue = () => {
+    if (!userInQueue) return;
+    const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', userInQueue.id);
+    deleteDocumentNonBlocking(itemRef);
+    toast({ title: 'Inscrição Cancelada', description: 'Você foi removido da fila.' });
+  };
+
+  const handleEnterSpeakerMode = (zoomLink: string) => {
+      if(!zoomLink) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'O administrador ainda não forneceu um link do Zoom.' });
+        return;
+      }
+      setSpeakerZoomLink(zoomLink);
+      setIsSpeaking(true);
+  };
+  
+  const handleEndParticipation = () => {
+      if (!userInQueue) return;
+      const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
+      deleteDocumentNonBlocking(itemRef);
+      setIsSpeaking(false);
+      setSpeakerZoomLink('');
+      toast({ title: 'Participação Encerrada', description: 'Você saiu da chamada e foi removido da fila.' });
+  };
 
   const displayEmbedUrl = useMemo(() => {
     return assembly ? convertToEmbedUrl(assembly.youtubeUrl) : '';
@@ -441,6 +465,8 @@ export default function AssemblyPage() {
   };
 
   const isLoading = isAdminLoading || isAssemblyLoading;
+  const isQueueComponentLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
+
 
   if (isLoading) {
     return (
@@ -453,7 +479,8 @@ export default function AssemblyPage() {
   if (!assembly) {
     notFound();
   }
-
+  
+  const assemblyId = assembly.id;
   const assemblyDate = assembly.date.toDate();
 
   return (
@@ -470,56 +497,72 @@ export default function AssemblyPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
-              {isAdmin && (
-                <Dialog open={isEditUrlOpen} onOpenChange={setEditUrlOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Pencil className="h-4 w-4" />
-                      <span className="sr-only">Editar links de transmissão</span>
+              <div className="flex items-center gap-2">
+                {isSpeaking && (
+                    <Button onClick={handleEndParticipation} variant="destructive">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Encerrar Participação
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[625px]">
-                    <DialogHeader>
-                        <DialogTitle>Editar Links de Transmissão</DialogTitle>
-                        <DialogDescription>
-                          Cole os novos links abaixo. O do YouTube é para membros, e o do Zoom para a tela do administrador.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                      <div>
-                        <Label htmlFor="youtubeUrl" className="text-sm font-medium">Link do YouTube</Label>
-                        <Input
-                            id="youtubeUrl"
-                            value={newYoutubeUrl}
-                            onChange={(e) => setNewYoutubeUrl(e.target.value)}
-                            placeholder="https://www.youtube.com/watch?v=..."
-                            className="mt-1"
-                        />
-                         <p className="text-sm text-muted-foreground pt-1">Qualquer formato de link do YouTube é aceito.</p>
+                )}
+                {isAdmin && (
+                  <Dialog open={isEditUrlOpen} onOpenChange={setEditUrlOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Editar links de transmissão</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[625px]">
+                      <DialogHeader>
+                          <DialogTitle>Editar Links de Transmissão</DialogTitle>
+                          <DialogDescription>
+                            Cole os novos links abaixo. O do YouTube é para membros, e o do Zoom para a tela do administrador.
+                          </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4 space-y-4">
+                        <div>
+                          <Label htmlFor="youtubeUrl" className="text-sm font-medium">Link do YouTube</Label>
+                          <Input
+                              id="youtubeUrl"
+                              value={newYoutubeUrl}
+                              onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                              placeholder="https://www.youtube.com/watch?v=..."
+                              className="mt-1"
+                          />
+                          <p className="text-sm text-muted-foreground pt-1">Qualquer formato de link do YouTube é aceito.</p>
+                        </div>
+                        <div>
+                          <Label htmlFor="zoomUrl" className="text-sm font-medium">Link da Reunião do Zoom</Label>
+                          <Input
+                              id="zoomUrl"
+                              value={newZoomUrl}
+                              onChange={(e) => setNewZoomUrl(e.target.value)}
+                              placeholder="https://zoom.us/j/..."
+                              className="mt-1"
+                          />
+                          <p className="text-sm text-muted-foreground pt-1">Cole o link completo da reunião do Zoom.</p>
+                        </div>
                       </div>
-                       <div>
-                        <Label htmlFor="zoomUrl" className="text-sm font-medium">Link da Reunião do Zoom</Label>
-                        <Input
-                            id="zoomUrl"
-                            value={newZoomUrl}
-                            onChange={(e) => setNewZoomUrl(e.target.value)}
-                            placeholder="https://zoom.us/j/..."
-                            className="mt-1"
-                        />
-                         <p className="text-sm text-muted-foreground pt-1">Cole o link completo da reunião do Zoom.</p>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setEditUrlOpen(false)}>Cancelar</Button>
-                      <Button type="button" onClick={handleUpdateUrl}>Salvar Alterações</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setEditUrlOpen(false)}>Cancelar</Button>
+                        <Button type="button" onClick={handleUpdateUrl}>Salvar Alterações</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="aspect-video w-full overflow-hidden rounded-lg border">
-                {isAdmin && assembly.zoomUrl ? (
+                {isSpeaking && speakerZoomLink ? (
+                   <iframe
+                    width="100%"
+                    height="100%"
+                    src={convertToZoomEmbedUrl(speakerZoomLink)}
+                    title="Zoom Meeting"
+                    allow="fullscreen; microphone; camera; display-capture"
+                  ></iframe>
+                ) : isAdmin && assembly.zoomUrl ? (
                    <iframe
                     width="100%"
                     height="100%"
@@ -565,7 +608,16 @@ export default function AssemblyPage() {
         </div>
 
         <div className="md:col-span-1 space-y-8">
-            <SpeakingQueue assemblyId={assembly.id} />
+            <SpeakingQueue 
+              assemblyId={assembly.id}
+              queue={queue}
+              userInQueue={userInQueue}
+              userProfiles={userProfiles}
+              isLoading={isQueueComponentLoading}
+              onJoinQueue={handleJoinQueue}
+              onLeaveQueue={handleLeaveQueue}
+              onEnterSpeakerMode={handleEnterSpeakerMode}
+            />
         </div>
       </div>
     </div>

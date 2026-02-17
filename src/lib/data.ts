@@ -42,7 +42,7 @@ export type SpeakerQueueItem = {
   id: string;
   userId: string;
   joinedAt: Timestamp; // Renamed from requestTime
-  status: 'requested' | 'queued' | 'speaking' | 'completed' | 'cancelled';
+  status: 'Na Fila' | 'Entrada Autorizada';
   zoomLink?: string;
   // Denormalized fields for rules
   assemblyId: string;

@@ -261,36 +261,30 @@
           "type": "string",
           "description": "Reference to the User who requested to speak. (Relationship: User 1:N SpeakerQueueItem)"
         },
-        "requestTime": {
+        "joinedAt": {
           "type": "string",
           "description": "Timestamp indicating when the user requested to speak.",
           "format": "date-time"
         },
         "status": {
           "type": "string",
-          "description": "The current status of the speaker's request (e.g., 'requested', 'queued', 'speaking', 'completed', 'cancelled').",
-          "format": "enum"
+          "description": "The current status of the speaker's request.",
+          "enum": [
+            "Na Fila",
+            "Entrada Autorizada"
+          ]
         },
         "zoomLink": {
           "type": "string",
           "description": "An optional unique Zoom link provided to the user when it's their turn to speak.",
           "format": "uri"
-        },
-        "assignedTime": {
-          "type": "string",
-          "description": "Timestamp indicating when the speaker was assigned a speaking slot or provided a Zoom link.",
-          "format": "date-time"
-        },
-        "order": {
-          "type": "number",
-          "description": "The sequential position of the user in the speaking queue, managed by administrators."
         }
       },
       "required": [
         "id",
         "assemblyId",
         "userId",
-        "requestTime",
+        "joinedAt",
         "status"
       ]
     }

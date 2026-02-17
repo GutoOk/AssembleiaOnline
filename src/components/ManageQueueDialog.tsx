@@ -108,15 +108,12 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                         value={item.status}
                         onValueChange={(newStatus: SpeakerQueueItem['status']) => handleStatusChange(item.id, newStatus)}
                       >
-                        <SelectTrigger className="w-[140px]">
+                        <SelectTrigger className="w-[180px]">
                           <SelectValue placeholder="Selecione status" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="requested">Requisitado</SelectItem>
-                          <SelectItem value="queued">Na Fila</SelectItem>
-                          <SelectItem value="speaking">Falando</SelectItem>
-                          <SelectItem value="completed">Finalizado</SelectItem>
-                          <SelectItem value="cancelled">Cancelado</SelectItem>
+                          <SelectItem value="Na Fila">Na Fila</SelectItem>
+                          <SelectItem value="Entrada Autorizada">Entrada Autorizada</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
