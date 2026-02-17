@@ -26,7 +26,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { convertToEmbedUrl } from '@/lib/utils';
+import { convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
@@ -389,8 +389,7 @@ export default function AssemblyPage() {
   const [isCreatePollOpen, setCreatePollOpen] = useState(false);
   const [isEditUrlOpen, setEditUrlOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
-  const [newZoomMeetingId, setNewZoomMeetingId] = useState('');
-  const [newZoomPasscode, setNewZoomPasscode] = useState('');
+  const [newZoomUrl, setNewZoomUrl] = useState('');
 
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -413,9 +412,7 @@ export default function AssemblyPage() {
   useEffect(() => {
     if (assembly) {
       setNewYoutubeUrl(assembly.youtubeUrl);
-      const zoomId = assembly.zoomUrl ? assembly.zoomUrl.split('/').pop()?.split('?')[0] : '';
-      setNewZoomMeetingId(zoomId || '');
-      setNewZoomPasscode(assembly.zoomPasscode || '');
+      setNewZoomUrl(assembly.zoomUrl || '');
     }
   }, [assembly]);
 
@@ -423,13 +420,11 @@ export default function AssemblyPage() {
     if (!assembly || !firestore) return;
     const assemblyDocRef = doc(firestore, 'assemblies', assembly.id);
     const youtubeEmbedUrl = convertToEmbedUrl(newYoutubeUrl);
-    const zoomEmbedUrl = newZoomMeetingId 
-        ? `https://zoom.us/wc/join/${newZoomMeetingId.replace(/\s/g, '')}${newZoomPasscode ? `?pwd=${btoa(newZoomPasscode)}`: ''}` 
-        : '';
+    const zoomEmbedUrl = newZoomUrl ? convertToZoomEmbedUrl(newZoomUrl) : '';
+    
     updateDocumentNonBlocking(assemblyDocRef, { 
       youtubeUrl: youtubeEmbedUrl,
       zoomUrl: zoomEmbedUrl,
-      zoomPasscode: newZoomPasscode,
     });
     toast({ title: 'Links atualizados!', description: 'Os links da transmissão foram atualizados com sucesso.' });
     setEditUrlOpen(false);
@@ -493,26 +488,15 @@ export default function AssemblyPage() {
                          <p className="text-sm text-muted-foreground pt-1">Qualquer formato de link do YouTube é aceito.</p>
                       </div>
                        <div>
-                        <Label htmlFor="zoomMeetingId" className="text-sm font-medium">ID da Reunião do Zoom</Label>
+                        <Label htmlFor="zoomUrl" className="text-sm font-medium">Link da Reunião do Zoom</Label>
                         <Input
-                            id="zoomMeetingId"
-                            value={newZoomMeetingId}
-                            onChange={(e) => setNewZoomMeetingId(e.target.value)}
-                            placeholder="Apenas o ID numérico da reunião"
+                            id="zoomUrl"
+                            value={newZoomUrl}
+                            onChange={(e) => setNewZoomUrl(e.target.value)}
+                            placeholder="https://zoom.us/j/..."
                             className="mt-1"
                         />
-                         <p className="text-sm text-muted-foreground pt-1">Insira apenas o ID da reunião, sem espaços ou links.</p>
-                      </div>
-                      <div>
-                        <Label htmlFor="zoomPasscode" className="text-sm font-medium">Senha do Zoom (Opcional)</Label>
-                        <Input
-                            id="zoomPasscode"
-                            value={newZoomPasscode}
-                            onChange={(e) => setNewZoomPasscode(e.target.value)}
-                            placeholder="Senha da reunião"
-                            className="mt-1"
-                        />
-                         <p className="text-sm text-muted-foreground pt-1">Se a reunião tiver uma senha de acesso.</p>
+                         <p className="text-sm text-muted-foreground pt-1">Cole o link completo da reunião do Zoom.</p>
                       </div>
                     </div>
                     <DialogFooter>
@@ -577,5 +561,3 @@ export default function AssemblyPage() {
     </div>
   );
 }
-
-    

@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
-import { convertToEmbedUrl } from '@/lib/utils';
+import { convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 
 const assemblySchema = z.object({
   title: z.string().min(10, 'O título deve ter pelo menos 10 caracteres.'),
@@ -26,8 +26,7 @@ const assemblySchema = z.object({
     message: 'Data inválida.',
   }),
   youtubeUrl: z.string().min(11, 'URL ou ID do YouTube inválido.'),
-  zoomMeetingId: z.string().optional(),
-  zoomPasscode: z.string().optional(),
+  zoomUrl: z.string().url("Por favor, insira um link de reunião válido.").optional().or(z.literal('')),
 });
 
 export default function CreateAssemblyPage() {
@@ -45,8 +44,7 @@ export default function CreateAssemblyPage() {
       description: '',
       date: '',
       youtubeUrl: '',
-      zoomMeetingId: '',
-      zoomPasscode: '',
+      zoomUrl: '',
     },
   });
 
@@ -105,20 +103,17 @@ export default function CreateAssemblyPage() {
       return;
     }
 
-    const embedUrl = convertToEmbedUrl(values.youtubeUrl);
-    const zoomUrl = values.zoomMeetingId 
-      ? `https://zoom.us/wc/join/${values.zoomMeetingId.replace(/\s/g, '')}${values.zoomPasscode ? `?pwd=${btoa(values.zoomPasscode)}` : ''}` 
-      : '';
-
-    const { zoomMeetingId, ...restOfValues } = values;
+    const embedYoutubeUrl = convertToEmbedUrl(values.youtubeUrl);
+    const embedZoomUrl = values.zoomUrl ? convertToZoomEmbedUrl(values.zoomUrl) : '';
 
     const assembliesRef = collection(firestore, 'assemblies');
     addDocumentNonBlocking(assembliesRef, {
-      ...restOfValues,
+      title: values.title,
+      description: values.description,
       date: new Date(values.date),
       imageUrl: imagePreview,
-      youtubeUrl: embedUrl,
-      zoomUrl: zoomUrl,
+      youtubeUrl: embedYoutubeUrl,
+      zoomUrl: embedZoomUrl,
       administratorId: user.uid,
       status: 'scheduled',
       createdAt: serverTimestamp(),
@@ -228,31 +223,15 @@ export default function CreateAssemblyPage() {
             />
             <FormField
               control={form.control}
-              name="zoomMeetingId"
+              name="zoomUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>ID da Reunião do Zoom (Opcional)</FormLabel>
+                  <FormLabel>Link da Reunião do Zoom (Opcional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="Apenas o ID numérico da reunião" {...field} />
+                    <Input placeholder="https://zoom.us/j/..." {...field} />
                   </FormControl>
                   <FormDescription>
-                    ID da reunião do Zoom para a transmissão do administrador.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="zoomPasscode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Senha do Zoom (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Senha da reunião" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Se a reunião do Zoom tiver uma senha, insira-a aqui.
+                    Cole o link completo de entrada da reunião do Zoom.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -268,5 +247,3 @@ export default function CreateAssemblyPage() {
     </Card>
   );
 }
-
-    

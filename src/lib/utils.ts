@@ -27,3 +27,20 @@ export function convertToEmbedUrl(url: string): string {
 
     return url; // Return original url if no conversion was possible
 }
+
+export function convertToZoomEmbedUrl(url: string): string {
+    if (!url) return '';
+
+    // If it's already a /wc/ embed link, do nothing.
+    if (url.includes('/wc/join/')) {
+        return url;
+    }
+
+    // If it's a /j/ join link, convert it to the embed format.
+    if (url.includes('/j/')) {
+        return url.replace('/j/', '/wc/join/');
+    }
+
+    // If we don't have a known pattern, return the original URL.
+    return url;
+}
