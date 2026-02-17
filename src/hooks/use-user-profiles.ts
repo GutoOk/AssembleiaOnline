@@ -1,64 +1,88 @@
 'use client';
 import { useFirestore } from '@/firebase';
-import { collection, query, where, documentId, getDocs } from 'firebase/firestore';
+import { collection, query, where, documentId, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 
 export function useUserProfiles(userIds: string[]) {
     const firestore = useFirestore();
     const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // Using JSON.stringify for stable dependency on userIds array
-    const userIdsString = JSON.stringify(userIds.filter(id => id).sort());
+    // Memoize and sort the user IDs to create a stable dependency for the useEffect hook.
+    const sortedUniqueUserIds = useMemo(() => {
+        const unique = [...new Set(userIds.filter(id => id))];
+        unique.sort();
+        return JSON.stringify(unique); // Stringify for a stable dependency
+    }, [userIds]);
 
     useEffect(() => {
-        const uniqueUserIds = JSON.parse(userIdsString) as string[];
+        const uniqueUserIds: string[] = JSON.parse(sortedUniqueUserIds);
 
         if (!firestore || uniqueUserIds.length === 0) {
             setProfiles({});
+            setIsLoading(false);
             return;
         }
+
+        setIsLoading(true);
+
+        // Firestore 'in' query is limited to 30 elements.
+        // We must create listeners for each chunk of 30.
+        const chunks: string[][] = [];
+        for (let i = 0; i < uniqueUserIds.length; i += 30) {
+            chunks.push(uniqueUserIds.slice(i, i + 30));
+        }
+
+        const allUnsubscribes: Unsubscribe[] = [];
         
-        // Don't refetch if we already have all the requested profiles
-        const missingProfiles = uniqueUserIds.filter(id => !profiles[id]);
-        if (missingProfiles.length === 0) {
-            return;
-        }
+        // Use a ref to track loading state across snapshots and chunks
+        let initialLoadsPending = chunks.length;
 
-        const fetchProfiles = async () => {
-            setIsLoading(true);
-            const newProfiles: Record<string, UserProfile> = {};
-            
-            // Firestore 'in' query is limited to 30 elements in latest versions.
-            const chunks: string[][] = [];
-            for (let i = 0; i < missingProfiles.length; i += 30) {
-                chunks.push(missingProfiles.slice(i, i + 30));
+        chunks.forEach(chunk => {
+            if (chunk.length === 0) {
+                initialLoadsPending--;
+                if (initialLoadsPending === 0) setIsLoading(false);
+                return;
             }
-            
-            try {
-                await Promise.all(chunks.map(async (chunk) => {
-                    if (chunk.length === 0) return;
-                    const usersRef = collection(firestore, 'users');
-                    const q = query(usersRef, where(documentId(), 'in', chunk));
-                    const querySnapshot = await getDocs(q);
-                    querySnapshot.forEach((doc) => {
-                        newProfiles[doc.id] = { id: doc.id, ...doc.data() } as UserProfile;
-                    });
-                }));
 
-                setProfiles(prev => ({...prev, ...newProfiles}));
+            const q = query(collection(firestore, 'users'), where(documentId(), 'in', chunk));
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const changes: Record<string, UserProfile> = {};
+                snapshot.docs.forEach(doc => {
+                    changes[doc.id] = { id: doc.id, ...doc.data() } as UserProfile;
+                });
+                
+                // Update state with new/changed profiles
+                setProfiles(prevProfiles => ({ ...prevProfiles, ...changes }));
 
-            } catch (error) {
-                console.error("Error fetching user profiles:", error);
-            } finally {
-                setIsLoading(false);
-            }
+                // Manage loading state. It's only truly finished when the first snapshot
+                // from all chunks has been processed.
+                if (initialLoadsPending > 0) {
+                    initialLoadsPending--;
+                    if (initialLoadsPending === 0) {
+                        setIsLoading(false);
+                    }
+                }
+
+            }, (error) => {
+                console.error("Error fetching user profiles chunk:", error);
+                if (initialLoadsPending > 0) {
+                   initialLoadsPending--;
+                    if (initialLoadsPending === 0) {
+                        setIsLoading(false);
+                    }
+                }
+            });
+
+            allUnsubscribes.push(unsubscribe);
+        });
+
+        // Cleanup function to unsubscribe from all listeners.
+        return () => {
+            allUnsubscribes.forEach(unsub => unsub());
         };
-
-        fetchProfiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [firestore, userIdsString]);
+    }, [firestore, sortedUniqueUserIds]);
 
     return { profiles, isLoading };
 }
