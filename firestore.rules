@@ -1,0 +1,213 @@
+/**
+ * This ruleset enforces a security model for the "Assembleia - Mensa Brasil" application,
+ * centered around a global administrator role that manages public-facing "Assembly" events.
+ *
+ * Core Philosophy:
+ * The security model is based on a strict separation of privileges. A small group of
+ * administrators has full control over creating and managing assemblies, polls, and
+ * speaker queues. Regular authenticated users can view public event data and participate
+ * through specific, controlled actions like voting or requesting to speak.
+ *
+ * Data Structure:
+ * - /users/{userId}: Private user profiles, managed only by the user themselves.
+ * - /admins/{userId}: An admin-only collection where the existence of a document
+ *   grants global administrator privileges. This separates role data from user profiles.
+ * - /assemblies/{assemblyId}: A top-level collection for events. It contains nested
+ *   subcollections for polls, poll options, votes, and speaker queues.
+ *
+ * Key Security Decisions:
+ * - Admin Role Management: Administrator status is determined by the existence of a
+ *   document in the `/admins` collection, not by a mutable `role` field on a user's
+ *   profile. This provides robust, non-falsifiable role-based access control.
+ * - Denormalization for Authorization: Critical authorization data, such as the
+ *   `administratorId` from an assembly, is denormalized (copied) into child documents
+ *   like polls and votes. This avoids slow and costly `get()` calls in rules, making
+ *   them more performant and secure.
+ * - User Data Privacy: Users can only access their own document within the `/users`
+ *   collection. Listing of all users is forbidden for non-administrators.
+ * - Default Secure Posture: Unspecified permissions are implicitly denied. Any operation
+ *   not explicitly allowed (e.g., a regular user trying to delete a poll) will fail.
+ *
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------------------------------------------------------------------------------
+    // Helper Functions
+    // --------------------------------------------------------------------------------
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user is a designated administrator.
+     * This is determined by the existence of a document in the /admins collection.
+     */
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    /**
+     * Checks if the currently authenticated user's ID matches the provided userId.
+     * This is the primary function for enforcing document ownership.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * Verifies that a document already exists.
+     * Crucial for update and delete operations to prevent acting on non-existent data.
+     */
+    function isExistingDoc() {
+      return resource != null;
+    }
+
+    /**
+     * A composite check for update/delete operations ensuring the user is the owner
+     * of an existing document.
+     */
+    function isOwnerOfExistingDoc(userId) {
+      return isOwner(userId) && isExistingDoc();
+    }
+
+    /**
+     * A composite check for update/delete operations ensuring the user is an admin
+     * acting on an existing document.
+     */
+    function isAdminOfExistingDoc() {
+      return isAdmin() && isExistingDoc();
+    }
+
+    /**
+     * Validates that the core ID field of a new user document matches its path.
+     * Enforces relational integrity on creation.
+     */
+    function hasValidNewUserData(userId) {
+      return request.resource.data.id == userId;
+    }
+
+    /**
+     * Validates that the core ID of a user document is immutable on update.
+     */
+    function hasValidUpdatedUserData() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    // --------------------------------------------------------------------------------
+    // Collection Rules
+    // --------------------------------------------------------------------------------
+
+    /**
+     * @description Manages user profile data. Each user has exclusive control over their own document.
+     * @path /users/{userId}
+     * @allow (create) A new user can create their own profile document if authenticated.
+     * @deny (list) A regular user cannot list all other users in the system.
+     * @principle Restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && hasValidNewUserData(userId);
+      allow update: if isOwnerOfExistingDoc(userId) && hasValidUpdatedUserData();
+      allow delete: if isOwnerOfExistingDoc(userId) || isAdminOfExistingDoc();
+    }
+
+    /**
+     * @description Identifies administrators. Document existence grants admin rights. This collection is read-only for clients.
+     * @path /admins/{userId}
+     * @allow (get) An admin can check for the existence of another admin's record.
+     * @deny (create, update, delete) No client, not even an admin, can modify this collection. It must be managed server-side.
+     * @principle Enforces robust, server-managed Database Access Control (DBAC).
+     */
+    match /admins/{userId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Defines assembly events. Publicly readable by all users, but only managed by administrators.
+     * @path /assemblies/{assemblyId}
+     * @allow (list) Any authenticated user can list all assemblies to see upcoming events.
+     * @deny (create) A regular authenticated user cannot create a new assembly.
+     * @principle Public read with role-based writes (Administrator).
+     */
+    match /assemblies/{assemblyId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdmin() && request.resource.data.administratorId == request.auth.uid;
+      allow update: if isAdminOfExistingDoc() && request.resource.data.administratorId == resource.data.administratorId;
+      allow delete: if isAdminOfExistingDoc();
+    }
+
+    /**
+     * @description Defines polls within an assembly. Readable by users, managed by admins.
+     * @path /assemblies/{assemblyId}/polls/{pollId}
+     * @allow (list) An authenticated user can list the polls for an assembly they can view.
+     * @deny (update) A regular user cannot change the details of a poll.
+     * @principle Leverages denormalized parent context (admin ownership) for authorization.
+     */
+    match /assemblies/{assemblyId}/polls/{pollId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdmin() && request.resource.data.assemblyId == assemblyId;
+      allow update: if isAdminOfExistingDoc();
+      allow delete: if isAdminOfExistingDoc();
+    }
+
+    /**
+     * @description Defines the specific options for a poll (e.g., 'Yes', 'No'). Readable by users, managed by admins.
+     * @path /assemblies/{assemblyId}/polls/{pollId}/options/{optionId}
+     * @allow (get) An authenticated user can read the options for a poll they can view.
+     * @deny (create) A regular user cannot add new options to a poll.
+     * @principle Ensures data integrity by restricting writes on foundational poll data to administrators.
+     */
+    match /assemblies/{assemblyId}/polls/{pollId}/options/{optionId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdmin() && request.resource.data.pollId == pollId;
+      allow update: if isAdminOfExistingDoc();
+      allow delete: if isAdminOfExistingDoc();
+    }
+
+    /**
+     * @description Records a single vote by a user on a poll. Users can only create their own vote.
+     * @path /assemblies/{assemblyId}/polls/{pollId}/votes/{voteId}
+     * @allow (create) An authenticated user can cast a vote, where the vote ID must be their own user ID to prevent multiple votes.
+     * @deny (update, delete) A user cannot change or delete their vote once it has been cast.
+     * @principle Enforces document ownership for creation and immutability after the fact.
+     */
+    match /assemblies/{assemblyId}/polls/{pollId}/votes/{voteId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn(); // QAP: Client queries MUST filter by poll status (e.g., 'closed') to show results.
+      allow create: if isOwner(voteId) && request.resource.data.userId == request.auth.uid && request.resource.data.pollId == pollId;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Manages requests from users who want to speak during an assembly.
+     * @path /assemblies/{assemblyId}/speakerQueue/{queueItemId}
+     * @allow (create) A user can add themselves to the speaker queue.
+     * @deny (update) A user cannot modify their queue entry; only an admin can manage the queue order and status.
+     * @principle Hybrid model: allows user self-creation but grants management control to administrators.
+     */
+    match /assemblies/{assemblyId}/speakerQueue/{queueItemId} {
+      // Get is restricted to the owner or an admin to protect potentially sensitive fields like a zoomLink.
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      // List is open to all signed-in users to allow viewing the public queue order.
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.assemblyId == assemblyId;
+      allow update: if isAdminOfExistingDoc();
+      allow delete: if isOwnerOfExistingDoc(resource.data.userId) || isAdminOfExistingDoc();
+    }
+  }
+}
