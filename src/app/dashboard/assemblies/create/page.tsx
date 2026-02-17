@@ -26,7 +26,7 @@ const assemblySchema = z.object({
     message: 'Data inválida.',
   }),
   youtubeUrl: z.string().min(11, 'URL ou ID do YouTube inválido.'),
-  zoomUrl: z.string().url('URL do Zoom inválida.').optional().or(z.literal('')),
+  zoomMeetingId: z.string().optional(),
 });
 
 export default function CreateAssemblyPage() {
@@ -44,7 +44,7 @@ export default function CreateAssemblyPage() {
       description: '',
       date: '',
       youtubeUrl: '',
-      zoomUrl: '',
+      zoomMeetingId: '',
     },
   });
 
@@ -104,13 +104,17 @@ export default function CreateAssemblyPage() {
     }
 
     const embedUrl = convertToEmbedUrl(values.youtubeUrl);
+    const zoomUrl = values.zoomMeetingId ? `https://zoom.us/wc/join/${values.zoomMeetingId.replace(/\s/g, '')}` : '';
+
+    const { zoomMeetingId, ...restOfValues } = values;
 
     const assembliesRef = collection(firestore, 'assemblies');
     addDocumentNonBlocking(assembliesRef, {
-      ...values,
+      ...restOfValues,
       date: new Date(values.date),
       imageUrl: imagePreview,
       youtubeUrl: embedUrl,
+      zoomUrl: zoomUrl,
       administratorId: user.uid,
       status: 'scheduled',
       createdAt: serverTimestamp(),
@@ -220,15 +224,15 @@ export default function CreateAssemblyPage() {
             />
             <FormField
               control={form.control}
-              name="zoomUrl"
+              name="zoomMeetingId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Link da Chamada do Zoom (Opcional)</FormLabel>
+                  <FormLabel>ID da Reunião do Zoom (Opcional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://zoom.us/j/..." {...field} />
+                    <Input placeholder="Apenas o ID numérico da reunião" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Link da reunião do Zoom para a transmissão do administrador.
+                    ID da reunião do Zoom para a transmissão do administrador.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

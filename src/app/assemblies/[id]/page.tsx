@@ -389,7 +389,7 @@ export default function AssemblyPage() {
   const [isCreatePollOpen, setCreatePollOpen] = useState(false);
   const [isEditUrlOpen, setEditUrlOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
-  const [newZoomUrl, setNewZoomUrl] = useState('');
+  const [newZoomMeetingId, setNewZoomMeetingId] = useState('');
 
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -412,17 +412,19 @@ export default function AssemblyPage() {
   useEffect(() => {
     if (assembly) {
       setNewYoutubeUrl(assembly.youtubeUrl);
-      setNewZoomUrl(assembly.zoomUrl || '');
+      const zoomId = assembly.zoomUrl ? assembly.zoomUrl.split('/').pop()?.split('?')[0] : '';
+      setNewZoomMeetingId(zoomId || '');
     }
   }, [assembly]);
 
   const handleUpdateUrl = () => {
     if (!assembly || !firestore) return;
     const assemblyDocRef = doc(firestore, 'assemblies', assembly.id);
-    const embedUrl = convertToEmbedUrl(newYoutubeUrl);
+    const youtubeEmbedUrl = convertToEmbedUrl(newYoutubeUrl);
+    const zoomEmbedUrl = newZoomMeetingId ? `https://zoom.us/wc/join/${newZoomMeetingId.replace(/\s/g, '')}` : '';
     updateDocumentNonBlocking(assemblyDocRef, { 
-      youtubeUrl: embedUrl,
-      zoomUrl: newZoomUrl,
+      youtubeUrl: youtubeEmbedUrl,
+      zoomUrl: zoomEmbedUrl,
     });
     toast({ title: 'Links atualizados!', description: 'Os links da transmissão foram atualizados com sucesso.' });
     setEditUrlOpen(false);
@@ -486,15 +488,15 @@ export default function AssemblyPage() {
                          <p className="text-sm text-muted-foreground pt-1">Qualquer formato de link do YouTube é aceito.</p>
                       </div>
                        <div>
-                        <Label htmlFor="zoomUrl" className="text-sm font-medium">Link do Zoom</Label>
+                        <Label htmlFor="zoomMeetingId" className="text-sm font-medium">ID da Reunião do Zoom</Label>
                         <Input
-                            id="zoomUrl"
-                            value={newZoomUrl}
-                            onChange={(e) => setNewZoomUrl(e.target.value)}
-                            placeholder="https://zoom.us/j/..."
+                            id="zoomMeetingId"
+                            value={newZoomMeetingId}
+                            onChange={(e) => setNewZoomMeetingId(e.target.value)}
+                            placeholder="Apenas o ID numérico da reunião"
                             className="mt-1"
                         />
-                         <p className="text-sm text-muted-foreground pt-1">Para incorporar, use o link do web client (com /wc/join/).</p>
+                         <p className="text-sm text-muted-foreground pt-1">Insira apenas o ID da reunião, sem espaços ou links.</p>
                       </div>
                     </div>
                     <DialogFooter>
