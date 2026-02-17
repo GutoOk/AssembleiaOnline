@@ -26,6 +26,7 @@ const assemblySchema = z.object({
     message: 'Data inválida.',
   }),
   youtubeUrl: z.string().min(11, 'URL ou ID do YouTube inválido.'),
+  zoomUrl: z.string().url('URL do Zoom inválida.').optional().or(z.literal('')),
 });
 
 export default function CreateAssemblyPage() {
@@ -43,6 +44,7 @@ export default function CreateAssemblyPage() {
       description: '',
       date: '',
       youtubeUrl: '',
+      zoomUrl: '',
     },
   });
 
@@ -211,6 +213,22 @@ export default function CreateAssemblyPage() {
                   </FormControl>
                    <FormDescription>
                     Cole qualquer link do YouTube (de vídeo, ao vivo ou de incorporação) ou apenas o ID do vídeo.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="zoomUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Link da Chamada do Zoom (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://zoom.us/j/..." {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Link da reunião do Zoom para a transmissão do administrador.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

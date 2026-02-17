@@ -389,6 +389,7 @@ export default function AssemblyPage() {
   const [isCreatePollOpen, setCreatePollOpen] = useState(false);
   const [isEditUrlOpen, setEditUrlOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
+  const [newZoomUrl, setNewZoomUrl] = useState('');
 
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -411,6 +412,7 @@ export default function AssemblyPage() {
   useEffect(() => {
     if (assembly) {
       setNewYoutubeUrl(assembly.youtubeUrl);
+      setNewZoomUrl(assembly.zoomUrl || '');
     }
   }, [assembly]);
 
@@ -418,8 +420,11 @@ export default function AssemblyPage() {
     if (!assembly || !firestore) return;
     const assemblyDocRef = doc(firestore, 'assemblies', assembly.id);
     const embedUrl = convertToEmbedUrl(newYoutubeUrl);
-    updateDocumentNonBlocking(assemblyDocRef, { youtubeUrl: embedUrl });
-    toast({ title: 'Link atualizado!', description: 'O link da transmissão foi atualizado com sucesso.' });
+    updateDocumentNonBlocking(assemblyDocRef, { 
+      youtubeUrl: embedUrl,
+      zoomUrl: newZoomUrl,
+    });
+    toast({ title: 'Links atualizados!', description: 'Os links da transmissão foram atualizados com sucesso.' });
     setEditUrlOpen(false);
   };
 
@@ -458,23 +463,39 @@ export default function AssemblyPage() {
                   <DialogTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
                       <Pencil className="h-4 w-4" />
-                      <span className="sr-only">Editar link da transmissão</span>
+                      <span className="sr-only">Editar links de transmissão</span>
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[625px]">
                     <DialogHeader>
-                        <DialogTitle>Editar Link da Transmissão</DialogTitle>
+                        <DialogTitle>Editar Links de Transmissão</DialogTitle>
                         <DialogDescription>
-                          Cole o novo link do YouTube abaixo (qualquer formato é aceito).
+                          Cole os novos links abaixo. O do YouTube é para membros, e o do Zoom para a tela do administrador.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4">
-                      <Input
-                          id="youtubeUrl"
-                          value={newYoutubeUrl}
-                          onChange={(e) => setNewYoutubeUrl(e.target.value)}
-                          placeholder="https://www.youtube.com/watch?v=..."
-                      />
+                    <div className="py-4 space-y-4">
+                      <div>
+                        <Label htmlFor="youtubeUrl" className="text-sm font-medium">Link do YouTube</Label>
+                        <Input
+                            id="youtubeUrl"
+                            value={newYoutubeUrl}
+                            onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            className="mt-1"
+                        />
+                         <p className="text-sm text-muted-foreground pt-1">Qualquer formato de link do YouTube é aceito.</p>
+                      </div>
+                       <div>
+                        <Label htmlFor="zoomUrl" className="text-sm font-medium">Link do Zoom</Label>
+                        <Input
+                            id="zoomUrl"
+                            value={newZoomUrl}
+                            onChange={(e) => setNewZoomUrl(e.target.value)}
+                            placeholder="https://zoom.us/j/..."
+                            className="mt-1"
+                        />
+                         <p className="text-sm text-muted-foreground pt-1">Para incorporar, use o link do web client (com /wc/join/).</p>
+                      </div>
                     </div>
                     <DialogFooter>
                       <Button type="button" variant="outline" onClick={() => setEditUrlOpen(false)}>Cancelar</Button>
@@ -486,14 +507,24 @@ export default function AssemblyPage() {
             </CardHeader>
             <CardContent>
               <div className="aspect-video w-full overflow-hidden rounded-lg border">
-                <iframe
-                  width="100%"
-                  height="100%"
-                  src={displayEmbedUrl}
-                  title="YouTube video player"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                ></iframe>
+                {isAdmin && assembly.zoomUrl ? (
+                   <iframe
+                    width="100%"
+                    height="100%"
+                    src={assembly.zoomUrl}
+                    title="Zoom Meeting"
+                    allow="fullscreen; microphone; camera; display-capture"
+                  ></iframe>
+                ) : (
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    src={displayEmbedUrl}
+                    title="YouTube video player"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  ></iframe>
+                )}
               </div>
             </CardContent>
           </Card>

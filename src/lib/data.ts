@@ -56,6 +56,7 @@ export type Assembly = {
   description: string;
   date: Timestamp;
   youtubeUrl: string;
+  zoomUrl?: string;
   imageUrl: string;
   status: 'scheduled' | 'live' | 'finished' | 'cancelled';
   administratorId: string;

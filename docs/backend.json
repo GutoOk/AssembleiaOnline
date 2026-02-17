@@ -73,6 +73,11 @@
           "description": "URL for the YouTube live stream embedding the assembly.",
           "format": "uri"
         },
+        "zoomUrl": {
+          "type": "string",
+          "description": "URL for the Zoom meeting for the assembly.",
+          "format": "uri"
+        },
         "imageUrl": {
           "type": "string",
           "description": "URL or Base64 Data URI for the assembly's cover image.",
