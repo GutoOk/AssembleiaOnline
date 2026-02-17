@@ -96,11 +96,8 @@ service cloud.firestore {
      * Validates that only allowed fields are changed during an update.
      */
     function hasValidUpdatedUserData() {
-      // Explicitly allow only 'name' and 'avatarUrl' to be updated.
-      // This is more secure and robust than blacklisting fields.
-      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
-      let allowedToChange = ['name', 'avatarUrl'];
-      return changedKeys.removeAll(allowedToChange).size() == 0;
+      // Allow only 'name' and 'avatarUrl' to be updated.
+      return request.resource.data.keys().hasOnly(['name', 'avatarUrl']);
     }
 
     // --------------------------------------------------------------------------------
