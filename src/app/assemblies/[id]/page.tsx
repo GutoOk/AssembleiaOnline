@@ -33,6 +33,7 @@ import { useAdmin } from '@/hooks/use-admin';
 import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function UserDisplay({ userId }: { userId: string }) {
   const firestore = useFirestore();
@@ -240,10 +241,10 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
     return query(collection(firestore, 'assemblies', assemblyId, 'speakerQueue'), orderBy('joinedAt', 'asc'));
   }, [firestore, assemblyId]);
 
-  const { data: queue, isLoading } = useCollection<SpeakerQueueItem>(queueQuery);
+  const { data: queue, isLoading: isQueueLoading } = useCollection<SpeakerQueueItem>(queueQuery);
 
   const userIdsInQueue = useMemo(() => queue?.map(s => s.userId) ?? [], [queue]);
-  const { profiles: userProfiles } = useUserProfiles(userIdsInQueue);
+  const { profiles: userProfiles, isLoading: areProfilesLoading } = useUserProfiles(userIdsInQueue);
 
   const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.uid), [queue, user]);
 
@@ -266,14 +267,26 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
     deleteDocumentNonBlocking(itemRef);
     toast({ title: 'Inscrição Cancelada', description: 'Você foi removido da fila.' });
   };
+  
+  const isLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
 
   const renderSpeaker = (speaker: SpeakerQueueItem, index: number) => {
     const speakerUser = userProfiles[speaker.userId];
-    if (!speakerUser) return (
-      <div key={speaker.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-          <Loader2 className="h-4 w-4 animate-spin"/>
-      </div>
-    );
+
+    if (!speakerUser) {
+       return (
+        <div key={speaker.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-lg text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+            <Skeleton className="h-9 w-9 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-[100px]" />
+              <Skeleton className="h-3 w-[80px]" />
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     const statusBadge = (status: SpeakerQueueItem['status']) => {
       switch(status) {
@@ -326,7 +339,7 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
       <CardContent className="space-y-4">
         {isAdmin && (
            <>
-            <Button className="w-full" onClick={() => setManageQueueOpen(true)}>
+            <Button className="w-full" onClick={() => setManageQueueOpen(true)} disabled={!queue}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Gerenciar Inscrições
             </Button>
             {queue && (
@@ -340,10 +353,25 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
             )}
           </>
         )}
-        {!userInQueue && !isAdmin && <Button className="w-full" onClick={handleJoinQueue} disabled={isLoading}><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
+        {!userInQueue && !isAdmin && <Button className="w-full" onClick={handleJoinQueue} disabled={isQueueLoading}><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
         {userInQueue && <Button variant="outline" className="w-full" onClick={handleLeaveQueue}>Cancelar Inscrição</Button>}
         
-        {isLoading ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /> : (
+        {isLoading ? (
+          <div className="space-y-3">
+            {[...Array(queue?.length || 1)].map((_, i) => (
+               <div key={i} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                      <span className="font-mono text-lg text-muted-foreground">{String(i + 1).padStart(2, '0')}</span>
+                      <Skeleton className="h-9 w-9 rounded-full" />
+                      <div className="space-y-2">
+                          <Skeleton className="h-4 w-[100px]" />
+                          <Skeleton className="h-3 w-[80px]" />
+                      </div>
+                  </div>
+              </div>
+            ))}
+          </div>
+        ) : (
             <div className="space-y-3">
             {queue && queue.length > 0 ? queue.map(renderSpeaker) : <p className="text-sm text-muted-foreground text-center pt-4">Ninguém na fila.</p>}
             </div>
