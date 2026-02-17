@@ -182,7 +182,6 @@ export default function ProfilePage() {
     try {
       await updateProfile(auth.currentUser, {
           displayName: dataToUpdate.name,
-          ...(dataToUpdate.avatarUrl && { photoURL: dataToUpdate.avatarUrl }),
       });
 
       const userDocRef = doc(firestore, 'users', user.uid);
