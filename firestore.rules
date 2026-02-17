@@ -93,13 +93,11 @@ service cloud.firestore {
     }
 
     /**
-     * Validates that the core ID of a user document is immutable on update.
+     * Validates that immutable fields are not changed during an update.
      */
     function hasValidUpdatedUserData() {
-      // On update, the 'id' field must not be changed.
-      // This rule allows the 'id' field to be absent from the update request.
-      // If it is present, its value must match the existing document's id.
-      return !('id' in request.resource.data) || request.resource.data.id == resource.data.id;
+      // A user is not allowed to change their id, email, or createdAt fields.
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'createdAt']);
     }
 
     // --------------------------------------------------------------------------------
