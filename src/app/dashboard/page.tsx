@@ -19,6 +19,13 @@ import { useAdmin } from '@/hooks/use-admin';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import type { Assembly } from '@/lib/data';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+
 
 function AssemblyCard({ assembly }: { assembly: Assembly }) {
   const getStatusVariant = (status: Assembly['status']) => {
@@ -91,12 +98,27 @@ export default function DashboardPage() {
     <div className="container mx-auto p-0">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Assembleias</h1>
-        {isAdmin && (
+        {isAdmin ? (
           <Button asChild>
             <Link href="/dashboard/assemblies/create">
               <PlusCircle className="mr-2 h-4 w-4" /> Criar Assembleia
             </Link>
           </Button>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="inline-block">
+                  <Button disabled>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Criar Assembleia
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Somente administradores podem criar assembleias.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
       {isLoading ? (
