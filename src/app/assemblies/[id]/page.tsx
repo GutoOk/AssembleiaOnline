@@ -280,14 +280,12 @@ function SpeakingQueue({
           <div>
             <p className="font-medium text-sm">{speakerUser.name}</p>
             <p className="text-xs text-muted-foreground">{speakerUser.email}</p>
-            <div className="flex items-center gap-2 mt-1">
-                <p className="text-xs text-muted-foreground">
-                {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
-                </p>
-                 <Badge variant={speaker.status === 'Entrada Autorizada' ? 'default' : 'outline'}>
-                    {speaker.status}
-                </Badge>
-            </div>
+            <Badge variant={speaker.status === 'Entrada Autorizada' ? 'default' : 'outline'} className="mt-1">
+                {speaker.status}
+            </Badge>
+            <p className="text-xs text-muted-foreground mt-1">
+            {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
