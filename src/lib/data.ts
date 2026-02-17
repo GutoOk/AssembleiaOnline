@@ -42,7 +42,7 @@ export type SpeakerQueueItem = {
   id: string;
   userId: string;
   joinedAt: Timestamp; // Renamed from requestTime
-  status: 'Na Fila' | 'Entrada Autorizada';
+  status: 'Na Fila' | 'Entrada Autorizada' | 'Com a Fala';
   // Denormalized fields for rules
   assemblyId: string;
   administratorId: string;
@@ -62,5 +62,3 @@ export type Assembly = {
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
-
-    

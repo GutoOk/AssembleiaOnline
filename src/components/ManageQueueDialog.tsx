@@ -96,6 +96,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                         <SelectContent>
                           <SelectItem value="Na Fila">Na Fila</SelectItem>
                           <SelectItem value="Entrada Autorizada">Entrada Autorizada</SelectItem>
+                          <SelectItem value="Com a Fala">Com a Fala</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>

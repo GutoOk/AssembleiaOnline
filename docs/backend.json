@@ -271,7 +271,8 @@
           "description": "The current status of the speaker's request.",
           "enum": [
             "Na Fila",
-            "Entrada Autorizada"
+            "Entrada Autorizada",
+            "Com a Fala"
           ]
         }
       },

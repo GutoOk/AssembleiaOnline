@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -244,7 +244,7 @@ function SpeakingQueue({
   }: { 
     assemblyId: string; 
     assemblyZoomUrl?: string;
-    onEnterSpeakerMode: (zoomLink: string) => void;
+    onEnterSpeakerMode: (zoomLink: string, queueItem: SpeakerQueueItem) => void;
     onJoinQueue: () => void;
     onLeaveQueue: () => void;
     queue: SpeakerQueueItem[] | null;
@@ -255,6 +255,18 @@ function SpeakingQueue({
   const { user, isAdmin } = useAdmin();
   const [isManageQueueOpen, setManageQueueOpen] = useState(false);
   
+  const getStatusBadge = (status: SpeakerQueueItem['status']) => {
+      switch (status) {
+        case 'Com a Fala':
+            return <Badge variant="default" className="mt-1 flex items-center gap-1.5"><MessageCircle className="h-3 w-3"/>{status}</Badge>;
+        case 'Entrada Autorizada':
+            return <Badge variant="secondary" className="mt-1">{status}</Badge>;
+        case 'Na Fila':
+        default:
+            return <Badge variant="outline" className="mt-1">{status}</Badge>;
+      }
+  }
+
   const renderSpeaker = (speaker: SpeakerQueueItem) => {
     const speakerUser = userProfiles[speaker.userId];
     const isCurrentUser = speaker.userId === user?.uid;
@@ -282,14 +294,12 @@ function SpeakingQueue({
           <div>
             <p className="font-medium text-sm">{speakerUser.name}</p>
             <p className="text-xs text-muted-foreground">{speakerUser.email}</p>
-            {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl ? (
-                <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl)} className="mt-1">
+            {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl && userInQueue ? (
+                <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl, userInQueue)} className="mt-1">
                     <Video className="h-4 w-4 mr-2" /> Entrar para Falar
                 </Button>
             ) : (
-                <Badge variant={speaker.status === 'Entrada Autorizada' ? 'default' : 'outline'} className="mt-1">
-                    {speaker.status}
-                </Badge>
+                getStatusBadge(speaker.status)
             )}
             <p className="text-xs text-muted-foreground mt-1">
             {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
@@ -409,11 +419,14 @@ export default function AssemblyPage() {
     toast({ title: 'Inscrição Cancelada', description: 'Você foi removido da fila.' });
   };
 
-  const handleEnterSpeakerMode = (zoomLink: string) => {
+  const handleEnterSpeakerMode = (zoomLink: string, queueItem: SpeakerQueueItem) => {
       if(!zoomLink) {
         toast({ variant: 'destructive', title: 'Erro', description: 'O administrador ainda não forneceu um link do Zoom.' });
         return;
       }
+      const itemRef = doc(firestore, 'assemblies', queueItem.assemblyId, 'speakerQueue', queueItem.id);
+      updateDocumentNonBlocking(itemRef, { status: 'Com a Fala' });
+      
       setSpeakerZoomLink(zoomLink);
       setIsSpeaking(true);
   };
