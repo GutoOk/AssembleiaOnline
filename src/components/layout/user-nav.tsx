@@ -11,12 +11,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useUser, useAuth } from '@/firebase';
+import { useAuth } from '@/firebase';
+import { useAdmin } from '@/hooks/use-admin';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
 
 export function UserNav() {
-  const { user } = useUser();
+  const { user, isAdmin } = useAdmin();
   const auth = useAuth();
   const router = useRouter();
 
@@ -50,6 +52,11 @@ export function UserNav() {
             <p className="text-xs leading-none text-muted-foreground">
               {user.email}
             </p>
+            {isAdmin && (
+              <Badge variant="secondary" className="mt-1 w-fit">
+                Administrador
+              </Badge>
+            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
