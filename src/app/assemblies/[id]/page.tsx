@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { convertToEmbedUrl } from '@/lib/utils';
-import { useDoc, useFirestore, useMemoFirebase, useCollection, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
 import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote } from '@/lib/data';
@@ -37,10 +37,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 function UserDisplay({ userId }: { userId: string }) {
   const firestore = useFirestore();
+  const { user } = useUser();
   const userProfileRef = useMemoFirebase(() => {
-    if (!firestore || !userId) return null;
+    if (!firestore || !userId || !user) return null;
     return doc(firestore, 'users', userId);
-  }, [firestore, userId]);
+  }, [firestore, userId, user]);
 
   const { data: userProfile, isLoading } = useDoc<UserProfile>(userProfileRef);
 
@@ -102,14 +103,14 @@ function PollCard({ poll, assemblyId }: { poll: Poll; assemblyId: string }) {
   const [selectedOption, setSelectedOption] = useState<string | undefined>();
 
   const optionsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'options'), orderBy('text', 'asc'));
-  }, [firestore, assemblyId, poll.id]);
+  }, [firestore, assemblyId, poll.id, user]);
 
   const votesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes');
-  }, [firestore, assemblyId, poll.id]);
+  }, [firestore, assemblyId, poll.id, user]);
 
   const { data: options, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
   const { data: votes, isLoading: isLoadingVotes } = useCollection<Vote>(votesQuery);
@@ -237,9 +238,9 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
   const [isManageQueueOpen, setManageQueueOpen] = useState(false);
 
   const queueQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'assemblies', assemblyId, 'speakerQueue'), orderBy('joinedAt', 'asc'));
-  }, [firestore, assemblyId]);
+  }, [firestore, assemblyId, user]);
 
   const { data: queue, isLoading: isQueueLoading } = useCollection<SpeakerQueueItem>(queueQuery);
 
@@ -392,14 +393,14 @@ export default function AssemblyPage() {
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
 
   const assemblyRef = useMemoFirebase(() => {
-    if (!firestore || !params.id ) return null;
+    if (!firestore || !params.id || !user) return null;
     return doc(firestore, 'assemblies', params.id);
-  }, [firestore, params.id]);
+  }, [firestore, params.id, user]);
 
   const pollsQuery = useMemoFirebase(() => {
-    if (!firestore || !params.id) return null;
+    if (!firestore || !params.id || !user) return null;
     return query(collection(firestore, 'assemblies', params.id, 'polls'), orderBy('createdAt', 'desc'));
-  }, [firestore, params.id]);
+  }, [firestore, params.id, user]);
 
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
   const { data: polls, isLoading: arePollsLoading } = useCollection<Poll>(pollsQuery);
