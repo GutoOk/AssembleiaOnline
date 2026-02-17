@@ -1,6 +1,5 @@
 'use client';
-import { MOCK_DATA } from '@/lib/data';
-import type { Assembly, User, Poll, Speaker } from '@/lib/data';
+
 import { notFound, useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -9,14 +8,20 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Link as LinkIcon, Hand } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Link as LinkIcon, Hand, Loader2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/use-auth';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import Link from 'next/link';
 
+import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { useAdmin } from '@/hooks/use-admin';
+import type { Assembly, User, Poll, Speaker } from '@/lib/data';
+import { MOCK_DATA } from '@/lib/data';
+
+// This is now mock, will be replaced later
 const getUserById = (id: string) => MOCK_DATA.users.find(u => u.id === id);
 
 function Countdown({ endDate }: { endDate: Date }) {
@@ -178,6 +183,7 @@ function SpeakingQueue({ queue, assemblyId, user, isAdmin }: { queue: Speaker[],
       </CardHeader>
       <CardContent className="space-y-4">
         {isAdmin && <Button className="w-full"><PlusCircle className="mr-2 h-4 w-4" /> Gerenciar Inscrições</Button>}
+        {/* Still using mock user for this part */}
         {!userInQueue && !isAdmin && <Button className="w-full"><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
         {userInQueue && <Button variant="outline" className="w-full">Cancelar Inscrição</Button>}
         <div className="space-y-3">
@@ -188,21 +194,45 @@ function SpeakingQueue({ queue, assemblyId, user, isAdmin }: { queue: Speaker[],
   )
 }
 
+
 export default function AssemblyPage() {
   const params = useParams<{ id: string }>();
-  const assembly = MOCK_DATA.assemblies.find((a) => a.id === params.id);
-  const { user, isAdmin } = useAuth();
+  const firestore = useFirestore();
+  const { user, isAdmin } = useAdmin(); // Using new admin hook
+
+  const assemblyRef = useMemoFirebase(() => {
+    if (!firestore || !params.id) return null;
+    return doc(firestore, 'assemblies', params.id);
+  }, [firestore, params.id]);
+
+  const { data: assembly, isLoading } = useDoc<Assembly>(assemblyRef);
+
+  // Still using mock data for polls and queue for now.
+  const mockAssembly = MOCK_DATA.assemblies.find(a => a.id === '1');
+  const polls = mockAssembly?.polls ?? [];
+  const speakingQueue = mockAssembly?.speakingQueue ?? [];
+  const mockUserForQueue = MOCK_DATA.users.find(u => u.role === (isAdmin ? 'admin' : 'member')) ?? null;
+
+  if (isLoading) {
+    return (
+       <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!assembly) {
     notFound();
   }
+
+  const assemblyDate = assembly.date instanceof Date ? assembly.date : (assembly.date as any).toDate();
 
   return (
     <div className="container mx-auto p-0 space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">{assembly.title}</h1>
         <p className="text-muted-foreground mt-1">
-          {format(assembly.date, "eeee, dd 'de' MMMM, yyyy 'às' HH:mm", { locale: ptBR })}
+          {format(assemblyDate, "eeee, dd 'de' MMMM, yyyy 'às' HH:mm", { locale: ptBR })}
         </p>
       </div>
 
@@ -227,15 +257,17 @@ export default function AssemblyPage() {
           </Card>
 
           <div className="space-y-4">
-            {isAdmin && <Button><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>}
-            {assembly.polls.map(poll => (
-              <PollCard key={poll.id} poll={poll} user={user} />
+             {isAdmin && <Button><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>}
+            {/* Polls are still mock data */}
+            {polls.map(poll => (
+              <PollCard key={poll.id} poll={poll} user={mockUserForQueue} />
             ))}
           </div>
         </div>
 
         <div className="md:col-span-1 space-y-8">
-            <SpeakingQueue queue={assembly.speakingQueue} assemblyId={assembly.id} user={user} isAdmin={isAdmin}/>
+            {/* Speaking queue is still mock data */}
+            <SpeakingQueue queue={speakingQueue} assemblyId={assembly.id} user={mockUserForQueue} isAdmin={isAdmin}/>
         </div>
       </div>
     </div>
