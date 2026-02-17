@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import Link from 'next/link';
+import { CreatePollDialog } from '@/components/CreatePollDialog';
 
 import { useDoc, useFirestore, useMemoFirebase, useCollection, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
@@ -330,6 +331,7 @@ export default function AssemblyPage() {
   const params = useParams<{ id: string }>();
   const firestore = useFirestore();
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
+  const [isCreatePollOpen, setCreatePollOpen] = useState(false);
 
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id ) return null;
@@ -390,7 +392,16 @@ export default function AssemblyPage() {
           </Card>
 
           <div className="space-y-4">
-             {isAdmin && <Button disabled><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>}
+             {isAdmin && (
+               <>
+                <Button onClick={() => setCreatePollOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>
+                <CreatePollDialog 
+                  open={isCreatePollOpen}
+                  onOpenChange={setCreatePollOpen}
+                  assembly={assembly}
+                />
+               </>
+             )}
              {arePollsLoading && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
              
              {polls && polls.length > 0 ? (
