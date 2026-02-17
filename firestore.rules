@@ -96,8 +96,11 @@ service cloud.firestore {
      * Validates that only allowed fields are changed during an update.
      */
     function hasValidUpdatedUserData() {
-      // Allow only 'name' and 'avatarUrl' to be updated.
-      return request.resource.data.keys().hasOnly(['name', 'avatarUrl']);
+      // Ensures that immutable fields (id, email, createdAt) are not being modified during an update.
+      // It allows 'name' and 'avatarUrl' to be changed.
+      return request.resource.data.id == resource.data.id &&
+             request.resource.data.email == resource.data.email &&
+             request.resource.data.createdAt == resource.data.createdAt;
     }
 
     // --------------------------------------------------------------------------------
