@@ -198,14 +198,15 @@ function SpeakingQueue({ queue, assemblyId, user, isAdmin }: { queue: Speaker[],
 export default function AssemblyPage() {
   const params = useParams<{ id: string }>();
   const firestore = useFirestore();
-  const { user, isAdmin } = useAdmin(); // Using new admin hook
+  const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
 
   const assemblyRef = useMemoFirebase(() => {
-    if (!firestore || !params.id) return null;
+    if (!firestore || !params.id || !user) return null;
     return doc(firestore, 'assemblies', params.id);
-  }, [firestore, params.id]);
+  }, [firestore, params.id, user]);
 
-  const { data: assembly, isLoading } = useDoc<Assembly>(assemblyRef);
+  const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
+  const isLoading = isAdminLoading || isAssemblyLoading;
 
   // Still using mock data for polls and queue for now.
   const mockAssembly = MOCK_DATA.assemblies.find(a => a.id === '1');

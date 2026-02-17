@@ -75,13 +75,13 @@ function AssemblyCard({ assembly }: { assembly: Assembly }) {
 }
 
 export default function DashboardPage() {
-  const { isAdmin, isLoading: isAdminLoading } = useAdmin();
+  const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
   const firestore = useFirestore();
 
   const assembliesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'assemblies'), orderBy('date', 'desc'));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: assemblies, isLoading: areAssembliesLoading } = useCollection<Assembly>(assembliesQuery);
 
