@@ -271,19 +271,17 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
   
   const isLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
 
-  const renderSpeaker = (speaker: SpeakerQueueItem, index: number) => {
+  const renderSpeaker = (speaker: SpeakerQueueItem) => {
     const speakerUser = userProfiles[speaker.userId];
 
     if (!speakerUser) {
        return (
-        <div key={speaker.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-lg text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
-            <Skeleton className="h-9 w-9 rounded-full" />
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-[100px]" />
-              <Skeleton className="h-3 w-[80px]" />
-            </div>
+        <div key={speaker.id} className="flex items-start p-3 bg-muted/50 rounded-lg gap-3">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="space-y-1.5 flex-1">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-3 w-24" />
           </div>
         </div>
       );
@@ -300,29 +298,31 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
     };
 
     return (
-      <div key={speaker.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-lg text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
-          <Avatar className="h-9 w-9">
+      <div key={speaker.id} className="flex items-start justify-between p-3 bg-muted/50 rounded-lg">
+        <div className="flex items-start gap-3">
+          <Avatar className="h-10 w-10">
             <AvatarImage src={speakerUser.avatarDataUri} />
             <AvatarFallback>{speakerUser.name.charAt(0)}</AvatarFallback>
           </Avatar>
           <div>
             <p className="font-medium">{speakerUser.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
-            </p>
+            <p className="text-sm text-muted-foreground">{speakerUser.email}</p>
+            <div className="flex items-center gap-2 mt-1">
+                <p className="text-xs text-muted-foreground">
+                {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
+                </p>
+                {statusBadge(speaker.status)}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {speaker.status === 'speaking' && speaker.zoomLink && (
+          {(isAdmin || user?.uid === speaker.userId) && speaker.status === 'speaking' && speaker.zoomLink && (
             <Button size="sm" asChild>
               <Link href={speaker.zoomLink} target="_blank">
                 <Video className="h-4 w-4 mr-2" /> Entrar no Zoom
               </Link>
             </Button>
           )}
-          {statusBadge(speaker.status)}
         </div>
       </div>
     );
@@ -359,15 +359,13 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
         
         {isLoading ? (
           <div className="space-y-3">
-            {[...Array(queue?.length || 1)].map((_, i) => (
-               <div key={i} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                      <span className="font-mono text-lg text-muted-foreground">{String(i + 1).padStart(2, '0')}</span>
-                      <Skeleton className="h-9 w-9 rounded-full" />
-                      <div className="space-y-2">
-                          <Skeleton className="h-4 w-[100px]" />
-                          <Skeleton className="h-3 w-[80px]" />
-                      </div>
+            {[...Array(queue?.length || 2)].map((_, i) => (
+               <div key={i} className="flex items-start p-3 bg-muted/50 rounded-lg gap-3">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-40" />
+                    <Skeleton className="h-3 w-24" />
                   </div>
               </div>
             ))}
