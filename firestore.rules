@@ -121,17 +121,17 @@ service cloud.firestore {
     /**
      * @description Identifies administrators. Document existence grants admin rights.
      * @path /admins/{userId}
-     * @allow (get) An admin can check for other admin records, and a user can check for their own.
-     * @allow (create) Allows the special 'admin@assembleia.dev' user to create their own admin record upon first login.
-     * @deny (update, delete) No client can modify this collection once a record is created.
-     * @principle Enforces robust, server-managed Database Access Control (DBAC), with a self-bootstrap mechanism for the first admin.
+     * @allow (get, list) An admin can check for other admin records. A user can check for their own.
+     * @allow (create) Allows the special 'admin@assembleia.dev' to self-bootstrap, and allows other admins to create new ones.
+     * @allow (delete) An admin can remove another admin, but not themselves.
+     * @deny (update) No client can modify this collection once a record is created.
      */
     match /admins/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isOwner(userId) && request.auth.token.email == 'admin@assembleia.dev' && request.resource.data.keys().size() == 0;
+      allow create: if ((isOwner(userId) && request.auth.token.email == 'admin@assembleia.dev') || isAdmin()) && request.resource.data.keys().size() == 0;
       allow update: if false;
-      allow delete: if false;
+      allow delete: if isAdmin() && request.auth.uid != userId;
     }
 
     /**

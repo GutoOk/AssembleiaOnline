@@ -67,7 +67,8 @@ export default function LoginPage() {
           if (newUser) {
               const userDocRef = doc(firestore, 'users', newUser.uid);
               const name = newUser.email?.split('@')[0] ?? 'Novo Usuário';
-              const userProfile: Omit<UserProfile, 'id'> = {
+              const userProfile: UserProfile = {
+                  id: newUser.uid,
                   name: name.charAt(0).toUpperCase() + name.slice(1),
                   email: newUser.email!,
                   avatarUrl: `https://avatar.vercel.sh/${newUser.uid}.svg`,

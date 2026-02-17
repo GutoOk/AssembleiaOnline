@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LayoutDashboard, Menu } from 'lucide-react';
+import { LayoutDashboard, Menu, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -11,9 +11,12 @@ import {
 import { UserNav } from './user-nav';
 import { Icons } from '../icons';
 import { usePathname } from 'next/navigation';
+import { useAdmin } from '@/hooks/use-admin';
 
 export function Header() {
   const pathname = usePathname();
+  const { isAdmin } = useAdmin();
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
       <Sheet>
@@ -34,11 +37,20 @@ export function Header() {
             </Link>
             <Link
               href="/dashboard"
-              className={`flex items-center gap-4 px-2.5 ${pathname.startsWith('/dashboard') ? 'text-foreground' : 'text-muted-foreground'} hover:text-foreground`}
+              className={`flex items-center gap-4 px-2.5 ${pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/users') ? 'text-foreground' : 'text-muted-foreground'} hover:text-foreground`}
             >
               <LayoutDashboard className="h-5 w-5" />
               Assembleias
             </Link>
+             {isAdmin && (
+               <Link
+                href="/dashboard/users"
+                className={`flex items-center gap-4 px-2.5 ${pathname.startsWith('/dashboard/users') ? 'text-foreground' : 'text-muted-foreground'} hover:text-foreground`}
+              >
+                <Users className="h-5 w-5" />
+                Usuários
+              </Link>
+            )}
           </nav>
         </SheetContent>
       </Sheet>

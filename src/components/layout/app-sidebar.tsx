@@ -17,10 +17,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Icons } from '../icons';
-import { LayoutDashboard } from 'lucide-react';
+import { LayoutDashboard, Users } from 'lucide-react';
+import { useAdmin } from '@/hooks/use-admin';
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { isAdmin } = useAdmin();
 
   return (
     <Sidebar className="hidden border-r bg-background sm:flex">
@@ -41,7 +43,7 @@ export function AppSidebar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard') || pathname.startsWith('/assemblies')}>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/users')}>
                     <Link href="/dashboard">
                       <LayoutDashboard className="h-5 w-5" />
                       <span className="sr-only">Assembleias</span>
@@ -51,6 +53,21 @@ export function AppSidebar() {
               </TooltipTrigger>
               <TooltipContent side="right">Assembleias</TooltipContent>
             </Tooltip>
+            {isAdmin && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/users')}>
+                      <Link href="/dashboard/users">
+                        <Users className="h-5 w-5" />
+                        <span className="sr-only">Usuários</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </TooltipTrigger>
+                <TooltipContent side="right">Usuários</TooltipContent>
+              </Tooltip>
+            )}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
