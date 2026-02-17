@@ -4,7 +4,7 @@ import { createContext } from 'react';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string) => Promise<'success' | 'error'>;
+  login: (userInput: string) => Promise<'success' | 'error'>;
   logout: () => void;
   isAdmin: boolean;
 }

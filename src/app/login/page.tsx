@@ -15,20 +15,20 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
+  const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const result = await login(email);
+    const result = await login(userInput);
     if (result === 'success') {
       router.push('/dashboard');
     } else {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
-        description: 'Por favor, use um e-mail com o domínio @mensa.org.br.',
+        description: "Usuário inválido. Digite 'admin' ou 'associado' para entrar.",
       });
       setIsLoading(false);
     }
@@ -42,19 +42,19 @@ export default function LoginPage() {
              <Icons.logo className="h-12 w-12 text-primary" />
           </div>
           <CardTitle className="text-2xl">Assembleia Mensa Brasil</CardTitle>
-          <CardDescription>Acesse com sua conta Google</CardDescription>
+          <CardDescription>Acesso ao sistema</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="user-type">Usuário</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="seu.nome@mensa.org.br"
+                id="user-type"
+                type="text"
+                placeholder="Digite 'admin' ou 'associado'"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
                 disabled={isLoading}
               />
             </div>
@@ -62,9 +62,8 @@ export default function LoginPage() {
               {isLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Icons.google className="mr-2 h-4 w-4" />
+                "Entrar"
               )}
-              Entrar com Google
             </Button>
           </form>
         </CardContent>

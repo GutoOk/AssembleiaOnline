@@ -21,37 +21,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = async (email: string): Promise<'success' | 'error'> => {
+  const login = async (userInput: string): Promise<'success' | 'error'> => {
     setLoading(true);
     // Simulate API call
     return new Promise(resolve => {
       setTimeout(() => {
-        if (!email.endsWith('@mensa.org.br')) {
-          setLoading(false);
-          resolve('error');
-          return;
+        let userToLogin: User | undefined;
+        const value = userInput.toLowerCase().trim();
+
+        if (value === 'admin') {
+          userToLogin = MOCK_DATA.users.find(u => u.role === 'admin');
+        } else if (value === 'associado') {
+          userToLogin = MOCK_DATA.users.find(u => u.role === 'member');
         }
 
-        const foundUser = MOCK_DATA.users.find(u => u.email === email);
-        if (foundUser) {
-          setUser(foundUser);
-          localStorage.setItem('user_email', foundUser.email);
+        if (userToLogin) {
+          setUser(userToLogin);
+          localStorage.setItem('user_email', userToLogin.email);
           setLoading(false);
           resolve('success');
         } else {
-          // For demo, create a temporary user if email is valid but not in mock data
-          const newUser: User = {
-            id: String(Date.now()),
-            name: email.split('@')[0],
-            email,
-            avatarUrl: `https://picsum.photos/seed/${email}/40/40`,
-            role: 'member',
-          };
-          MOCK_DATA.users.push(newUser);
-          setUser(newUser);
-          localStorage.setItem('user_email', newUser.email);
           setLoading(false);
-          resolve('success');
+          resolve('error');
         }
       }, 500);
     });
