@@ -14,8 +14,9 @@ import { addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import Image from 'next/image';
 
 const assemblySchema = z.object({
   title: z.string().min(10, 'O título deve ter pelo menos 10 caracteres.'),
@@ -24,7 +25,6 @@ const assemblySchema = z.object({
     message: 'Data inválida.',
   }),
   youtubeUrl: z.string().url('URL do YouTube inválida.'),
-  imageUrl: z.string().url('URL da imagem inválida.'),
 });
 
 export default function CreateAssemblyPage() {
@@ -32,6 +32,8 @@ export default function CreateAssemblyPage() {
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const form = useForm<z.infer<typeof assemblySchema>>({
     resolver: zodResolver(assemblySchema),
@@ -40,7 +42,6 @@ export default function CreateAssemblyPage() {
       description: '',
       date: '',
       youtubeUrl: '',
-      imageUrl: '',
     },
   });
 
@@ -50,6 +51,36 @@ export default function CreateAssemblyPage() {
     }
   }, [isAdmin, isAdminLoading, router]);
 
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({
+          variant: 'destructive',
+          title: 'Imagem muito grande',
+          description: 'Por favor, selecione um arquivo com menos de 2MB.',
+        });
+        event.target.value = ''; // Reset input
+        return;
+      }
+      setIsUploading(true);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+        setIsUploading(false);
+      };
+      reader.onerror = () => {
+        setIsUploading(false);
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao processar imagem',
+          description: 'Não foi possível ler o arquivo da imagem.',
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
   const onSubmit = async (values: z.infer<typeof assemblySchema>) => {
     if (!isAdmin || !user) {
       toast({
@@ -60,10 +91,20 @@ export default function CreateAssemblyPage() {
       return;
     }
     
+    if (!imagePreview) {
+      toast({
+        variant: 'destructive',
+        title: 'Imagem obrigatória',
+        description: 'Por favor, faça o upload de uma imagem de capa.',
+      });
+      return;
+    }
+
     const assembliesRef = collection(firestore, 'assemblies');
     addDocumentNonBlocking(assembliesRef, {
       ...values,
       date: new Date(values.date),
+      imageUrl: imagePreview,
       administratorId: user.uid,
       status: 'scheduled',
       createdAt: serverTimestamp(),
@@ -135,6 +176,27 @@ export default function CreateAssemblyPage() {
                   </FormItem>
                 )}
               />
+               <FormItem>
+                <FormLabel>Imagem de Capa</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="file" 
+                    accept="image/png, image/jpeg, image/webp" 
+                    onChange={handleImageChange}
+                    disabled={form.formState.isSubmitting || isUploading}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Selecione uma imagem para a capa da assembleia (máximo 2MB).
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+              {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {imagePreview && !isUploading && (
+                <div className="relative aspect-video w-full max-w-lg overflow-hidden rounded-md border">
+                  <Image src={imagePreview} alt="Pré-visualização da imagem" fill className="object-cover" />
+                </div>
+              )}
               <FormField
                 control={form.control}
                 name="youtubeUrl"
@@ -151,21 +213,8 @@ export default function CreateAssemblyPage() {
                   </FormItem>
                 )}
               />
-               <FormField
-                control={form.control}
-                name="imageUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL da Imagem de Capa</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://images.unsplash.com/..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={form.formState.isSubmitting || isUploading}>
+                {(form.formState.isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Criar Assembleia
               </Button>
             </form>
