@@ -273,7 +273,7 @@ function SpeakingQueue({
     }
 
     return (
-      <div key={speaker.id} className="flex items-start justify-between p-3 bg-muted/50 rounded-lg">
+      <div key={speaker.id} className="flex items-start p-3 bg-muted/50 rounded-lg">
         <div className="flex items-start gap-3">
           <Avatar className="h-10 w-10">
             <AvatarImage src={speakerUser.avatarDataUri} />
@@ -282,20 +282,19 @@ function SpeakingQueue({
           <div>
             <p className="font-medium text-sm">{speakerUser.name}</p>
             <p className="text-xs text-muted-foreground">{speakerUser.email}</p>
-            <Badge variant={speaker.status === 'Entrada Autorizada' ? 'default' : 'outline'} className="mt-1">
-                {speaker.status}
-            </Badge>
+            {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl ? (
+                <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl)} className="mt-1">
+                    <Video className="h-4 w-4 mr-2" /> Entrar para Falar
+                </Button>
+            ) : (
+                <Badge variant={speaker.status === 'Entrada Autorizada' ? 'default' : 'outline'} className="mt-1">
+                    {speaker.status}
+                </Badge>
+            )}
             <p className="text-xs text-muted-foreground mt-1">
             {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
             </p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl && (
-            <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl)}>
-              <Video className="h-4 w-4 mr-2" /> Entrar para Falar
-            </Button>
-          )}
         </div>
       </div>
     );
