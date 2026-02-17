@@ -18,11 +18,9 @@ import {
 } from '@/components/ui/tooltip';
 import { Icons } from '../icons';
 import { LayoutDashboard } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { logout } = useAuth();
 
   return (
     <Sidebar className="hidden border-r bg-background sm:flex">
