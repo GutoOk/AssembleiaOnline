@@ -121,12 +121,12 @@ service cloud.firestore {
     /**
      * @description Identifies administrators. Document existence grants admin rights. This collection is read-only for clients.
      * @path /admins/{userId}
-     * @allow (get) An admin can check for the existence of another admin's record.
+     * @allow (get) An admin can check for other admin records, and a user can check for their own.
      * @deny (create, update, delete) No client, not even an admin, can modify this collection. It must be managed server-side.
      * @principle Enforces robust, server-managed Database Access Control (DBAC).
      */
     match /admins/{userId} {
-      allow get: if isAdmin();
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if false;
       allow update: if false;
