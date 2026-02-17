@@ -98,9 +98,9 @@ service cloud.firestore {
      * by comparing the pre-update and post-update document states.
      */
     function hasValidUpdatedUserData() {
-      return request.resource.data.id == resource.data.id
-          && request.resource.data.email == resource.data.email
-          && request.resource.data.createdAt == resource.data.createdAt;
+      // Allow updates to 'name' and 'avatarDataUri', but not 'id', 'email', or 'createdAt'.
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return changedKeys.size() > 0 && !changedKeys.hasAny(['id', 'email', 'createdAt']);
     }
 
     // --------------------------------------------------------------------------------
@@ -202,8 +202,8 @@ service cloud.firestore {
      * @description Manages requests from users who want to speak during an assembly.
      * @path /assemblies/{assemblyId}/speakerQueue/{queueItemId}
      * @allow (create) A user can add themselves to the speaker queue.
-     * @deny (update) A user cannot modify their queue entry; only an admin can manage the queue order and status.
-     * @principle Hybrid model: allows user self-creation but grants management control to administrators.
+     * @allow (update) An admin can manage the queue. A user can also update their own status to 'Com a Fala' if their entry was previously authorized by an admin.
+     * @principle Hybrid model: allows user self-creation and self-update under strict conditions, while granting full management control to administrators.
      */
     match /assemblies/{assemblyId}/speakerQueue/{queueItemId} {
       // Get is restricted to the owner or an admin to protect potentially sensitive fields like a zoomLink.
@@ -211,7 +211,7 @@ service cloud.firestore {
       // List is open to all signed-in users to allow viewing the public queue order.
       allow list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.assemblyId == assemblyId;
-      allow update: if isAdminOfExistingDoc();
+      allow update: if isAdminOfExistingDoc() || (isOwner(resource.data.userId) && isExistingDoc() && request.resource.data.keys().size() == 1 && 'status' in request.resource.data && request.resource.data.status == 'Com a Fala' && resource.data.status == 'Entrada Autorizada');
       allow delete: if isOwnerOfExistingDoc(resource.data.userId) || isAdminOfExistingDoc();
     }
   }
