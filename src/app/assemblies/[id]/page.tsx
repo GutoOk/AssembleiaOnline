@@ -245,7 +245,7 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
   const userIdsInQueue = useMemo(() => queue?.map(s => s.userId) ?? [], [queue]);
   const { profiles: userProfiles } = useUserProfiles(userIdsInQueue);
 
-  const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.id), [queue, user]);
+  const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.uid), [queue, user]);
 
   const handleJoinQueue = () => {
     if (!user) return;
@@ -296,7 +296,7 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
           <div>
             <p className="font-medium">{speakerUser.name}</p>
             <p className="text-xs text-muted-foreground">
-              {formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
+              {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
             </p>
           </div>
         </div>
