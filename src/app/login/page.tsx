@@ -65,6 +65,9 @@ export default function LoginPage() {
           const userCredential = await createUserWithEmailAndPassword(auth, email, password);
           const newUser = userCredential.user;
           if (newUser) {
+              // Force refresh the token to ensure all claims are available to security rules
+              await newUser.getIdToken(true);
+              
               const userDocRef = doc(firestore, 'users', newUser.uid);
               const name = newUser.email?.split('@')[0] ?? 'Novo Usuário';
               const userProfile: UserProfile = {
