@@ -11,16 +11,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAuth } from '@/firebase';
+import { useAuth, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { useAdmin } from '@/hooks/use-admin';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
+import { doc } from 'firebase/firestore';
+import type { UserProfile } from '@/lib/data';
 
 export function UserNav() {
   const { user, isAdmin } = useAdmin();
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
 
   const handleLogout = () => {
     signOut(auth);
@@ -31,16 +41,20 @@ export function UserNav() {
     return null;
   }
 
-  const initials = user.displayName
-    ? user.displayName.split(' ').map((n) => n[0]).join('')
-    : user.email?.charAt(0).toUpperCase();
+  const displayName = userProfile?.name ?? user.displayName ?? 'Usuário';
+  const avatarUrl = userProfile?.avatarUrl ?? user.photoURL ?? '';
+  const email = userProfile?.email ?? user.email ?? '';
+
+  const initials = displayName
+    ? displayName.split(' ').map((n) => n[0]).join('')
+    : (email.charAt(0) ?? '').toUpperCase();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={user.photoURL ?? ''} alt={user.displayName ?? user.email ?? ''} />
+            <AvatarImage src={avatarUrl} alt={displayName} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
         </Button>
@@ -48,9 +62,9 @@ export function UserNav() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.displayName ?? 'Usuário'}</p>
+            <p className="text-sm font-medium leading-none">{displayName}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
+              {email}
             </p>
             {isAdmin && (
               <Badge variant="secondary" className="mt-1 w-fit">
@@ -61,7 +75,9 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem disabled>Perfil</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
+            Perfil
+          </DropdownMenuItem>
           <DropdownMenuItem disabled>Configurações</DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
