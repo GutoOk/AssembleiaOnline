@@ -305,8 +305,8 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
             <AvatarFallback>{speakerUser.name.charAt(0)}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium">{speakerUser.name}</p>
-            <p className="text-sm text-muted-foreground">{speakerUser.email}</p>
+            <p className="font-medium text-sm">{speakerUser.name}</p>
+            <p className="text-xs text-muted-foreground">{speakerUser.email}</p>
             <div className="flex items-center gap-2 mt-1">
                 <p className="text-xs text-muted-foreground">
                 {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
