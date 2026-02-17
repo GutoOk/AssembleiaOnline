@@ -106,12 +106,12 @@ service cloud.firestore {
     /**
      * @description Manages user profile data. Each user has exclusive control over their own document.
      * @path /users/{userId}
-     * @allow (create) A new user can create their own profile document if authenticated.
-     * @deny (list) A regular user cannot list all other users in the system.
-     * @principle Restricts access to a user's own data tree.
+     * @allow (get) Any signed-in user can view public profiles.
+     * @allow (list) Any signed-in user can query for user profiles.
+     * @principle Restricts write access to a user's own data, while allowing public read.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
+      allow get: if isSignedIn();
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && hasValidNewUserData(userId);
       allow update: if isOwnerOfExistingDoc(userId) && hasValidUpdatedUserData();
