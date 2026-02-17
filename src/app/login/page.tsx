@@ -10,9 +10,10 @@ import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth, useFirestore, useUser } from '@/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
+import { Icons } from '@/components/icons';
 
 
 export default function LoginPage() {
@@ -22,7 +23,10 @@ export default function LoginPage() {
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const [userInput, setUserInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMock, setIsLoadingMock] = useState(false);
+  const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
+
+  const isLoading = isLoadingMock || isLoadingGoogle;
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -30,13 +34,13 @@ export default function LoginPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleMockLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) {
+    if (!firestore || !auth) {
         toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível conectar ao banco de dados.' });
         return;
     }
-    setIsLoading(true);
+    setIsLoadingMock(true);
 
     const value = userInput.toLowerCase().trim();
     let email, password;
@@ -53,7 +57,7 @@ export default function LoginPage() {
         title: 'Acesso Negado',
         description: "Usuário inválido. Digite 'admin' ou 'associado' para entrar.",
       });
-      setIsLoading(false);
+      setIsLoadingMock(false);
       return;
     }
 
@@ -109,7 +113,60 @@ export default function LoginPage() {
         });
       }
     } finally {
-      setIsLoading(false);
+      setIsLoadingMock(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (!auth || !firestore) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'Serviços Firebase indisponíveis.' });
+        return;
+    }
+    setIsLoadingGoogle(true);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+      'hd': 'mensa.org.br'
+    });
+
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        if (user.email && !user.email.endsWith('@mensa.org.br')) {
+            await auth.signOut();
+            toast({
+                variant: 'destructive',
+                title: 'Acesso Negado',
+                description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
+            });
+            setIsLoadingGoogle(false);
+            return;
+        }
+
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists()) {
+            const name = user.displayName || user.email?.split('@')[0] || 'Novo Usuário';
+            const userProfile: UserProfile = {
+                id: user.uid,
+                name: name,
+                email: user.email!,
+                avatarDataUri: user.photoURL || `https://avatar.vercel.sh/${user.uid}.svg`,
+                createdAt: serverTimestamp() as any,
+            };
+            await setDoc(userDocRef, userProfile);
+        }
+        
+    } catch (error: any) {
+        console.error("Google Sign-In error:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro no Login com Google',
+            description: 'Não foi possível fazer o login. Tente novamente.',
+        });
+    } finally {
+        setIsLoadingGoogle(false);
     }
   };
   
@@ -131,13 +188,24 @@ export default function LoginPage() {
           <CardTitle className="text-2xl">Assembleia Mensa Brasil</CardTitle>
           <CardDescription>Acesso ao sistema</CardDescription>
         </CardHeader>
-        <CardContent>
-          <CardDescription className="text-center mb-4">
-            Use 'admin' ou 'associado'. Se a conta não existir, será criada automaticamente com a senha 'password123'.
-          </CardDescription>
-          <form onSubmit={handleLogin} className="space-y-4">
+        <CardContent className="space-y-4">
+           <Button variant="outline" className="w-full" type="button" disabled={isLoading} onClick={handleGoogleLogin}>
+              {isLoadingGoogle ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Icons.google className="mr-2 h-4 w-4" />}
+              Entrar com Google
+            </Button>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Ou para teste
+                </span>
+              </div>
+            </div>
+          <form onSubmit={handleMockLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="user-type">Usuário</Label>
+              <Label htmlFor="user-type">Usuário de Teste</Label>
               <Input
                 id="user-type"
                 type="text"
@@ -148,11 +216,14 @@ export default function LoginPage() {
                 disabled={isLoading}
               />
             </div>
+             <CardDescription className="text-center text-xs">
+              Se a conta não existir, será criada com a senha 'password123'.
+            </CardDescription>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
+              {isLoadingMock ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                "Entrar"
+                "Entrar com conta de teste"
               )}
             </Button>
           </form>
