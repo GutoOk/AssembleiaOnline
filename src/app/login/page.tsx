@@ -60,7 +60,7 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (signInError: any) {
-      if (signInError.code === 'auth/invalid-credential') {
+      if (signInError.code === 'auth/invalid-credential' || signInError.code === 'auth/user-not-found') {
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, email, password);
           const newUser = userCredential.user;
@@ -74,6 +74,12 @@ export default function LoginPage() {
                   createdAt: serverTimestamp() as any,
               };
               await setDoc(userDocRef, userProfile);
+              
+              if (newUser.email === 'admin@assembleia.dev') {
+                const adminDocRef = doc(firestore, 'admins', newUser.uid);
+                // Create an empty doc to signify admin status, no need for content
+                await setDoc(adminDocRef, {}); 
+              }
           }
           toast({
             title: 'Conta de teste criada!',
@@ -123,8 +129,7 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <CardDescription className="text-center mb-4">
-            Use 'admin' ou 'associado'. Se a conta não existir, será criada automaticamente com a senha 'password123'.<br/> 
-            <strong className="text-destructive">Importante (Admin):</strong> Após o primeiro login, crie um documento na coleção `admins` do Firestore com o UID do usuário `admin@assembleia.dev`.
+            Use 'admin' ou 'associado'. Se a conta não existir, será criada automaticamente com a senha 'password123'.
           </CardDescription>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
