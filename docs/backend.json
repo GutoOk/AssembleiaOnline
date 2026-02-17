@@ -19,9 +19,9 @@
           "description": "The user's email address. Used for identification and communication.",
           "format": "email"
         },
-        "avatarUrl": {
+        "avatarDataUri": {
           "type": "string",
-          "description": "URL for the user's avatar image.",
+          "description": "Data URI for the user's avatar image. Can be a data:image/... string or a URL for default avatars.",
           "format": "uri"
         },
         "createdAt": {
@@ -34,7 +34,7 @@
         "id",
         "name",
         "email",
-        "avatarUrl",
+        "avatarDataUri",
         "createdAt"
       ]
     },

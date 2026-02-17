@@ -74,7 +74,7 @@ export default function LoginPage() {
                   id: newUser.uid,
                   name: name.charAt(0).toUpperCase() + name.slice(1),
                   email: newUser.email!,
-                  avatarUrl: `https://avatar.vercel.sh/${newUser.uid}.svg`,
+                  avatarDataUri: `https://avatar.vercel.sh/${newUser.uid}.svg`,
                   createdAt: serverTimestamp() as any,
               };
               await setDoc(userDocRef, userProfile);

@@ -87,21 +87,22 @@ export default function ProfilePage() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
-  useEffect(() => {
-    if (userProfile) {
-      form.setValue('name', userProfile.name || '');
-      setAvatarPreview(userProfile.avatarUrl || null);
-    } else if (user) {
-        form.setValue('name', user.displayName || '');
-        setAvatarPreview(user.photoURL || null);
-    }
-  }, [userProfile, user, form]);
-
-  useEffect(() => {
+ useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace('/login');
     }
   }, [isUserLoading, user, router]);
+
+  useEffect(() => {
+    if (userProfile) {
+      form.setValue('name', userProfile.name || '');
+      setAvatarPreview(userProfile.avatarDataUri || null);
+    } else if (user) {
+        form.setValue('name', user.displayName || '');
+        setAvatarPreview(user.photoURL || null);
+    }
+  }, [userProfile, user, form, isUserLoading]);
+
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -177,12 +178,12 @@ export default function ProfilePage() {
       return;
     }
     
-    const dataToUpdate: { name: string; avatarUrl?: string } = {
+    const dataToUpdate: { name: string; avatarDataUri?: string } = {
       name: values.name,
     };
 
-    if (avatarPreview && avatarPreview !== userProfile?.avatarUrl && avatarPreview !== user.photoURL) {
-      dataToUpdate.avatarUrl = avatarPreview;
+    if (avatarPreview && avatarPreview !== userProfile?.avatarDataUri) {
+      dataToUpdate.avatarDataUri = avatarPreview;
     }
 
     try {
@@ -212,7 +213,17 @@ export default function ProfilePage() {
   
   const isLoading = form.formState.isSubmitting || isUserLoading || isUploading || isProfileLoading;
 
-  if (isLoading || !user) {
+  if (isUserLoading || isProfileLoading && !userProfile) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  if (!user) {
+    // This part will now be handled by the useEffect hook for redirection.
+    // Returning a loader is a good practice while waiting for redirection.
     return (
       <div className="flex h-full w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -221,7 +232,7 @@ export default function ProfilePage() {
   }
   
   const displayName = userProfile?.name ?? user.displayName ?? 'Usuário';
-  const avatarUrl = userProfile?.avatarUrl ?? user.photoURL ?? '';
+  const avatarDataUri = userProfile?.avatarDataUri ?? '';
 
   const initials = displayName
     ? displayName.split(' ').map((n) => n[0]).join('')

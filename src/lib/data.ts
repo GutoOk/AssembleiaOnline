@@ -5,7 +5,7 @@ export type UserProfile = {
   id: string; // UID from Auth
   name: string;
   email: string;
-  avatarUrl: string;
+  avatarDataUri: string;
   createdAt?: Timestamp;
 };
 

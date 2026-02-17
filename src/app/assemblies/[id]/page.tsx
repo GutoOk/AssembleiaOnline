@@ -56,7 +56,7 @@ function UserDisplay({ userId }: { userId: string }) {
   return (
     <div className="flex items-center gap-2">
       <Avatar className="h-6 w-6">
-        <AvatarImage src={userProfile.avatarUrl} alt={userProfile.name} />
+        <AvatarImage src={userProfile.avatarDataUri} alt={userProfile.name} />
         <AvatarFallback>{userProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
       </Avatar>
       <span>{userProfile.name}</span>
@@ -196,7 +196,7 @@ function PollCard({ poll, assemblyId }: { poll: Poll; assemblyId: string }) {
                     <div key={vote.id} className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50">
                         <div className="flex items-center gap-2">
                           <Avatar className="h-6 w-6">
-                              <AvatarImage src={voter?.avatarUrl} />
+                              <AvatarImage src={voter?.avatarDataUri} />
                               <AvatarFallback>{voter?.name.charAt(0)}</AvatarFallback>
                           </Avatar>
                           <span>{voter?.name ?? 'Carregando...'}</span>
@@ -304,7 +304,7 @@ function SpeakingQueue({ assemblyId }: { assemblyId: string }) {
         <div className="flex items-center gap-3">
           <span className="font-mono text-lg text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
           <Avatar className="h-9 w-9">
-            <AvatarImage src={speakerUser.avatarUrl} />
+            <AvatarImage src={speakerUser.avatarDataUri} />
             <AvatarFallback>{speakerUser.name.charAt(0)}</AvatarFallback>
           </Avatar>
           <div>

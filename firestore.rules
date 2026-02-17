@@ -97,12 +97,10 @@ service cloud.firestore {
      * Ensures that immutable fields like 'id', 'email', and 'createdAt' are not modified.
      */
     function hasValidUpdatedUserData() {
-      // The set of keys included in the update request.
-      let updateKeys = request.resource.data.keys();
       // The set of fields that are not allowed to be changed.
       let forbiddenKeys = ['id', 'email', 'createdAt'];
-      // The rule passes if the update request does not contain any of the forbidden keys.
-      return !updateKeys.hasAny(forbiddenKeys);
+      // The rule passes if the keys in the update request do not contain any of the forbidden keys.
+      return !request.resource.data.keys().hasAny(forbiddenKeys);
     }
 
     // --------------------------------------------------------------------------------

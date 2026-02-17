@@ -42,7 +42,7 @@ export function UserNav() {
   }
 
   const displayName = userProfile?.name ?? user.displayName ?? 'Usuário';
-  const avatarUrl = userProfile?.avatarUrl ?? user.photoURL ?? '';
+  const avatarDataUri = userProfile?.avatarDataUri ?? '';
   const email = userProfile?.email ?? user.email ?? '';
 
   const initials = displayName
@@ -54,7 +54,7 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={avatarUrl} alt={displayName} />
+            <AvatarImage src={avatarDataUri} alt={displayName} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
         </Button>
