@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
-import { Icons } from '@/components/icons';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -126,7 +126,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-             <Icons.logo className="h-12 w-12 text-primary" />
+             <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={48} height={48} />
           </div>
           <CardTitle className="text-2xl">Assembleia Mensa Brasil</CardTitle>
           <CardDescription>Acesso ao sistema</CardDescription>

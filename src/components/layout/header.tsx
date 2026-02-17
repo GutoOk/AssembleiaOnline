@@ -9,7 +9,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { UserNav } from './user-nav';
-import { Icons } from '../icons';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAdmin } from '@/hooks/use-admin';
 
@@ -32,7 +32,7 @@ export function Header() {
               href="#"
               className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:text-base"
             >
-              <Icons.logo className="h-5 w-5 transition-all group-hover:scale-110" />
+              <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={20} height={20} className="transition-all group-hover:scale-110" />
               <span className="sr-only">Assembleia Mensa</span>
             </Link>
             <Link

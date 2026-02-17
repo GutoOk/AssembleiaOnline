@@ -16,7 +16,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Icons } from '../icons';
+import Image from 'next/image';
 import { LayoutDashboard, Users } from 'lucide-react';
 import { useAdmin } from '@/hooks/use-admin';
 
@@ -32,7 +32,7 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
                 <Link href="#" className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8">
-                  <Icons.logo className="h-6 w-6" />
+                  <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={24} height={24} />
                   <span className="sr-only">Assembleia Mensa Brasil</span>
                 </Link>
               </SidebarMenuButton>
