@@ -8,15 +8,25 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2 } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import Link from 'next/link';
 import { CreatePollDialog } from '@/components/CreatePollDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 
-import { useDoc, useFirestore, useMemoFirebase, useCollection, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useCollection, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
 import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote } from '@/lib/data';
@@ -331,7 +341,10 @@ export default function AssemblyPage() {
   const params = useParams<{ id: string }>();
   const firestore = useFirestore();
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
+  const { toast } = useToast();
   const [isCreatePollOpen, setCreatePollOpen] = useState(false);
+  const [isEditUrlOpen, setEditUrlOpen] = useState(false);
+  const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
 
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id ) return null;
@@ -345,6 +358,20 @@ export default function AssemblyPage() {
 
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
   const { data: polls, isLoading: arePollsLoading } = useCollection<Poll>(pollsQuery);
+
+  useEffect(() => {
+    if (assembly) {
+      setNewYoutubeUrl(assembly.youtubeUrl);
+    }
+  }, [assembly]);
+
+  const handleUpdateUrl = () => {
+    if (!assembly || !firestore) return;
+    const assemblyDocRef = doc(firestore, 'assemblies', assembly.id);
+    updateDocumentNonBlocking(assemblyDocRef, { youtubeUrl: newYoutubeUrl });
+    toast({ title: 'Link atualizado!', description: 'O link da transmissão foi atualizado com sucesso.' });
+    setEditUrlOpen(false);
+  };
 
   const isLoading = isAdminLoading || isAssemblyLoading;
 
@@ -374,15 +401,45 @@ export default function AssemblyPage() {
       <div className="grid md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-8">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
+              {isAdmin && (
+                <Dialog open={isEditUrlOpen} onOpenChange={setEditUrlOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Pencil className="h-4 w-4" />
+                      <span className="sr-only">Editar link da transmissão</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[625px]">
+                    <DialogHeader>
+                        <DialogTitle>Editar Link da Transmissão</DialogTitle>
+                        <DialogDescription>
+                          Cole o novo link de incorporação (embed) do YouTube abaixo.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <Input
+                          id="youtubeUrl"
+                          value={newYoutubeUrl}
+                          onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                          placeholder="https://www.youtube.com/embed/..."
+                      />
+                    </div>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setEditUrlOpen(false)}>Cancelar</Button>
+                      <Button type="button" onClick={handleUpdateUrl}>Salvar Alterações</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
             </CardHeader>
             <CardContent>
               <div className="aspect-video w-full overflow-hidden rounded-lg border">
                 <iframe
                   width="100%"
                   height="100%"
-                  src={assembly.youtubeUrl}
+                  src={newYoutubeUrl}
                   title="YouTube video player"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
