@@ -65,7 +65,7 @@ function UserDisplay({ userId }: { userId: string }) {
   const { data: userProfile, isLoading } = useDoc<UserProfile>(userProfileRef);
 
   if (isLoading) {
-    return <div className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>;
+    return <div className="flex items-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>;
   }
 
   if (!userProfile) {
@@ -73,7 +73,7 @@ function UserDisplay({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <Avatar className="h-6 w-6">
         <AvatarImage src={userProfile.avatarDataUri} alt={userProfile.name} />
         <AvatarFallback>{userProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
@@ -245,7 +245,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
         </div>
         <CardTitle className={cn("text-lg pt-2", pollAnnulled && "font-normal")}>{poll.question}</CardTitle>
         {!pollAnnulled && (
-            <CardDescription className="flex items-center gap-2">
+            <CardDescription className="flex items-center gap-1.5">
                 <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
             </CardDescription>
         )}
@@ -253,7 +253,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
       <CardContent>
         {pollAnnulled ? (
             <div>
-                <h3 className="mb-2 text-foreground">Motivo da anulação:</h3>
+                <h3 className="mb-2 text-foreground/80">Motivo da anulação:</h3>
                 <blockquote className="mt-2 border-l-2 pl-4 italic text-muted-foreground">
                     "{poll.annulmentReason}"
                 </blockquote>
@@ -282,7 +282,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
                     const option = options?.find(o => o.id === vote.pollOptionId);
                     return (
                     <div key={vote.id} className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <Avatar className="h-6 w-6">
                               <AvatarImage src={voter?.avatarDataUri} />
                               <AvatarFallback>{voter?.name?.charAt(0)}</AvatarFallback>
@@ -536,7 +536,7 @@ function AddAtaRecordCard({ assembly, user }: { assembly: Assembly, user: any })
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg"><PlusCircle className="h-5 w-5" /> Adicionar Registro à Ata</CardTitle>
+        <CardTitle className="flex items-center gap-1.5 text-lg"><PlusCircle className="h-5 w-5" /> Adicionar Registro à Ata</CardTitle>
         <CardDescription>O que aconteceu ou foi dito?</CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -597,21 +597,24 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished }: { ataItem: AtaItem, isA
 
   return (
     <>
-      <Card>
-        <CardHeader className="flex-row justify-between items-center">
-          <CardTitle className="flex items-center gap-2 text-lg"><BookText className="h-5 w-5" /> Registro de Ata</CardTitle>
-          {isAdmin && !assemblyFinished && (
-            <div className="flex items-center gap-2">
-              {!isEditing && <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}><Pencil className="h-4 w-4" /> Editar</Button>}
-              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setIsDeleteDialogOpen(true)}><Trash2 className="h-4 w-4" /> Remover</Button>
+      <Card className="group relative">
+         {isAdmin && !assemblyFinished && !isEditing && (
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsEditing(true)}>
+                    <Pencil className="h-4 w-4" />
+                    <span className="sr-only">Editar</span>
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Remover</span>
+                </Button>
             </div>
-          )}
-        </CardHeader>
-        <CardContent>
+        )}
+        <CardContent className="pt-6">
           {isEditing ? (
             <div className="space-y-2">
               <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={4} />
-              <div className="flex gap-2 justify-end">
+              <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setEditText(ataItem.text); }}>Cancelar</Button>
                 <Button size="sm" onClick={handleUpdate}>Salvar</Button>
               </div>
@@ -621,7 +624,7 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished }: { ataItem: AtaItem, isA
           )}
         </CardContent>
         <CardFooter className="text-xs text-muted-foreground flex-col items-start gap-1 border-t pt-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {admin ? (
               <>
                 <Avatar className="h-5 w-5">
@@ -844,7 +847,7 @@ export default function AssemblyPage() {
     <Sheet open={isQueueOpen} onOpenChange={setIsQueueOpen}>
         <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
           <SheetHeader className="p-6 pb-4">
-            <SheetTitle className="flex items-center gap-2"><Mic className="h-6 w-6" /> Fila de Inscrição</SheetTitle>
+            <SheetTitle className="flex items-center gap-1.5"><Mic className="h-6 w-6" /> Fila de Inscrição</SheetTitle>
             <SheetDescription>Membros que solicitaram a palavra.</SheetDescription>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto p-6 pt-0">
@@ -874,8 +877,8 @@ export default function AssemblyPage() {
         <div className="space-y-8">
           <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
-                <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-1.5"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
+                <div className="flex items-center gap-1.5">
                   {isSpeaking && (
                       <Button onClick={handleEndParticipation} variant="destructive">
                           <LogOut className="h-4 w-4" />
@@ -964,7 +967,7 @@ export default function AssemblyPage() {
               {isAdmin && !assemblyFinished && (
                 <>
                   <AddAtaRecordCard assembly={assembly} user={user} />
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     <Button onClick={() => setCreatePollOpen(true)}>
                       <PlusCircle className="h-4 w-4" /> Nova Votação
                     </Button>
