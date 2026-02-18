@@ -31,7 +31,7 @@ export function AppSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
-                <Link href="#" className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8">
+                <Link href="/dashboard" className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8">
                   <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={24} height={24} />
                   <span className="sr-only">Assembleia Mensa Brasil</span>
                 </Link>
@@ -43,7 +43,7 @@ export function AppSidebar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/users')}>
+                  <SidebarMenuButton asChild isActive={pathname === '/dashboard' || pathname.startsWith('/dashboard/assemblies')}>
                     <Link href="/dashboard">
                       <LayoutDashboard className="h-5 w-5" />
                       <span className="sr-only">Assembleias</span>
