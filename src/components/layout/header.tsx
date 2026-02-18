@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, MessageCircle, Users, Home } from 'lucide-react';
+import { Menu, MessageCircle, Users, Home, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -15,6 +15,12 @@ import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { useAssemblyContext } from '@/contexts/AssemblyContext';
 import { Separator } from '../ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export function Header() {
   const pathname = usePathname();
@@ -33,6 +39,8 @@ export function Header() {
       assemblyContext.setIsQueueOpen(true);
     }
   }
+
+  const showCreateAssemblyButton = isAdmin && pathname === '/dashboard';
 
   const mobileNavLinks = (
     <>
@@ -74,29 +82,35 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
-      <nav className="hidden flex-row items-center gap-4 text-sm font-medium md:flex lg:gap-6">
-        <Link
-          href="/dashboard"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Início"
-        >
-          <Home className="h-5 w-5" />
-          <span className="sr-only">Início</span>
-        </Link>
-        
-        {isAdmin && (
-            <Link
-              href="/dashboard/users"
-              className={cn(
-                "transition-colors hover:text-foreground",
-                 pathname.startsWith('/dashboard/users') ? "text-foreground" : "text-muted-foreground"
-              )}
-            >
-              Usuários
-            </Link>
-        )}
+      <TooltipProvider>
+        <nav className="hidden flex-row items-center gap-2 text-sm font-medium md:flex lg:gap-4">
+          <Link
+            href="/dashboard"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Início"
+          >
+            <Home className="h-5 w-5" />
+            <span className="sr-only">Início</span>
+          </Link>
+          
+          {showCreateAssemblyButton && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button asChild variant="ghost" size="icon" className="h-9 w-9">
+                  <Link href="/dashboard/assemblies/create">
+                    <PlusCircle className="h-5 w-5" />
+                    <span className="sr-only">Criar Assembleia</span>
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Criar Assembleia</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
 
-      </nav>
+        </nav>
+      </TooltipProvider>
 
       {/* Mobile Navigation */}
       <div className="flex-1 md:hidden">

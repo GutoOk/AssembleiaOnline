@@ -14,18 +14,11 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, PlusCircle, Loader2, Pencil } from 'lucide-react';
+import { ArrowRight, Loader2, Pencil } from 'lucide-react';
 import { useAdmin } from '@/hooks/use-admin';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import type { Assembly } from '@/lib/data';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-
 
 function AssemblyCard({ assembly, isAdmin }: { assembly: Assembly, isAdmin: boolean }) {
   const getStatusVariant = (status: Assembly['status']) => {
@@ -106,28 +99,6 @@ export default function DashboardPage() {
     <>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Assembleias</h1>
-        {isAdmin ? (
-          <Button asChild>
-            <Link href="/dashboard/assemblies/create">
-              <PlusCircle className="mr-2 h-4 w-4" /> Criar Assembleia
-            </Link>
-          </Button>
-        ) : (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="inline-block">
-                  <Button disabled>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Criar Assembleia
-                  </Button>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Somente administradores podem criar assembleias.</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
       </div>
       {isLoading ? (
          <div className="flex h-64 w-full items-center justify-center">
