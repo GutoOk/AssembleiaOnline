@@ -34,7 +34,7 @@ export function Header() {
 
   const assemblyStatus = assemblyContext?.assembly?.status;
   const showAssemblyButtons = assemblyStatus === 'live';
-  const showEndAssemblyButton = isAdmin && (assemblyStatus === 'live' || assemblyStatus === 'scheduled');
+  const showEndAssemblyButton = isAdmin && assemblyStatus === 'live';
   const showStartAssemblyButton = isAdmin && assemblyStatus === 'scheduled';
   
   const handleQueueClick = () => {
