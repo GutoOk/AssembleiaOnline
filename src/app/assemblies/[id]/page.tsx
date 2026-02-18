@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2 } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -39,9 +39,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
-import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem } from '@/lib/data';
+import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -145,7 +145,7 @@ function Countdown({ endDate }: { endDate: Date }) {
 }
 
 
-function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; assemblyId: string, assemblyStatus: Assembly['status'], isAdmin: boolean }) {
+function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssignments, userProxyGrant, userProfiles }: { poll: Poll; assemblyId: string, assemblyStatus: Assembly['status'], isAdmin: boolean, representedAssignments: ProxyAssignment[] | null, userProxyGrant: ProxyAssignment | null, userProfiles: Record<string, UserProfile> }) {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
@@ -170,40 +170,55 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
   const { data: options, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
   const { data: votes, isLoading: isLoadingVotes } = useCollection<Vote>(votesQuery);
 
-  const userVote = useMemo(() => votes?.find(v => v.id === user?.uid), [votes, user]);
+  const userVote = useMemo(() => votes?.find(v => v.userId === user?.uid), [votes, user]);
   const pollEndDate = poll.endDate.toDate();
   const pollEnded = isPast(pollEndDate) || poll.status === 'closed' || assemblyStatus === 'finished';
   const pollAnnulled = poll.status === 'annulled';
+  const canVote = !userVote && !pollEnded && !userProxyGrant && !pollAnnulled;
 
-  const userIdsToFetch = useMemo(() => {
-      const ids = new Set<string>();
-      if (poll.administratorId) ids.add(poll.administratorId);
-      if (poll.annulledBy) ids.add(poll.annulledBy);
-      votes?.forEach(v => ids.add(v.userId));
-      return Array.from(ids);
-  }, [votes, poll.administratorId, poll.annulledBy]);
-
-  const { profiles: userProfiles } = useUserProfiles(userIdsToFetch);
   const pollCreator = userProfiles[poll.administratorId];
   const pollAnnuler = userProfiles[poll.annulledBy ?? ''];
-
+  const proxyGranteeProfile = userProxyGrant ? userProfiles[userProxyGrant.proxyId] : null;
 
   const handleVote = () => {
-    if (!selectedOption || !user) {
+    if (!selectedOption || !user || !firestore) {
         toast({ variant: 'destructive', title: 'Erro', description: 'Selecione uma opção para votar.' });
         return;
     };
-    const voteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', user.uid);
-    const voteData: Omit<Vote, 'id' | 'timestamp'> = {
+
+    // 1. The user's own vote
+    const userVoteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', user.uid);
+    const userVoteData: Omit<Vote, 'id' | 'timestamp'> = {
         userId: user.uid,
         pollId: poll.id,
         assemblyId: assemblyId,
         pollOptionId: selectedOption,
-        timestamp: serverTimestamp() as any,
         assemblyStatus: assemblyStatus
     };
-    setDocumentNonBlocking(voteRef, voteData, {});
-    toast({ title: 'Voto Registrado!', description: 'Seu voto foi computado com sucesso.' });
+    setDocumentNonBlocking(userVoteRef, { ...userVoteData, timestamp: serverTimestamp() }, {});
+
+    // 2. Votes for represented users (proxies)
+    if (representedAssignments) {
+        representedAssignments.forEach(assignment => {
+            const grantorVoteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', assignment.grantorId);
+            const grantorVoteData: Omit<Vote, 'id' | 'timestamp'> = {
+                userId: assignment.grantorId,
+                pollId: poll.id,
+                assemblyId: assemblyId,
+                pollOptionId: selectedOption,
+                proxyVoterId: user.uid,
+                assemblyStatus: assemblyStatus
+            };
+            setDocumentNonBlocking(grantorVoteRef, { ...grantorVoteData, timestamp: serverTimestamp() }, {});
+        });
+    }
+    
+    const totalVotes = 1 + (representedAssignments?.length ?? 0);
+    const toastDescription = totalVotes > 1
+        ? `Seu voto e de seus ${totalVotes - 1} representados foram computados.`
+        : 'Seu voto foi computado com sucesso.';
+
+    toast({ title: 'Voto Registrado!', description: toastDescription });
   };
   
   const handleAnnulConfirm = () => {
@@ -331,8 +346,40 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
                   </div>
               </div>
             )
-        ) : userVote || pollEnded ? (
+        ) : canVote ? (
+          <div className="space-y-2">
+            <RadioGroup onValueChange={setSelectedOption} value={selectedOption}>
+              {options?.map(option => (
+                <div key={option.id} className="flex items-center space-x-2">
+                  <RadioGroupItem value={option.id} id={option.id} />
+                  <Label htmlFor={option.id} className="font-normal">{option.text}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+            <Button onClick={handleVote} disabled={!selectedOption || isLoadingVotes} size="sm">
+              {isLoadingVotes && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Send className="h-4 w-4" />
+              Votar
+            </Button>
+             {representedAssignments && representedAssignments.length > 0 && (
+                <p className="text-xs text-muted-foreground pt-1">
+                    Seu voto também será computado para seus {representedAssignments.length} representados.
+                </p>
+            )}
+          </div>
+        ) : (
           <div>
+            {!!userProxyGrant && (
+                <div className="mb-4 p-3 flex items-start gap-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-sm">
+                    <Info className="h-5 w-5 mt-0.5 text-blue-700 flex-shrink-0" />
+                    <div>
+                        <p className="font-semibold">Sua procuração foi concedida.</p>
+                        <p className="text-blue-800">
+                           Você concedeu seu direito de voto para <span className="font-bold">{proxyGranteeProfile?.name ?? 'outro membro'}</span>, que votará em seu nome nesta assembleia.
+                        </p>
+                    </div>
+                </div>
+            )}
             <h3 className="mb-2 text-sm font-normal">Resultado:</h3>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
@@ -353,16 +400,25 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
                 {votesToShow.map(vote => {
                     const voter = userProfiles[vote.userId];
                     const option = options?.find(o => o.id === vote.pollOptionId);
+                    const proxyVoter = vote.proxyVoterId ? userProfiles[vote.proxyVoterId] : undefined;
+
                     return (
-                    <div key={vote.id} className="flex items-center justify-between text-sm p-1.5 rounded-md bg-muted/50">
-                        <div className="flex items-center gap-1">
-                          <Avatar className="h-6 w-6">
-                              <AvatarImage src={voter?.avatarDataUri} />
-                              <AvatarFallback>{voter?.name?.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <span>{voter?.name ?? 'Carregando...'}</span>
+                    <div key={vote.id} className="flex items-start justify-between text-sm p-1.5 rounded-md bg-muted/50">
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5">
+                                <Avatar className="h-6 w-6">
+                                    <AvatarImage src={voter?.avatarDataUri} />
+                                    <AvatarFallback>{voter?.name?.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium">{voter?.name ?? 'Carregando...'}</span>
+                            </div>
+                            {vote.proxyVoterId && proxyVoter && (
+                                <p className="text-xs text-muted-foreground pl-8">
+                                    → por procuração a <span className="font-medium">{proxyVoter.name}</span>
+                                </p>
+                            )}
                         </div>
-                        <span className="font-medium">{option?.text}</span>
+                        <span className="font-medium text-right self-center">{option?.text}</span>
                     </div>
                     )
                 })}
@@ -374,22 +430,6 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
                 )}
               </>
             )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <RadioGroup onValueChange={setSelectedOption} value={selectedOption}>
-              {options?.map(option => (
-                <div key={option.id} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option.id} id={option.id} />
-                  <Label htmlFor={option.id} className="font-normal">{option.text}</Label>
-                </div>
-              ))}
-            </RadioGroup>
-            <Button onClick={handleVote} disabled={!selectedOption || isLoadingVotes} size="sm">
-              {isLoadingVotes && <Loader2 className="h-4 w-4 animate-spin" />}
-              <Send className="h-4 w-4" />
-              Votar
-            </Button>
           </div>
         )}
       </CardContent>
@@ -660,15 +700,14 @@ function AdminActionCard({
   )
 }
 
-function AtaCard({ ataItem, isAdmin, assemblyFinished }: { ataItem: AtaItem, isAdmin: boolean, assemblyFinished: boolean }) {
+function AtaCard({ ataItem, isAdmin, assemblyFinished, userProfiles }: { ataItem: AtaItem, isAdmin: boolean, assemblyFinished: boolean, userProfiles: Record<string, UserProfile> }) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(ataItem.text);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  const { profiles: adminProfile } = useUserProfiles([ataItem.administratorId]);
-  const admin = adminProfile[ataItem.administratorId];
+  const admin = userProfiles[ataItem.administratorId];
 
   const handleUpdate = () => {
     if (!editText.trim()) {
@@ -776,10 +815,13 @@ export default function AssemblyPage() {
     defaultValues: { text: '' },
   });
 
+  // --- Data Fetching ---
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
     return doc(firestore, 'assemblies', params.id);
   }, [firestore, params.id, user]);
+
+  const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
 
   const pollsQuery = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -795,16 +837,45 @@ export default function AssemblyPage() {
     if (!firestore || !params.id || !user) return null;
     return query(collection(firestore, 'assemblies', params.id, 'ata'), orderBy('createdAt', 'desc'));
   }, [firestore, params.id, user]);
+  
+  // Proxy Voting Data
+  const representedUsersQuery = useMemoFirebase(() => {
+    if (!firestore || !params.id || !user) return null;
+    return query(collection(firestore, 'assemblies', params.id, 'proxies'), where('proxyId', '==', user.uid));
+  }, [firestore, params.id, user]);
 
-  const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
+  const userProxyGrantQuery = useMemoFirebase(() => {
+    if (!firestore || !params.id || !user) return null;
+    return doc(firestore, 'assemblies', params.id, 'proxies', user.uid);
+  }, [firestore, params.id, user]);
+
   const { data: polls, isLoading: arePollsLoading } = useCollection<Poll>(pollsQuery);
   const { data: queue, isLoading: isQueueLoading } = useCollection<SpeakerQueueItem>(queueQuery);
   const { data: ataItems, isLoading: areAtaItemsLoading } = useCollection<AtaItem>(ataQuery);
+  const { data: representedAssignments } = useCollection<ProxyAssignment>(representedUsersQuery);
+  const { data: userProxyGrant } = useDoc<ProxyAssignment>(userProxyGrantQuery);
 
+  // This is a complex dependency. To avoid re-fetching profiles unnecessarily,
+  // we gather all votes from all polls. This is not ideal, but better than fetching in the child.
+  // A better solution would involve a more sophisticated state management.
+  const allVotesQueries = useMemo(() => {
+    if (!polls) return [];
+    return polls.map(p => query(collection(firestore, 'assemblies', params.id, 'polls', p.id, 'votes')));
+  }, [polls, firestore, params.id]);
+
+  // We can't easily use useCollection for an array of queries. This part remains a challenge.
+  // For now, user profiles will be fetched inside PollCard which causes multiple hooks.
 
   const userIdsInQueue = useMemo(() => queue?.map(s => s.userId) ?? [], [queue]);
   const userIdsInAta = useMemo(() => ataItems?.map(a => a.administratorId) ?? [], [ataItems]);
-  const allUserIdsToFetch = useMemo(() => [...new Set([...userIdsInQueue, ...userIdsInAta])], [userIdsInQueue, userIdsInAta]);
+  const proxyGranteeId = userProxyGrant?.proxyId;
+
+  const allUserIdsToFetch = useMemo(() => {
+      const ids = new Set([...userIdsInQueue, ...userIdsInAta]);
+      if (proxyGranteeId) ids.add(proxyGranteeId);
+      // Poll-related user IDs are fetched inside PollCard for now.
+      return Array.from(ids);
+  }, [userIdsInQueue, userIdsInAta, proxyGranteeId]);
 
   const { profiles: userProfiles, isLoading: areProfilesLoading } = useUserProfiles(allUserIdsToFetch);
   const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.uid), [queue, user]);
@@ -1110,8 +1181,8 @@ export default function AssemblyPage() {
               {timelineItems && timelineItems.length > 0 ? (
                   timelineItems.map(item => (
                      'question' in item
-                      ? <PollCard key={item.id} poll={item as Poll} assemblyId={assembly.id} assemblyStatus={assembly.status} isAdmin={isAdmin} />
-                      : <AtaCard key={item.id} ataItem={item as AtaItem} isAdmin={isAdmin} assemblyFinished={assemblyFinished} />
+                      ? <PollCard key={item.id} poll={item as Poll} assemblyId={assembly.id} assemblyStatus={assembly.status} isAdmin={isAdmin} representedAssignments={representedAssignments} userProxyGrant={userProxyGrant} userProfiles={userProfiles} />
+                      : <AtaCard key={item.id} ataItem={item as AtaItem} isAdmin={isAdmin} assemblyFinished={assemblyFinished} userProfiles={userProfiles} />
                   ))
               ) : (
                   !arePollsLoading && !areAtaItemsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação ou registro na ata para esta assembleia.</p>

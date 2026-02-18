@@ -124,7 +124,7 @@ export default function ProxyPage() {
 
   const assembliesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'assemblies'), where('status', 'in', ['scheduled', 'live']), where('allowProxyVoting', '==', true));
+    return query(collection(firestore, 'assemblies'), where('status', 'in', ['scheduled', 'live', 'finished']), where('allowProxyVoting', '==', true));
   }, [firestore]);
 
   const { data: assembliesForProxy, isLoading: areAssembliesLoading } = useCollection<Assembly>(assembliesQuery);
@@ -151,6 +151,12 @@ export default function ProxyPage() {
     }
 
     try {
+        const assembly = assembliesForProxy?.find(a => a.id === values.assemblyId);
+        if (!assembly) {
+            toast({ variant: 'destructive', title: 'Erro', description: 'Assembleia não encontrada ou não permite procuração.' });
+            return;
+        }
+
         const usersRef = collection(firestore, 'users');
         const q = query(usersRef, where('email', '==', values.proxyEmail));
         const userSnapshot = await getDocs(q);
@@ -162,6 +168,22 @@ export default function ProxyPage() {
 
         const proxyUser = userSnapshot.docs[0];
         const proxyId = proxyUser.id;
+
+        const maxProxies = assembly.maxProxiesPerUser ?? 4;
+        const existingProxiesQuery = query(
+            collection(firestore, 'assemblies', values.assemblyId, 'proxies'),
+            where('proxyId', '==', proxyId)
+        );
+        const existingProxiesSnapshot = await getDocs(existingProxiesQuery);
+        
+        if (existingProxiesSnapshot.size >= maxProxies) {
+            toast({ 
+                variant: 'destructive', 
+                title: 'Limite Atingido', 
+                description: `${proxyUser.data().name} já atingiu o limite de ${maxProxies} procurações para esta assembleia.` 
+            });
+            return;
+        }
 
         const proxyRef = doc(firestore, 'assemblies', values.assemblyId, 'proxies', user.uid);
         

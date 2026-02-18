@@ -308,6 +308,10 @@
             "finished",
             "cancelled"
           ]
+        },
+        "proxyVoterId": {
+          "type": "string",
+          "description": "If this vote was cast by a proxy, this is the UID of the user who cast the vote."
         }
       },
       "required": [

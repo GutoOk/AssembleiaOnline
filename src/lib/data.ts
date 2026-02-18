@@ -25,6 +25,7 @@ export type Vote = {
   pollOptionId: string;
   timestamp: Timestamp;
   assemblyStatus: Assembly['status'];
+  proxyVoterId?: string; // UID of the user who cast the vote on behalf of userId
 };
 
 export type Poll = {
