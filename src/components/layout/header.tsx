@@ -130,9 +130,19 @@ export function Header() {
             <UserNav />
 
             {isAssemblyPage ? (
-              <Button asChild variant="ghost">
-                <Link href="/dashboard">Sair</Link>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild variant="ghost" size="icon">
+                    <Link href="/dashboard">
+                      <Home className="h-5 w-5" />
+                      <span className="sr-only">Voltar ao Início</span>
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Voltar ao Início</p>
+                </TooltipContent>
+              </Tooltip>
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
