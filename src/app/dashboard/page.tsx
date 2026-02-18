@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, PlusCircle, Loader2 } from 'lucide-react';
+import { ArrowRight, PlusCircle, Loader2, Pencil } from 'lucide-react';
 import { useAdmin } from '@/hooks/use-admin';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/tooltip';
 
 
-function AssemblyCard({ assembly }: { assembly: Assembly }) {
+function AssemblyCard({ assembly, isAdmin }: { assembly: Assembly, isAdmin: boolean }) {
   const getStatusVariant = (status: Assembly['status']) => {
     switch (status) {
       case 'live':
@@ -53,7 +53,15 @@ function AssemblyCard({ assembly }: { assembly: Assembly }) {
             className="object-cover"
             data-ai-hint="meeting conference"
           />
-          <div className="absolute top-2 right-2">
+          <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+            {isAdmin && (
+              <Button asChild variant="secondary" size="icon" className="h-7 w-7">
+                <Link href={`/dashboard/assemblies/${assembly.id}/edit`}>
+                  <Pencil className="h-4 w-4" />
+                  <span className="sr-only">Editar Assembleia</span>
+                </Link>
+              </Button>
+            )}
             <Badge variant={getStatusVariant(assembly.status)} className="capitalize">
               {assembly.status === 'live' && <span className="relative flex h-2 w-2 mr-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span></span>}
               {assembly.status === 'live' ? 'Ao Vivo' : assembly.status === 'scheduled' ? 'Agendada' : 'Finalizada'}
@@ -129,7 +137,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {assemblies && assemblies.length > 0 ? (
             assemblies.map((assembly) => (
-              <AssemblyCard key={assembly.id} assembly={assembly} />
+              <AssemblyCard key={assembly.id} assembly={assembly} isAdmin={isAdmin} />
             ))
           ) : (
             <p>Nenhuma assembleia encontrada.</p>
