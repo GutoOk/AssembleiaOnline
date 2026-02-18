@@ -245,8 +245,8 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
         </div>
         {!pollAnnulled && 
           <>
-            <CardTitle className="text-lg">{poll.question}</CardTitle>
-            <CardDescription className="flex items-center gap-1">
+            <CardTitle className="text-lg font-bold">{poll.question}</CardTitle>
+            <CardDescription className="flex items-center gap-1 !mt-1">
                 <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
             </CardDescription>
           </>
@@ -254,16 +254,16 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
       </CardHeader>
       <CardContent className="p-4 pt-0">
         {pollAnnulled ? (
-            <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">{poll.question}</p>
+            <div className="space-y-1 text-sm">
+                <p className="text-muted-foreground">{poll.question}</p>
                 <div>
-                    <p className="text-sm text-foreground">Motivo da anulação:</p>
-                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{poll.annulmentReason}</p>
+                    <p className="text-foreground">Motivo da anulação:</p>
+                    <p className="text-muted-foreground mt-1 whitespace-pre-wrap">{poll.annulmentReason}</p>
                 </div>
             </div>
         ) : userVote || pollEnded ? (
           <div>
-            <h3 className="mb-2 text-sm font-normal">Resultado:</h3>
+            <h3 className="mb-2 text-sm">Resultado:</h3>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={voteData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
@@ -278,7 +278,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
             {votes && votes.length > 0 && (
                 <>
                 <Separator className="my-2" />
-                <h3 className="mb-2 text-sm font-normal">Votos individuais:</h3>
+                <h3 className="mb-2 text-sm">Votos individuais:</h3>
                 <div className={cn("space-y-1", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
                 {votesToShow.map(vote => {
                     const voter = userProfiles[vote.userId];
@@ -644,7 +644,7 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished }: { ataItem: AtaItem, isA
                 <span className="font-medium">{admin.name}</span>
               </>
             ) : <Loader2 className="h-4 w-4 animate-spin"/>}
-            <span>às {ataItem.createdAt ? format(ataItem.createdAt.toDate(), "HH:mm", { locale: ptBR }) : '...'}</span>
+            <span>às {ataItem.createdAt ? format(ataItem.createdAt.toDate(), "HH:mm") : '...'}</span>
           </div>
         </CardFooter>
       </Card>
@@ -876,7 +876,7 @@ export default function AssemblyPage() {
           </div>
         </SheetContent>
       </Sheet>
-      <div className="container mx-auto p-0 space-y-2">
+      <div className="container mx-auto p-0 md:space-y-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{assembly.title}</h1>
           <p className="text-muted-foreground mt-1">
@@ -884,7 +884,7 @@ export default function AssemblyPage() {
           </p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-4">
           <Card>
               <CardHeader className="flex flex-row items-center justify-between p-4">
                 <CardTitle className="flex items-center gap-1"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
@@ -973,7 +973,12 @@ export default function AssemblyPage() {
               </CardContent>
             </Card>
 
-            <div className="space-y-2">
+            <div className="flex items-center gap-2 pt-4 pb-2">
+                <BookText className="h-5 w-5 text-muted-foreground" />
+                <h2 className="text-xl font-semibold tracking-tight">Ata da Assembleia</h2>
+            </div>
+
+            <div className="space-y-4">
               {isAdmin && !assemblyFinished && (
                 <>
                   <AddAtaRecordCard assembly={assembly} user={user} />
