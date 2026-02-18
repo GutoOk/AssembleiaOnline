@@ -27,13 +27,15 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
-import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
+import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { doc, collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
 import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAssemblyContext } from '@/contexts/AssemblyContext';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 function UserDisplay({ userId }: { userId: string }) {
   const firestore = useFirestore();
@@ -258,12 +260,12 @@ function SpeakingQueue({
   const getStatusBadge = (status: SpeakerQueueItem['status']) => {
       switch (status) {
         case 'Com a Fala':
-            return <Badge variant="default" className="mt-1 flex items-center gap-1.5"><MessageCircle className="h-3 w-3"/>{status}</Badge>;
+            return <Badge variant="default" className="flex items-center gap-1.5"><MessageCircle className="h-3 w-3"/>{status}</Badge>;
         case 'Entrada Autorizada':
-            return <Badge variant="secondary" className="mt-1">{status}</Badge>;
+            return <Badge variant="secondary">{status}</Badge>;
         case 'Na Fila':
         default:
-            return <Badge variant="outline" className="mt-1">{status}</Badge>;
+            return <Badge variant="outline">{status}</Badge>;
       }
   }
 
@@ -294,14 +296,14 @@ function SpeakingQueue({
           <div>
             <p className="font-medium text-sm">{speakerUser.name}</p>
             <p className="text-xs text-muted-foreground">{speakerUser.email}</p>
-            {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl && userInQueue ? (
-                <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl, userInQueue)} className="mt-1">
+             {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl && userInQueue ? (
+                <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl, userInQueue)} className="mt-2">
                     <Video className="h-4 w-4 mr-2" /> Entrar para Falar
                 </Button>
             ) : (
-                getStatusBadge(speaker.status)
+                <div className="mt-1">{getStatusBadge(speaker.status)}</div>
             )}
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1.5">
             {speaker.joinedAt && formatDistanceToNow(speaker.joinedAt.toDate(), { locale: ptBR, addSuffix: true })}
             </p>
           </div>
@@ -311,15 +313,7 @@ function SpeakingQueue({
   };
   
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Mic className="h-6 w-6" />
-          Fila de Inscrição
-        </CardTitle>
-        <CardDescription>Membros que solicitaram a palavra.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <div className="space-y-4">
         {isAdmin && (
            <>
             <Button className="w-full" onClick={() => setManageQueueOpen(true)} disabled={!queue}>
@@ -357,8 +351,7 @@ function SpeakingQueue({
             {queue && queue.length > 0 ? queue.map(renderSpeaker) : <p className="text-sm text-muted-foreground text-center pt-4">Ninguém na fila.</p>}
             </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
   )
 }
 
@@ -374,6 +367,9 @@ export default function AssemblyPage() {
   const [newZoomUrl, setNewZoomUrl] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
+
+  const assemblyContext = useAssemblyContext();
+  const { setStatus, isQueueOpen, setIsQueueOpen } = assemblyContext!;
 
 
   const assemblyRef = useMemoFirebase(() => {
@@ -398,6 +394,16 @@ export default function AssemblyPage() {
   const userIdsInQueue = useMemo(() => queue?.map(s => s.userId) ?? [], [queue]);
   const { profiles: userProfiles, isLoading: areProfilesLoading } = useUserProfiles(userIdsInQueue);
   const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.uid), [queue, user]);
+  
+  useEffect(() => {
+    if (assembly) {
+      setStatus(assembly.status);
+    }
+    return () => {
+      setStatus(null);
+    };
+  }, [assembly, setStatus]);
+
 
   const handleJoinQueue = () => {
     if (!user || !assembly) return;
@@ -494,129 +500,15 @@ export default function AssemblyPage() {
   const assemblyDate = assembly.date.toDate();
 
   return (
-    <div className="container mx-auto p-0 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{assembly.title}</h1>
-        <p className="text-muted-foreground mt-1">
-          {format(assemblyDate, "eeee, dd 'de' MMMM, yyyy 'às' HH:mm", { locale: ptBR })}
-        </p>
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-8">
-        <div className="md:col-span-2 space-y-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
-              <div className="flex items-center gap-2">
-                {isSpeaking && (
-                    <Button onClick={handleEndParticipation} variant="destructive">
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Encerrar Participação
-                    </Button>
-                )}
-                {isAdmin && (
-                  <Dialog open={isEditUrlOpen} onOpenChange={setEditUrlOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Editar links de transmissão</span>
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[625px]">
-                      <DialogHeader>
-                          <DialogTitle>Editar Links de Transmissão</DialogTitle>
-                          <DialogDescription>
-                            Cole os novos links abaixo. O do YouTube é para membros, e o do Zoom para a tela do administrador.
-                          </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4 space-y-4">
-                        <div>
-                          <Label htmlFor="youtubeUrl" className="text-sm font-medium">Link do YouTube</Label>
-                          <Input
-                              id="youtubeUrl"
-                              value={newYoutubeUrl}
-                              onChange={(e) => setNewYoutubeUrl(e.target.value)}
-                              placeholder="https://www.youtube.com/watch?v=..."
-                              className="mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="zoomUrl" className="text-sm font-medium">Link da Reunião do Zoom</Label>
-                          <Input
-                              id="zoomUrl"
-                              value={newZoomUrl}
-                              onChange={(e) => setNewZoomUrl(e.target.value)}
-                              placeholder="https://zoom.us/j/..."
-                              className="mt-1"
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setEditUrlOpen(false)}>Cancelar</Button>
-                        <Button type="button" onClick={handleUpdateUrl}>Salvar Alterações</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="aspect-video w-full overflow-hidden rounded-lg border">
-                {isSpeaking && speakerZoomLink ? (
-                   <iframe
-                    width="100%"
-                    height="100%"
-                    src={convertToZoomEmbedUrl(speakerZoomLink)}
-                    title="Zoom Meeting"
-                    allow="fullscreen; microphone; camera; display-capture"
-                  ></iframe>
-                ) : isAdmin && assembly.zoomUrl ? (
-                   <iframe
-                    width="100%"
-                    height="100%"
-                    src={zoomEmbedUrlWithUser}
-                    title="Zoom Meeting"
-                    allow="fullscreen; microphone; camera; display-capture"
-                  ></iframe>
-                ) : (
-                  <iframe
-                    width="100%"
-                    height="100%"
-                    src={displayEmbedUrl}
-                    title="YouTube video player"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  ></iframe>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-4">
-             {isAdmin && (
-               <>
-                <Button onClick={() => setCreatePollOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>
-                <CreatePollDialog 
-                  open={isCreatePollOpen}
-                  onOpenChange={setCreatePollOpen}
-                  assembly={assembly}
-                />
-               </>
-             )}
-             {arePollsLoading && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
-             
-             {polls && polls.length > 0 ? (
-                polls.map(poll => (
-                  <PollCard key={poll.id} poll={poll} assemblyId={assembly.id} />
-                ))
-             ) : (
-                !arePollsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação para esta assembleia.</p>
-             )}
-          </div>
-        </div>
-
-        <div className="md:col-span-1 space-y-8">
-            <SpeakingQueue 
+    <>
+    <Sheet open={isQueueOpen} onOpenChange={setIsQueueOpen}>
+        <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
+          <SheetHeader className="p-6 pb-4">
+            <SheetTitle className="flex items-center gap-2"><Mic className="h-6 w-6" /> Fila de Inscrição</SheetTitle>
+            <SheetDescription>Membros que solicitaram a palavra.</SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto p-6 pt-0">
+             <SpeakingQueue 
               assemblyId={assembly.id}
               assemblyZoomUrl={assembly.zoomUrl}
               queue={queue}
@@ -627,8 +519,129 @@ export default function AssemblyPage() {
               onLeaveQueue={handleLeaveQueue}
               onEnterSpeakerMode={handleEnterSpeakerMode}
             />
+          </div>
+        </SheetContent>
+      </Sheet>
+      <div className="container mx-auto p-0 space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{assembly.title}</h1>
+          <p className="text-muted-foreground mt-1">
+            {format(assemblyDate, "eeee, dd 'de' MMMM, yyyy 'às' HH:mm", { locale: ptBR })}
+          </p>
+        </div>
+
+        <div className="space-y-8">
+          <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
+                <div className="flex items-center gap-2">
+                  {isSpeaking && (
+                      <Button onClick={handleEndParticipation} variant="destructive">
+                          <LogOut className="mr-2 h-4 w-4" />
+                          Encerrar Participação
+                      </Button>
+                  )}
+                  {isAdmin && (
+                    <Dialog open={isEditUrlOpen} onOpenChange={setEditUrlOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Pencil className="h-4 w-4" />
+                          <span className="sr-only">Editar links de transmissão</span>
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[625px]">
+                        <DialogHeader>
+                            <DialogTitle>Editar Links de Transmissão</DialogTitle>
+                            <DialogDescription>
+                              Cole os novos links abaixo. O do YouTube é para membros, e o do Zoom para a tela do administrador.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4 space-y-4">
+                          <div>
+                            <Label htmlFor="youtubeUrl" className="text-sm font-medium">Link do YouTube</Label>
+                            <Input
+                                id="youtubeUrl"
+                                value={newYoutubeUrl}
+                                onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                                placeholder="https://www.youtube.com/watch?v=..."
+                                className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="zoomUrl" className="text-sm font-medium">Link da Reunião do Zoom</Label>
+                            <Input
+                                id="zoomUrl"
+                                value={newZoomUrl}
+                                onChange={(e) => setNewZoomUrl(e.target.value)}
+                                placeholder="https://zoom.us/j/..."
+                                className="mt-1"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setEditUrlOpen(false)}>Cancelar</Button>
+                          <Button type="button" onClick={handleUpdateUrl}>Salvar Alterações</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="aspect-video w-full overflow-hidden rounded-lg border">
+                  {isSpeaking && speakerZoomLink ? (
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src={convertToZoomEmbedUrl(speakerZoomLink)}
+                      title="Zoom Meeting"
+                      allow="fullscreen; microphone; camera; display-capture"
+                    ></iframe>
+                  ) : isAdmin && assembly.zoomUrl ? (
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src={zoomEmbedUrlWithUser}
+                      title="Zoom Meeting"
+                      allow="fullscreen; microphone; camera; display-capture"
+                    ></iframe>
+                  ) : (
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src={displayEmbedUrl}
+                      title="YouTube video player"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    ></iframe>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              {isAdmin && (
+                <>
+                  <Button onClick={() => setCreatePollOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>
+                  <CreatePollDialog 
+                    open={isCreatePollOpen}
+                    onOpenChange={setCreatePollOpen}
+                    assembly={assembly}
+                  />
+                </>
+              )}
+              {arePollsLoading && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
+              
+              {polls && polls.length > 0 ? (
+                  polls.map(poll => (
+                    <PollCard key={poll.id} poll={poll} assemblyId={assembly.id} />
+                  ))
+              ) : (
+                  !arePollsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação para esta assembleia.</p>
+              )}
+            </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
