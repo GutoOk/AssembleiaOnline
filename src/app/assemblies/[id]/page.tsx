@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound, useParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
+import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
@@ -105,6 +105,7 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
   const { user } = useAdmin();
   const { toast } = useToast();
   const [selectedOption, setSelectedOption] = useState<string | undefined>();
+  const [showAllVotes, setShowAllVotes] = useState(false);
 
   const optionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -113,7 +114,7 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
 
   const votesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes');
+    return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes'), orderBy('timestamp', 'desc'));
   }, [firestore, assemblyId, poll.id, user]);
 
   const { data: options, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
@@ -123,8 +124,17 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
   const pollEndDate = poll.endDate.toDate();
   const pollEnded = isPast(pollEndDate) || poll.status === 'closed' || assemblyStatus === 'finished';
 
-  const userIdsInVotes = useMemo(() => votes?.map(v => v.userId) ?? [], [votes]);
-  const { profiles: userProfiles } = useUserProfiles(userIdsInVotes);
+  const userIdsToFetch = useMemo(() => {
+      const ids = new Set<string>();
+      if (poll.administratorId) {
+          ids.add(poll.administratorId);
+      }
+      votes?.forEach(v => ids.add(v.userId));
+      return Array.from(ids);
+  }, [votes, poll.administratorId]);
+
+  const { profiles: userProfiles } = useUserProfiles(userIdsToFetch);
+  const pollCreator = userProfiles[poll.administratorId];
 
 
   const handleVote = () => {
@@ -153,6 +163,19 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
     }));
   }, [options, votes]);
 
+  const sortedVotesAlphabetically = useMemo(() => {
+      if (!votes || !userProfiles) return [];
+      return [...votes].sort((a, b) => {
+          const nameA = userProfiles[a.userId]?.name ?? '';
+          const nameB = userProfiles[b.userId]?.name ?? '';
+          return nameA.localeCompare(nameB);
+      });
+  }, [votes, userProfiles]);
+
+  const recentVotes = useMemo(() => votes?.slice(0, 3) ?? [], [votes]);
+  const votesToShow = showAllVotes ? sortedVotesAlphabetically : recentVotes;
+
+
   const isLoading = isLoadingOptions || isLoadingVotes;
   if(isLoading) {
     return <Card><CardContent className="p-6"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></CardContent></Card>
@@ -161,18 +184,21 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
   return (
     <Card>
       <CardHeader>
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-lg">{poll.question}</CardTitle>
-            <CardDescription className="flex items-center gap-2 mt-1">
-              <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <Countdown endDate={pollEndDate} />
-          </div>
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            {pollEnded ? (
+                <span className="font-medium text-destructive">Votação encerrada</span>
+            ) : (
+                <>
+                    <span>Tempo restante para votar: </span>
+                    <Countdown endDate={pollEndDate} />
+                </>
+            )}
         </div>
+        <CardTitle className="text-lg pt-2">{poll.question}</CardTitle>
+        <CardDescription className="flex items-center gap-2">
+            <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {userVote || pollEnded ? (
@@ -193,8 +219,8 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
                 <>
                 <Separator className="my-4" />
                 <h3 className="font-semibold mb-2 text-sm">Votos individuais:</h3>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                {votes.map(vote => {
+                <div className={cn("space-y-2", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
+                {votesToShow.map(vote => {
                     const voter = userProfiles[vote.userId];
                     const option = options?.find(o => o.id === vote.pollOptionId);
                     return (
@@ -202,7 +228,7 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
                         <div className="flex items-center gap-2">
                           <Avatar className="h-6 w-6">
                               <AvatarImage src={voter?.avatarDataUri} />
-                              <AvatarFallback>{voter?.name.charAt(0)}</AvatarFallback>
+                              <AvatarFallback>{voter?.name?.charAt(0)}</AvatarFallback>
                           </Avatar>
                           <span>{voter?.name ?? 'Carregando...'}</span>
                         </div>
@@ -211,6 +237,11 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
                     )
                 })}
                 </div>
+                {votes.length > 3 && (
+                    <Button variant="link" size="sm" className="p-0 h-auto mt-2 text-xs" onClick={() => setShowAllVotes(!showAllVotes)}>
+                        {showAllVotes ? 'Ver menos' : 'Ver mais...'}
+                    </Button>
+                )}
               </>
             )}
           </div>
@@ -232,6 +263,12 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
           </div>
         )}
       </CardContent>
+      {poll.createdAt && poll.endDate && (
+        <CardFooter className="text-xs text-muted-foreground flex-col items-start gap-1 border-t pt-4">
+            <p>Criada por: <span className="font-medium">{pollCreator ? pollCreator.name : '...'}</span> em {format(poll.createdAt.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
+            <p>Encerramento em: {format(poll.endDate.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
+        </CardFooter>
+      )}
     </Card>
   )
 }
