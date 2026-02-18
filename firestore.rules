@@ -214,8 +214,6 @@ service cloud.firestore {
         allow delete: if isOwner(resource.data.grantorId)
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         allow update: if false;
-        // Deny list operations on the subcollection path to avoid conflicts.
-        allow list: if false;
       }
     }
   }
