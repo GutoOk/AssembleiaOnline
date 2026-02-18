@@ -170,11 +170,11 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const { data: options, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
   const { data: votes, isLoading: isLoadingVotes } = useCollection<Vote>(votesQuery);
 
-  const userVote = useMemo(() => votes?.find(v => v.userId === user?.uid), [votes, user]);
+  const userHasVotedForSelf = useMemo(() => votes?.some(v => v.userId === user?.uid && !v.representedUserId), [votes, user]);
   const pollEndDate = poll.endDate.toDate();
   const pollEnded = isPast(pollEndDate) || poll.status === 'closed' || assemblyStatus === 'finished';
   const pollAnnulled = poll.status === 'annulled';
-  const canVote = !userVote && !pollEnded && !userProxyGrant && !pollAnnulled;
+  const canVote = !userHasVotedForSelf && !pollEnded && !userProxyGrant && !pollAnnulled;
 
   const pollCreator = userProfiles[poll.administratorId];
   const pollAnnuler = userProfiles[poll.annulledBy ?? ''];
@@ -185,31 +185,31 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
         toast({ variant: 'destructive', title: 'Erro', description: 'Selecione uma opção para votar.' });
         return;
     };
+    
+    const votesColRef = collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes');
 
     // 1. The user's own vote
-    const userVoteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', user.uid);
     const userVoteData: Omit<Vote, 'id' | 'timestamp'> = {
-        userId: user.uid,
+        userId: user.uid, // The voter is the current user
         pollId: poll.id,
         assemblyId: assemblyId,
         pollOptionId: selectedOption,
         assemblyStatus: assemblyStatus
     };
-    setDocumentNonBlocking(userVoteRef, { ...userVoteData, timestamp: serverTimestamp() }, {});
+    addDocumentNonBlocking(votesColRef, { ...userVoteData, timestamp: serverTimestamp() });
 
     // 2. Votes for represented users (proxies)
     if (representedAssignments) {
         representedAssignments.forEach(assignment => {
-            const grantorVoteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', assignment.grantorId);
             const grantorVoteData: Omit<Vote, 'id' | 'timestamp'> = {
-                userId: assignment.grantorId,
+                userId: user.uid, // The voter is still the current user
+                representedUserId: assignment.grantorId, // But they are representing the grantor
                 pollId: poll.id,
                 assemblyId: assemblyId,
                 pollOptionId: selectedOption,
-                proxyVoterId: user.uid,
                 assemblyStatus: assemblyStatus
             };
-            setDocumentNonBlocking(grantorVoteRef, { ...grantorVoteData, timestamp: serverTimestamp() }, {});
+            addDocumentNonBlocking(votesColRef, { ...grantorVoteData, timestamp: serverTimestamp() });
         });
     }
     
@@ -264,9 +264,10 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
   const sortedVotesAlphabetically = useMemo(() => {
       if (!votes || !userProfiles) return [];
+      const voteBelongsTo = (vote: Vote) => vote.representedUserId ?? vote.userId;
       return [...votes].sort((a, b) => {
-          const nameA = userProfiles[a.userId]?.name ?? '';
-          const nameB = userProfiles[b.userId]?.name ?? '';
+          const nameA = userProfiles[voteBelongsTo(a)]?.name ?? '';
+          const nameB = userProfiles[voteBelongsTo(b)]?.name ?? '';
           return nameA.localeCompare(nameB);
       });
   }, [votes, userProfiles]);
@@ -398,23 +399,23 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                 <h3 className="mb-2 text-sm font-normal">Votos individuais:</h3>
                 <div className={cn("space-y-1", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
                 {votesToShow.map(vote => {
-                    const voter = userProfiles[vote.userId];
+                    const voteBelongsToUser = userProfiles[vote.representedUserId ?? vote.userId];
                     const option = options?.find(o => o.id === vote.pollOptionId);
-                    const proxyVoter = vote.proxyVoterId ? userProfiles[vote.proxyVoterId] : undefined;
+                    const castByUser = vote.representedUserId ? userProfiles[vote.userId] : undefined;
 
                     return (
                     <div key={vote.id} className="flex items-start justify-between text-sm p-1.5 rounded-md bg-muted/50">
                         <div className="flex flex-col">
                             <div className="flex items-center gap-1.5">
                                 <Avatar className="h-6 w-6">
-                                    <AvatarImage src={voter?.avatarDataUri} />
-                                    <AvatarFallback>{voter?.name?.charAt(0)}</AvatarFallback>
+                                    <AvatarImage src={voteBelongsToUser?.avatarDataUri} />
+                                    <AvatarFallback>{voteBelongsToUser?.name?.charAt(0)}</AvatarFallback>
                                 </Avatar>
-                                <span className="font-medium">{voter?.name ?? 'Carregando...'}</span>
+                                <span className="font-medium">{voteBelongsToUser?.name ?? 'Carregando...'}</span>
                             </div>
-                            {vote.proxyVoterId && proxyVoter && (
+                            {castByUser && (
                                 <p className="text-xs text-muted-foreground pl-8">
-                                    → por procuração a <span className="font-medium">{proxyVoter.name}</span>
+                                    → por procuração a <span className="font-medium">{castByUser.name}</span>
                                 </p>
                             )}
                         </div>

@@ -276,11 +276,11 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Vote entity."
+          "description": "Unique, auto-generated identifier for the Vote entity."
         },
         "userId": {
           "type": "string",
-          "description": "Reference to the User who cast this vote. (Relationship: User 1:N Vote)"
+          "description": "Reference to the User who cast this vote (the voter). This is always the authenticated user."
         },
         "pollId": {
           "type": "string",
@@ -309,13 +309,12 @@
             "cancelled"
           ]
         },
-        "proxyVoterId": {
+        "representedUserId": {
           "type": "string",
-          "description": "If this vote was cast by a proxy, this is the UID of the user who cast the vote."
+          "description": "If this vote was cast by proxy, this is the UID of the user this vote represents (the grantor)."
         }
       },
       "required": [
-        "id",
         "userId",
         "pollId",
         "pollOptionId",

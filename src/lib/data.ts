@@ -18,14 +18,14 @@ export type PollOption = {
 };
 
 export type Vote = {
-  id: string; // User's UID to enforce one vote per poll
-  userId: string;
+  id: string; // Auto-generated ID
+  userId: string; // The user who cast the vote (the voter)
   pollId: string;
   assemblyId: string;
   pollOptionId: string;
   timestamp: Timestamp;
   assemblyStatus: Assembly['status'];
-  proxyVoterId?: string; // UID of the user who cast the vote on behalf of userId
+  representedUserId?: string; // The user this vote is being cast FOR (the grantor)
 };
 
 export type Poll = {
