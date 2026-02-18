@@ -160,7 +160,7 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
                 <div className="p-4">
                     <h3 className="font-semibold text-foreground">Bate-papo informal</h3>
                     <p className="text-xs text-destructive mt-1">
-                        Este chat não faz parte oficial da assembleia. Para participar, peça a palavra na Fila de Inscrição. Mantenha o respeito e o bom senso. Você pode bloquear mensagens indesejadas.
+                        Este chat não é um canal oficial! Para se pronunciar na Assembleia, utilize a Fila de Inscrição. Mantenha o respeito e o bom senso. Caso necessário, você pode bloquear usuários para ocultar mensagens indesejadas.
                     </p>
                 </div>
                 <Separator />
