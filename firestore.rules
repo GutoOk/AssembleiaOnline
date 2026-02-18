@@ -123,8 +123,13 @@ service cloud.firestore {
                             && isAuthorizedProxy(request.resource.data.assemblyId, request.resource.data.representedUserId)
                           )
                         );
+        
+        // A user can delete their own vote(s) if the poll is still open.
+        allow delete: if isSignedIn()
+                        && resource.data.userId == request.auth.uid
+                        && get(/databases/$(database)/documents/assemblies/$(resource.data.assemblyId)/polls/$(pollId)).data.status == 'open';
 
-        allow update, delete: if false;
+        allow update: if false;
       }
 
       match /speakerQueue/{queueItemId} {
@@ -154,7 +159,8 @@ service cloud.firestore {
 
       // Manages proxy voting assignments.
       match /proxies/{grantorId} {
-        allow read, list: if isSignedIn();
+        allow read: if isSignedIn();
+        allow list: if isSignedIn();
         
         // Allow creation only by the grantor, for a scheduled assembly.
         allow create: if isOwner(grantorId)

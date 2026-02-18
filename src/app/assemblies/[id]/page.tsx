@@ -156,6 +156,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const [annulReason, setAnnulReason] = useState('');
   const [isEditingAnnulment, setIsEditingAnnulment] = useState(false);
   const [editTextAnnulment, setEditTextAnnulment] = useState(poll.annulmentReason || '');
+  const [isWithdrawConfirmOpen, setWithdrawConfirmOpen] = useState(false);
 
   const optionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -221,6 +222,27 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
     toast({ title: 'Voto Registrado!', description: toastDescription });
   };
   
+  const handleWithdrawVote = () => {
+    if (!user || !firestore || !votes) return;
+
+    // Find all votes cast by the current user for this poll
+    const userVotesToDelete = votes.filter(v => v.userId === user.uid);
+
+    if (userVotesToDelete.length === 0) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'Nenhum voto seu encontrado para retirar.' });
+        return;
+    }
+
+    // Delete all found votes
+    userVotesToDelete.forEach(vote => {
+        const voteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', vote.id);
+        deleteDocumentNonBlocking(voteRef);
+    });
+
+    toast({ title: 'Voto Retirado', description: 'Seu voto (e os votos de seus representados) foram removidos. Você pode votar novamente.' });
+    setWithdrawConfirmOpen(false);
+  };
+
   const handleAnnulConfirm = () => {
     if (!user || !annulReason.trim()) {
         toast({ variant: 'destructive', title: 'Erro', description: 'O motivo da anulação é obrigatório.' });
@@ -370,64 +392,76 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
           </div>
         ) : (
           <div>
-            {!!userProxyGrant && (
-                <div className="mb-4 p-3 flex items-start gap-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-sm">
-                    <Info className="h-5 w-5 mt-0.5 text-blue-700 flex-shrink-0" />
-                    <div>
-                        <p className="font-semibold">Sua procuração foi concedida.</p>
-                        <p className="text-blue-800">
-                           Você concedeu seu direito de voto para <span className="font-bold">{proxyGranteeProfile?.name ?? 'outro membro'}</span>, que votará em seu nome nesta assembleia.
-                        </p>
-                    </div>
-                </div>
-            )}
-            <h3 className="mb-2 text-sm font-normal">Resultado:</h3>
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={voteData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" fontSize={12} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} />
-                  <Bar dataKey="votos" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            {votes && votes.length > 0 && (
-                <>
-                <Separator className="my-2" />
-                <h3 className="mb-2 text-sm font-normal">Votos individuais:</h3>
-                <div className={cn("space-y-1", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
-                {votesToShow.map(vote => {
-                    const voteBelongsToUser = userProfiles[vote.representedUserId ?? vote.userId];
-                    const option = options?.find(o => o.id === vote.pollOptionId);
-                    const castByUser = vote.representedUserId ? userProfiles[vote.userId] : undefined;
-
-                    return (
-                    <div key={vote.id} className="flex items-start justify-between text-sm p-1.5 rounded-md bg-muted/50">
-                        <div className="flex flex-col">
-                            <div className="flex items-center gap-1.5">
-                                <Avatar className="h-6 w-6">
-                                    <AvatarImage src={voteBelongsToUser?.avatarDataUri} />
-                                    <AvatarFallback>{voteBelongsToUser?.name?.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <span className="font-medium">{voteBelongsToUser?.name ?? 'Carregando...'}</span>
-                            </div>
-                            {castByUser && (
-                                <p className="text-xs text-muted-foreground pl-8">
-                                    → por procuração a <span className="font-medium">{castByUser.name}</span>
-                                </p>
-                            )}
+            {userHasVotedForSelf && !pollEnded ? (
+              <div className="flex flex-col items-start gap-2">
+                  <p className="text-sm text-muted-foreground">Seu voto foi computado. Para votar novamente, retire seu voto primeiro.</p>
+                  <Button variant="outline" size="sm" onClick={() => setWithdrawConfirmOpen(true)}>
+                    <Trash2 className="h-4 w-4" />
+                    Retirar Voto
+                  </Button>
+              </div>
+            ) : (
+              <>
+                {!!userProxyGrant && (
+                    <div className="mb-4 p-3 flex items-start gap-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-sm">
+                        <Info className="h-5 w-5 mt-0.5 text-blue-700 flex-shrink-0" />
+                        <div>
+                            <p className="font-semibold">Sua procuração foi concedida.</p>
+                            <p className="text-blue-800">
+                               Você concedeu seu direito de voto para <span className="font-bold">{proxyGranteeProfile?.name ?? 'outro membro'}</span>, que votará em seu nome nesta assembleia.
+                            </p>
                         </div>
-                        <span className="font-medium text-right self-center">{option?.text}</span>
                     </div>
-                    )
-                })}
+                )}
+                <h3 className="mb-2 text-sm font-normal">Resultado:</h3>
+                <div className="h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={voteData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" fontSize={12} />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} />
+                      <Bar dataKey="votos" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                {votes.length > 3 && (
-                    <Button variant="link" size="sm" className="p-0 h-auto mt-2 text-xs" onClick={() => setShowAllVotes(!showAllVotes)}>
-                        {showAllVotes ? 'Ver menos' : 'Ver mais...'}
-                    </Button>
+                {votes && votes.length > 0 && (
+                    <>
+                    <Separator className="my-2" />
+                    <h3 className="mb-2 text-sm font-normal">Votos individuais:</h3>
+                    <div className={cn("space-y-1", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
+                    {votesToShow.map(vote => {
+                        const voteBelongsToUser = userProfiles[vote.representedUserId ?? vote.userId];
+                        const option = options?.find(o => o.id === vote.pollOptionId);
+                        const castByUser = vote.representedUserId ? userProfiles[vote.userId] : undefined;
+
+                        return (
+                        <div key={vote.id} className="flex items-start justify-between text-sm p-1.5 rounded-md bg-muted/50">
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-1.5">
+                                    <Avatar className="h-6 w-6">
+                                        <AvatarImage src={voteBelongsToUser?.avatarDataUri} />
+                                        <AvatarFallback>{voteBelongsToUser?.name?.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="font-medium">{voteBelongsToUser?.name ?? 'Carregando...'}</span>
+                                </div>
+                                {castByUser && (
+                                    <p className="text-xs text-muted-foreground pl-8">
+                                        → por procuração a <span className="font-medium">{castByUser.name}</span>
+                                    </p>
+                                )}
+                            </div>
+                            <span className="font-medium text-right self-center">{option?.text}</span>
+                        </div>
+                        )
+                    })}
+                    </div>
+                    {votes.length > 3 && (
+                        <Button variant="link" size="sm" className="p-0 h-auto mt-2 text-xs" onClick={() => setShowAllVotes(!showAllVotes)}>
+                            {showAllVotes ? 'Ver menos' : 'Ver mais...'}
+                        </Button>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -492,6 +526,23 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction onClick={handleAnnulConfirm} asChild>
                   <Button variant="destructive">Confirmar Anulação</Button>
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog open={isWithdrawConfirmOpen} onOpenChange={setWithdrawConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitleComponent>Retirar Voto?</AlertDialogTitleComponent>
+                <AlertDialogDescriptionComponent>
+                    Tem certeza que deseja retirar seu voto? Se você representa outros membros por procuração, os votos deles também serão retirados. Você poderá votar novamente enquanto a votação estiver aberta.
+                </AlertDialogDescriptionComponent>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleWithdrawVote} asChild>
+                  <Button variant="destructive">Confirmar Retirada</Button>
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
