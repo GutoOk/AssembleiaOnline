@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dialog';
 import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import { Switch } from '@/components/ui/switch';
 
 const assemblySchema = z.object({
   title: z.string().min(10, 'O título deve ter pelo menos 10 caracteres.'),
@@ -36,6 +37,8 @@ const assemblySchema = z.object({
   }),
   youtubeUrl: z.string().min(11, 'URL ou ID do YouTube inválido.'),
   zoomUrl: z.string().url("Por favor, insira um link de reunião válido.").optional().or(z.literal('')),
+  allowProxyVoting: z.boolean().default(false),
+  maxProxiesPerUser: z.coerce.number().int().min(0, "O valor deve ser positivo.").default(4),
 });
 
 // Helper function for cropping
@@ -92,6 +95,8 @@ export default function EditAssemblyPage() {
       date: '',
       youtubeUrl: '',
       zoomUrl: '',
+      allowProxyVoting: false,
+      maxProxiesPerUser: 4,
     },
   });
 
@@ -115,6 +120,8 @@ export default function EditAssemblyPage() {
         date: localISOTime,
         youtubeUrl: assembly.youtubeUrl,
         zoomUrl: assembly.zoomUrl || '',
+        allowProxyVoting: assembly.allowProxyVoting || false,
+        maxProxiesPerUser: assembly.maxProxiesPerUser || 4,
       });
       setImagePreview(assembly.imageUrl);
     }
@@ -350,6 +357,42 @@ export default function EditAssemblyPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                  control={form.control}
+                  name="allowProxyVoting"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel>Permitir Voto por Procuração</FormLabel>
+                        <FormDescription>
+                          Permite que membros designem outros para votar em seu nome.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxProxiesPerUser"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Máximo de Representados por Pessoa</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        O número máximo de pessoas que um único membro pode representar (padrão: 4).
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               <div className="flex gap-2">
                   <Button type="submit" disabled={isFinished || form.formState.isSubmitting || isUploading}>
                   {(form.formState.isSubmitting || isUploading) && <Loader2 className="h-4 w-4 animate-spin" />}

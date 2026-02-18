@@ -116,6 +116,14 @@
           "type": "string",
           "description": "Timestamp indicating when the assembly actually finished.",
           "format": "date-time"
+        },
+        "allowProxyVoting": {
+          "type": "boolean",
+          "description": "Indicates if proxy voting is allowed for this assembly."
+        },
+        "maxProxiesPerUser": {
+          "type": "number",
+          "description": "Maximum number of proxies a single user can represent. Defaults to 4."
         }
       },
       "required": [
@@ -462,6 +470,42 @@
       "type": "object",
       "properties": {},
       "additionalProperties": false
+    },
+    "ProxyAssignment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Proxy Assignment",
+      "type": "object",
+      "description": "Represents a user (grantor) assigning their vote to another user (proxy) for a specific assembly.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier, should match the grantor's UID."
+        },
+        "assemblyId": {
+          "type": "string",
+          "description": "Reference to the Assembly for which the proxy is assigned."
+        },
+        "grantorId": {
+          "type": "string",
+          "description": "The UID of the user granting the proxy vote."
+        },
+        "proxyId": {
+          "type": "string",
+          "description": "The UID of the user who will act as the proxy."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when the proxy was assigned."
+        }
+      },
+      "required": [
+        "id",
+        "assemblyId",
+        "grantorId",
+        "proxyId",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -649,6 +693,26 @@
             {
               "name": "blockedUserId",
               "description": "The UID of the user being blocked."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/assemblies/{assemblyId}/proxies/{proxyAssignmentId}",
+        "definition": {
+          "entityName": "ProxyAssignment",
+          "schema": {
+            "$ref": "#/backend/entities/ProxyAssignment"
+          },
+          "description": "Subcollection for proxy vote assignments within an assembly. The document ID (`proxyAssignmentId`) should be the UID of the user granting the proxy (`grantorId`). A user can revoke their assignment only before the assembly starts.",
+          "params": [
+            {
+              "name": "assemblyId",
+              "description": "The unique identifier of the parent assembly."
+            },
+            {
+              "name": "proxyAssignmentId",
+              "description": "The unique identifier for the proxy assignment, which is the grantor's UID."
             }
           ]
         }

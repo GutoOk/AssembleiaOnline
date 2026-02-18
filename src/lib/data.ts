@@ -80,6 +80,8 @@ export type Assembly = {
   updatedAt: Timestamp;
   startedAt?: Timestamp;
   endedAt?: Timestamp;
+  allowProxyVoting?: boolean;
+  maxProxiesPerUser?: number;
 };
 
 export type ChatMessage = {
@@ -92,4 +94,12 @@ export type ChatMessage = {
 
 export type BlockedUser = {
   id: string; // The UID of the user who is blocked.
+};
+
+export type ProxyAssignment = {
+  id: string; // Grantor's UID
+  assemblyId: string;
+  grantorId: string;
+  proxyId: string; // Representative's UID
+  createdAt: Timestamp;
 };

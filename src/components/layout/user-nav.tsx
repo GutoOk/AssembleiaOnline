@@ -78,6 +78,9 @@ export function UserNav() {
           <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
             Perfil
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push('/dashboard/proxy')}>
+            Procuração
+          </DropdownMenuItem>
           {isAdmin && (
             <DropdownMenuItem onClick={() => router.push('/dashboard/users')}>
               Gerenciar Usuários

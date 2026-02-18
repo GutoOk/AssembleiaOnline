@@ -260,6 +260,24 @@ service cloud.firestore {
           allow update: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
           allow delete: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
       }
+
+      /**
+       * @description Manages proxy voting assignments. A user can assign their vote to another.
+       * @path /assemblies/{assemblyId}/proxies/{grantorId}
+       * @allow (create) The user assigning the proxy must be the owner of the document. Can only be done for scheduled assemblies.
+       * @allow (get, list) Any signed-in user can see proxy assignments for transparency.
+       * @allow (delete) The user who assigned the proxy can revoke it, but only if the assembly is scheduled.
+       * @deny (update) Proxies cannot be updated; they must be revoked and re-created.
+       */
+      match /proxies/{grantorId} {
+        allow get, list: if isSignedIn();
+        allow create: if isOwner(grantorId)
+                      && request.resource.data.grantorId == grantorId
+                      && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
+        allow delete: if isOwner(resource.data.grantorId)
+                      && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
+        allow update: if false;
+      }
     }
   }
 }
