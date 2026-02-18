@@ -125,74 +125,72 @@ export function Header() {
           )}
 
         </nav>
-      </TooltipProvider>
 
-      {/* Mobile Navigation */}
-      <div className="flex-1 md:hidden">
-        {isMounted && (
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-              >
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Alternar menu de navegação</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="pr-0">
-              <nav className="grid gap-6 text-lg font-medium pt-4">
-                  {mobileNavLinks}
-              </nav>
-            </SheetContent>
-          </Sheet>
-        )}
-      </div>
-      
-      <div className="flex flex-1 items-center justify-end gap-2">
-        {showStartAssemblyButton && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={handleStartAssemblyClick} variant="ghost" size="icon" className="h-9 w-9 text-green-600 hover:text-green-600 hover:bg-green-600/10">
-                <Play className="h-5 w-5" fill="currentColor"/>
-                <span className="sr-only">Iniciar Assembleia</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Iniciar Assembleia</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
-         {showEndAssemblyButton && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={handleEndAssemblyClick} variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10">
-                <PowerOff className="h-5 w-5" />
-                <span className="sr-only">Encerrar Assembleia</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Encerrar Assembleia</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
-         {showAssemblyButtons && (
-            <div className="hidden md:flex items-center gap-1">
-                <Button variant="ghost" className="text-muted-foreground" disabled>
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    Chat
+        {/* Mobile Navigation */}
+        <div className="flex-1 md:hidden">
+          {isMounted && (
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                >
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Alternar menu de navegação</span>
                 </Button>
-                <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground">
-                    <Users className="h-4 w-4 mr-2" />
-                    Fila de Inscrição
+              </SheetTrigger>
+              <SheetContent side="left" className="pr-0">
+                <nav className="grid gap-6 text-lg font-medium pt-4">
+                    {mobileNavLinks}
+                </nav>
+              </SheetContent>
+            </Sheet>
+          )}
+        </div>
+        
+        <div className="flex flex-1 items-center justify-end gap-2">
+          {showStartAssemblyButton && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleStartAssemblyClick} variant="ghost" size="icon" className="h-9 w-9 text-green-600 hover:text-green-600 hover:bg-green-600/10">
+                  <Play className="h-5 w-5" fill="currentColor"/>
+                  <span className="sr-only">Iniciar Assembleia</span>
                 </Button>
-            </div>
-         )}
-        <UserNav />
-      </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Iniciar Assembleia</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+           {showEndAssemblyButton && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleEndAssemblyClick} variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10">
+                  <PowerOff className="h-5 w-5" />
+                  <span className="sr-only">Encerrar Assembleia</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Encerrar Assembleia</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+           {showAssemblyButtons && (
+              <div className="hidden md:flex items-center gap-1">
+                  <Button variant="ghost" className="text-muted-foreground" disabled>
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Chat
+                  </Button>
+                  <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground">
+                      <Users className="h-4 w-4 mr-2" />
+                      Fila de Inscrição
+                  </Button>
+              </div>
+           )}
+          <UserNav />
+        </div>
+      </TooltipProvider>
     </header>
   );
 }
-
-    
