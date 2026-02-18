@@ -3,20 +3,23 @@ import type { Assembly } from '@/lib/data';
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface AssemblyContextType {
-  status: Assembly['status'] | null;
-  setStatus: (status: Assembly['status'] | null) => void;
+  assembly: Assembly | null;
+  setAssembly: (assembly: Assembly | null) => void;
   isQueueOpen: boolean;
   setIsQueueOpen: (isOpen: boolean) => void;
+  isEndAssemblyDialogOpen: boolean;
+  setIsEndAssemblyDialogOpen: (isOpen: boolean) => void;
 }
 
 const AssemblyContext = createContext<AssemblyContextType | undefined>(undefined);
 
 export function AssemblyProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<Assembly['status'] | null>(null);
+  const [assembly, setAssembly] = useState<Assembly | null>(null);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen] = useState(false);
 
   return (
-    <AssemblyContext.Provider value={{ status, setStatus, isQueueOpen, setIsQueueOpen }}>
+    <AssemblyContext.Provider value={{ assembly, setAssembly, isQueueOpen, setIsQueueOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen }}>
       {children}
     </AssemblyContext.Provider>
   );

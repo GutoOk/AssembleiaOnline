@@ -20,11 +20,13 @@
  *   document in the `/admins` collection, not by a mutable `role` field on a user's
  *   profile. This provides robust, non-falsifiable role-based access control.
  * - Denormalization for Authorization: Critical authorization data, such as the
- *   `administratorId` from an assembly, is denormalized (copied) into child documents
+ *   `administratorId` and `status` from an assembly, is denormalized (copied) into child documents
  *   like polls and votes. This avoids slow and costly `get()` calls in rules, making
  *   them more performant and secure.
  * - User Data Privacy: Users can only access their own document within the `/users`
  *   collection. Listing of all users is forbidden for non-administrators.
+ * - Immutability of Finished Events: Once an assembly is marked as 'finished', it and all its
+ *   sub-collections become read-only to ensure a permanent, unaltered record of the event.
  * - Default Secure Posture: Unspecified permissions are implicitly denied. Any operation
  *   not explicitly allowed (e.g., a regular user trying to delete a poll) will fail.
  *
@@ -139,86 +141,79 @@ service cloud.firestore {
     }
 
     /**
-     * @description Defines assembly events. Publicly readable by all users, but only managed by administrators.
+     * @description Defines assembly events. Publicly readable by all users, but only managed by administrators. Becomes read-only once finished.
      * @path /assemblies/{assemblyId}
-     * @allow (list) Any authenticated user can list all assemblies to see upcoming events.
-     * @deny (create) A regular authenticated user cannot create a new assembly.
-     * @principle Public read with role-based writes (Administrator).
+     * @allow (list) Any authenticated user can list all assemblies.
+     * @allow (update) Admins can update an assembly only if it is not finished.
+     * @principle Public read with role-based writes and immutability after completion.
      */
     match /assemblies/{assemblyId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
       allow create: if isAdmin() && request.resource.data.administratorId == request.auth.uid;
-      allow update: if isAdminOfExistingDoc() && request.resource.data.administratorId == resource.data.administratorId;
-      allow delete: if isAdminOfExistingDoc();
+      allow update: if isAdminOfExistingDoc() && request.resource.data.administratorId == resource.data.administratorId && resource.data.status != 'finished';
+      allow delete: if isAdminOfExistingDoc() && resource.data.status != 'finished';
     }
 
     /**
-     * @description Defines polls within an assembly. Readable by users, managed by admins.
+     * @description Defines polls within an assembly. Becomes read-only once the parent assembly is finished.
      * @path /assemblies/{assemblyId}/polls/{pollId}
-     * @allow (list) An authenticated user can list the polls for an assembly they can view.
-     * @deny (update) A regular user cannot change the details of a poll.
-     * @principle Leverages denormalized parent context (admin ownership) for authorization.
+     * @principle Leverages denormalized parent status for authorization.
      */
     match /assemblies/{assemblyId}/polls/{pollId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isAdmin() && request.resource.data.assemblyId == assemblyId;
-      allow update: if isAdminOfExistingDoc();
-      allow delete: if isAdminOfExistingDoc();
+      allow create: if isAdmin() && request.resource.data.assemblyId == assemblyId && request.resource.data.assemblyStatus != 'finished';
+      allow update: if isAdminOfExistingDoc() && request.resource.data.assemblyStatus != 'finished';
+      allow delete: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
     }
 
     /**
-     * @description Defines the specific options for a poll (e.g., 'Yes', 'No'). Readable by users, managed by admins.
+     * @description Defines the specific options for a poll. Becomes read-only once the parent assembly is finished.
      * @path /assemblies/{assemblyId}/polls/{pollId}/options/{optionId}
-     * @allow (get) An authenticated user can read the options for a poll they can view.
-     * @deny (create) A regular user cannot add new options to a poll.
-     * @principle Ensures data integrity by restricting writes on foundational poll data to administrators.
+     * @principle Ensures data integrity by restricting writes based on the denormalized parent assembly status.
      */
     match /assemblies/{assemblyId}/polls/{pollId}/options/{optionId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isAdmin() && request.resource.data.pollId == pollId;
-      allow update: if isAdminOfExistingDoc();
-      allow delete: if isAdminOfExistingDoc();
+      allow create: if isAdmin() && request.resource.data.pollId == pollId && request.resource.data.assemblyStatus != 'finished';
+      allow update: if isAdminOfExistingDoc() && request.resource.data.assemblyStatus != 'finished';
+      allow delete: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
     }
 
     /**
-     * @description Records a single vote by a user on a poll. Users can only create their own vote.
+     * @description Records a single vote by a user on a poll. Voting is disabled if the parent assembly is finished.
      * @path /assemblies/{assemblyId}/polls/{pollId}/votes/{voteId}
-     * @allow (create) An authenticated user can cast a vote, where the vote ID must be their own user ID to prevent multiple votes.
      * @deny (update, delete) A user cannot change or delete their vote once it has been cast.
-     * @principle Enforces document ownership for creation and immutability after the fact.
+     * @principle Enforces one vote per user and prevents voting in finished assemblies.
      */
     match /assemblies/{assemblyId}/polls/{pollId}/votes/{voteId} {
       allow get: if isSignedIn();
-      allow list: if isSignedIn(); // QAP: Client queries MUST filter by poll status (e.g., 'closed') to show results.
-      allow create: if isOwner(voteId) && request.resource.data.userId == request.auth.uid && request.resource.data.pollId == pollId;
+      allow list: if isSignedIn();
+      allow create: if isOwner(voteId) && request.resource.data.userId == request.auth.uid && request.resource.data.pollId == pollId && request.resource.data.assemblyStatus != 'finished';
       allow update: if false;
       allow delete: if false;
     }
 
     /**
-     * @description Manages requests from users who want to speak during an assembly.
+     * @description Manages requests from users who want to speak. Interaction is disabled if the parent assembly is finished.
      * @path /assemblies/{assemblyId}/speakerQueue/{queueItemId}
-     * @allow (create) A user can add themselves to the speaker queue.
-     * @allow (update) An admin can manage the queue. A user can also update their own status to 'Com a Fala' if their entry was previously authorized by an admin.
-     * @principle Hybrid model: allows user self-creation and self-update under strict conditions, while granting full management control to administrators.
+     * @principle Hybrid model: allows user self-creation and conditional self-update, while granting full management control to administrators, all blocked if assembly is finished.
      */
     match /assemblies/{assemblyId}/speakerQueue/{queueItemId} {
-      // Get is restricted to the owner or an admin to protect potentially sensitive fields like a zoomLink.
       allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
-      // List is open to all signed-in users to allow viewing the public queue order.
       allow list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.assemblyId == assemblyId;
-      allow update: if isAdminOfExistingDoc() || (
-        isOwnerOfExistingDoc(resource.data.userId) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasAll(['status']) &&
-        request.resource.data.diff(resource.data).affectedKeys().size() == 1 &&
-        request.resource.data.status == 'Com a Fala' &&
-        resource.data.status == 'Entrada Autorizada'
-      );
-      allow delete: if isOwnerOfExistingDoc(resource.data.userId) || isAdminOfExistingDoc();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.assemblyId == assemblyId && request.resource.data.assemblyStatus != 'finished';
+      allow update: if (
+          isAdminOfExistingDoc() || (
+            isOwnerOfExistingDoc(resource.data.userId) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasAll(['status']) &&
+            request.resource.data.diff(resource.data).affectedKeys().size() == 1 &&
+            request.resource.data.status == 'Com a Fala' &&
+            resource.data.status == 'Entrada Autorizada'
+          )
+        ) && resource.data.assemblyStatus != 'finished';
+      allow delete: if (isOwnerOfExistingDoc(resource.data.userId) || isAdminOfExistingDoc()) && resource.data.assemblyStatus != 'finished';
     }
   }
 }

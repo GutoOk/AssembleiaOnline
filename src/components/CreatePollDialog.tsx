@@ -76,6 +76,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
           text: optionText,
           pollId: pollDocRef.id,
           assemblyId: assembly.id,
+          assemblyStatus: assembly.status,
         };
         return addDocumentNonBlocking(optionsRef, optionData);
       }));

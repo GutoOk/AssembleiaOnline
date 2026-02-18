@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, MessageCircle, Users, Home, PlusCircle } from 'lucide-react';
+import { Menu, MessageCircle, Users, Home, PlusCircle, PowerOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -32,13 +32,21 @@ export function Header() {
     setIsMounted(true);
   }, []);
 
-  const showAssemblyButtons = assemblyContext?.status === 'live';
+  const assemblyStatus = assemblyContext?.assembly?.status;
+  const showAssemblyButtons = assemblyStatus === 'live';
+  const showEndAssemblyButton = isAdmin && (assemblyStatus === 'live' || assemblyStatus === 'scheduled');
   
   const handleQueueClick = () => {
     if (assemblyContext) {
       assemblyContext.setIsQueueOpen(true);
     }
   }
+  
+  const handleEndAssemblyClick = () => {
+    if (assemblyContext) {
+      assemblyContext.setIsEndAssemblyDialogOpen(true);
+    }
+  };
 
   const showCreateAssemblyButton = isAdmin && pathname === '/dashboard';
 
@@ -136,6 +144,19 @@ export function Header() {
       </div>
       
       <div className="flex flex-1 items-center justify-end gap-2">
+         {showEndAssemblyButton && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={handleEndAssemblyClick} variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10">
+                <PowerOff className="h-5 w-5" />
+                <span className="sr-only">Encerrar Assembleia</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Encerrar Assembleia</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
          {showAssemblyButtons && (
             <div className="hidden md:flex items-center gap-1">
                 <Button variant="ghost" className="text-muted-foreground" disabled>

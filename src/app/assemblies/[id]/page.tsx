@@ -36,6 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAssemblyContext } from '@/contexts/AssemblyContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { EndAssemblyDialog } from '@/components/EndAssemblyDialog';
 
 function UserDisplay({ userId }: { userId: string }) {
   const firestore = useFirestore();
@@ -98,7 +99,7 @@ function Countdown({ endDate }: { endDate: Date }) {
 }
 
 
-function PollCard({ poll, assemblyId }: { poll: Poll; assemblyId: string }) {
+function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId: string, assemblyStatus: Assembly['status'] }) {
   const firestore = useFirestore();
   const { user } = useAdmin();
   const { toast } = useToast();
@@ -119,7 +120,7 @@ function PollCard({ poll, assemblyId }: { poll: Poll; assemblyId: string }) {
 
   const userVote = useMemo(() => votes?.find(v => v.id === user?.uid), [votes, user]);
   const pollEndDate = poll.endDate.toDate();
-  const pollEnded = isPast(pollEndDate) || poll.status === 'closed';
+  const pollEnded = isPast(pollEndDate) || poll.status === 'closed' || assemblyStatus === 'finished';
 
   const userIdsInVotes = useMemo(() => votes?.map(v => v.userId) ?? [], [votes]);
   const { profiles: userProfiles } = useUserProfiles(userIdsInVotes);
@@ -131,12 +132,13 @@ function PollCard({ poll, assemblyId }: { poll: Poll; assemblyId: string }) {
         return;
     };
     const voteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', user.uid);
-    const voteData = {
+    const voteData: Omit<Vote, 'id' | 'timestamp'> = {
         userId: user.uid,
         pollId: poll.id,
         assemblyId: assemblyId,
         pollOptionId: selectedOption,
-        timestamp: serverTimestamp(),
+        timestamp: serverTimestamp() as any,
+        assemblyStatus: assemblyStatus
     };
     setDocumentNonBlocking(voteRef, voteData, {});
     toast({ title: 'Voto Registrado!', description: 'Seu voto foi computado com sucesso.' });
@@ -236,6 +238,7 @@ function PollCard({ poll, assemblyId }: { poll: Poll; assemblyId: string }) {
 function SpeakingQueue({ 
     assemblyId, 
     assemblyZoomUrl,
+    assemblyFinished,
     onEnterSpeakerMode,
     onJoinQueue,
     onLeaveQueue,
@@ -246,6 +249,7 @@ function SpeakingQueue({
   }: { 
     assemblyId: string; 
     assemblyZoomUrl?: string;
+    assemblyFinished: boolean;
     onEnterSpeakerMode: (zoomLink: string, queueItem: SpeakerQueueItem) => void;
     onJoinQueue: () => void;
     onLeaveQueue: () => void;
@@ -316,7 +320,7 @@ function SpeakingQueue({
       <div className="space-y-4">
         {isAdmin && (
            <>
-            <Button className="w-full" onClick={() => setManageQueueOpen(true)} disabled={!queue}>
+            <Button className="w-full" onClick={() => setManageQueueOpen(true)} disabled={!queue || assemblyFinished}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Gerenciar Inscrições
             </Button>
             {queue && (
@@ -330,7 +334,7 @@ function SpeakingQueue({
             )}
           </>
         )}
-        {!userInQueue && !isAdmin && <Button className="w-full" onClick={onJoinQueue} disabled={isLoading}><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
+        {!userInQueue && !isAdmin && <Button className="w-full" onClick={onJoinQueue} disabled={isLoading || assemblyFinished}><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
         {userInQueue && <Button variant="outline" className="w-full" onClick={onLeaveQueue}>Cancelar Inscrição</Button>}
         
         {isLoading ? (
@@ -369,7 +373,7 @@ export default function AssemblyPage() {
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
 
   const assemblyContext = useAssemblyContext();
-  const { setStatus, isQueueOpen, setIsQueueOpen } = assemblyContext!;
+  const { setAssembly, isQueueOpen, setIsQueueOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen } = assemblyContext!;
 
 
   const assemblyRef = useMemoFirebase(() => {
@@ -397,22 +401,24 @@ export default function AssemblyPage() {
   
   useEffect(() => {
     if (assembly) {
-      setStatus(assembly.status);
+      setAssembly(assembly);
     }
     return () => {
-      setStatus(null);
+      setAssembly(null);
     };
-  }, [assembly, setStatus]);
+  }, [assembly, setAssembly]);
 
 
   const handleJoinQueue = () => {
     if (!user || !assembly) return;
     const queueItemRef = doc(firestore, 'assemblies', assembly.id, 'speakerQueue', user.uid);
-    const queueItem = {
+    const queueItem: Omit<SpeakerQueueItem, 'id' | 'joinedAt'> & { joinedAt: any } = {
         userId: user.uid,
         assemblyId: assembly.id,
         joinedAt: serverTimestamp(),
         status: 'Na Fila',
+        administratorId: assembly.administratorId,
+        assemblyStatus: assembly.status,
     };
     setDocumentNonBlocking(queueItemRef, queueItem, { merge: true });
     toast({ title: 'Inscrição Realizada', description: 'Você foi adicionado à fila para falar.' });
@@ -482,7 +488,7 @@ export default function AssemblyPage() {
 
   const isLoading = isAdminLoading || isAssemblyLoading;
   const isQueueComponentLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
-
+  const assemblyFinished = assembly?.status === 'finished';
 
   if (isLoading) {
     return (
@@ -501,6 +507,11 @@ export default function AssemblyPage() {
 
   return (
     <>
+    <EndAssemblyDialog
+      open={isEndAssemblyDialogOpen}
+      onOpenChange={setIsEndAssemblyDialogOpen}
+      assembly={assembly}
+    />
     <Sheet open={isQueueOpen} onOpenChange={setIsQueueOpen}>
         <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
           <SheetHeader className="p-6 pb-4">
@@ -511,6 +522,7 @@ export default function AssemblyPage() {
              <SpeakingQueue 
               assemblyId={assembly.id}
               assemblyZoomUrl={assembly.zoomUrl}
+              assemblyFinished={assemblyFinished}
               queue={queue}
               userInQueue={userInQueue}
               userProfiles={userProfiles}
@@ -541,7 +553,7 @@ export default function AssemblyPage() {
                           Encerrar Participação
                       </Button>
                   )}
-                  {isAdmin && (
+                  {isAdmin && !assemblyFinished && (
                     <Dialog open={isEditUrlOpen} onOpenChange={setEditUrlOpen}>
                       <DialogTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -620,7 +632,7 @@ export default function AssemblyPage() {
             </Card>
 
             <div className="space-y-4">
-              {isAdmin && (
+              {isAdmin && !assemblyFinished &&(
                 <>
                   <Button onClick={() => setCreatePollOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>
                   <CreatePollDialog 
@@ -634,7 +646,7 @@ export default function AssemblyPage() {
               
               {polls && polls.length > 0 ? (
                   polls.map(poll => (
-                    <PollCard key={poll.id} poll={poll} assemblyId={assembly.id} />
+                    <PollCard key={poll.id} poll={poll} assemblyId={assembly.id} assemblyStatus={assembly.status} />
                   ))
               ) : (
                   !arePollsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação para esta assembleia.</p>

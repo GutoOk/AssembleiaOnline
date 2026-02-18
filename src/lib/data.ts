@@ -12,9 +12,9 @@ export type UserProfile = {
 export type PollOption = {
   id: string;
   text: string;
-  // Denormalized fields for rules
   pollId: string;
   assemblyId: string;
+  assemblyStatus: Assembly['status'];
 };
 
 export type Vote = {
@@ -24,6 +24,7 @@ export type Vote = {
   assemblyId: string;
   pollOptionId: string;
   timestamp: Timestamp;
+  assemblyStatus: Assembly['status'];
 };
 
 export type Poll = {

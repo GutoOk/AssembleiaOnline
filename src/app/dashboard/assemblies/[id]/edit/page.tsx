@@ -82,6 +82,7 @@ export default function EditAssemblyPage() {
   }, [firestore, params.id]);
 
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
+  const isFinished = assembly?.status === 'finished';
 
   const form = useForm<z.infer<typeof assemblySchema>>({
     resolver: zodResolver(assemblySchema),
@@ -247,113 +248,119 @@ export default function EditAssemblyPage() {
     <Card>
       <CardHeader>
         <CardTitle>Editar Assembleia</CardTitle>
-        <CardDescription>Atualize os detalhes abaixo para esta assembleia.</CardDescription>
+        <CardDescription>
+          {isFinished
+            ? 'Esta assembleia foi finalizada e não pode mais ser editada.'
+            : 'Atualize os detalhes abaixo para esta assembleia.'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Título</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Assembleia Geral Ordinária 2025" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+          <fieldset disabled={isFinished || form.formState.isSubmitting || isUploading}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Título</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Assembleia Geral Ordinária 2025" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descrição</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Descreva o propósito e a agenda da assembleia." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Data e Hora</FormLabel>
+                    <FormControl>
+                      <Input type="datetime-local" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormItem>
+                <FormLabel>Imagem de Capa</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="file" 
+                    accept="image/png, image/jpeg, image/webp" 
+                    onChange={handleImageChange}
+                    disabled={form.formState.isSubmitting || isUploading}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Selecione uma imagem para a capa. Você poderá cortá-la em seguida (máx 5MB).
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+              {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {imagePreview && !isUploading && (
+                <div className="relative aspect-video w-full max-w-lg overflow-hidden rounded-md border">
+                  <Image src={imagePreview} alt="Pré-visualização da imagem" fill className="object-cover" />
+                </div>
               )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Descrição</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Descreva o propósito e a agenda da assembleia." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Data e Hora</FormLabel>
-                  <FormControl>
-                    <Input type="datetime-local" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormItem>
-              <FormLabel>Imagem de Capa</FormLabel>
-              <FormControl>
-                <Input 
-                  type="file" 
-                  accept="image/png, image/jpeg, image/webp" 
-                  onChange={handleImageChange}
-                  disabled={form.formState.isSubmitting || isUploading}
-                />
-              </FormControl>
-              <FormDescription>
-                Selecione uma imagem para a capa. Você poderá cortá-la em seguida (máx 5MB).
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-            {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {imagePreview && !isUploading && (
-              <div className="relative aspect-video w-full max-w-lg overflow-hidden rounded-md border">
-                <Image src={imagePreview} alt="Pré-visualização da imagem" fill className="object-cover" />
+              <FormField
+                control={form.control}
+                name="youtubeUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Link ou ID do Vídeo do YouTube</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://www.youtube.com/watch?v=..." {...field} />
+                    </FormControl>
+                     <FormDescription>
+                      Cole qualquer link do YouTube (de vídeo, ao vivo ou de incorporação) ou apenas o ID do vídeo.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="zoomUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Link da Reunião do Zoom (Opcional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://zoom.us/j/..." {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Cole o link completo de entrada da reunião do Zoom.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex gap-2">
+                  <Button type="submit" disabled={isFinished || form.formState.isSubmitting || isUploading}>
+                  {(form.formState.isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Salvar Alterações
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => router.back()}>
+                      {isFinished ? 'Voltar' : 'Cancelar'}
+                  </Button>
               </div>
-            )}
-            <FormField
-              control={form.control}
-              name="youtubeUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Link ou ID do Vídeo do YouTube</FormLabel>
-                  <FormControl>
-                    <Input placeholder="https://www.youtube.com/watch?v=..." {...field} />
-                  </FormControl>
-                   <FormDescription>
-                    Cole qualquer link do YouTube (de vídeo, ao vivo ou de incorporação) ou apenas o ID do vídeo.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="zoomUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Link da Reunião do Zoom (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="https://zoom.us/j/..." {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Cole o link completo de entrada da reunião do Zoom.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="flex gap-2">
-                <Button type="submit" disabled={form.formState.isSubmitting || isUploading}>
-                {(form.formState.isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Salvar Alterações
-                </Button>
-                <Button type="button" variant="outline" onClick={() => router.back()}>
-                    Cancelar
-                </Button>
-            </div>
-          </form>
+            </form>
+          </fieldset>
         </Form>
       </CardContent>
     </Card>
