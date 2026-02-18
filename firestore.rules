@@ -5,62 +5,49 @@ service cloud.firestore {
     // --------------------------------------------------------------------------------
     // Helper Functions
     // --------------------------------------------------------------------------------
-
-    // Checks if the user is authenticated.
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Checks if the currently authenticated user is a designated administrator.
-    // This is determined by the existence of a document in the /admins collection.
     function isAdmin() {
       return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    // Checks if the currently authenticated user's ID matches the provided userId.
-    // This is the primary function for enforcing document ownership.
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-
-    // Verifies that a document already exists.
-    // Crucial for update and delete operations to prevent acting on non-existent data.
+    
     function isExistingDoc() {
       return resource != null;
     }
 
-    // A composite check for update/delete operations ensuring the user is the owner
-    // of an existing document.
     function isOwnerOfExistingDoc(userId) {
       return isOwner(userId) && isExistingDoc();
     }
-
-    // A composite check for update/delete operations ensuring the user is an admin
-    // acting on an existing document.
+    
     function isAdminOfExistingDoc() {
       return isAdmin() && isExistingDoc();
     }
 
-    // Validates that the core ID field of a new user document matches its path.
-    // Enforces relational integrity on creation.
     function hasValidNewUserData(userId) {
       return request.resource.data.id == userId;
     }
 
-    // Validates that only allowed fields are changed during an update.
-    // Ensures that immutable fields like 'id', 'email', and 'createdAt' are not modified
-    // by comparing the pre-update and post-update document states.
     function hasValidUpdatedUserData() {
-      // Allow updates to 'name' and 'avatarDataUri', but not 'id', 'email', or 'createdAt'.
       let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
       return changedKeys.size() > 0 && !changedKeys.hasAny(['id', 'email', 'createdAt']);
+    }
+
+    // Checks if the requestor is the designated proxy for a given grantor in a specific assembly.
+    function isAuthorizedProxy(assemblyId, grantorId) {
+      let proxyDoc = get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(grantorId));
+      return proxyDoc.exists && proxyDoc.data.proxyId == request.auth.uid;
     }
     
     // --------------------------------------------------------------------------------
     // Collection Rules
     // --------------------------------------------------------------------------------
 
-    // Manages user profile data. Each user has exclusive control over their own document.
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
@@ -68,14 +55,12 @@ service cloud.firestore {
       allow update: if isOwnerOfExistingDoc(userId) && hasValidUpdatedUserData();
       allow delete: if isOwnerOfExistingDoc(userId) || isAdminOfExistingDoc();
 
-      // Manages a user's block list. A user can only manage their own list.
       match /blockedUsers/{blockedUserId} {
         allow read, list, create, delete: if isOwner(userId);
         allow update: if false;
       }
     }
 
-    // Identifies administrators. Document existence grants admin rights.
     match /admins/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
@@ -84,7 +69,6 @@ service cloud.firestore {
       allow delete: if isAdmin() && request.auth.uid != userId;
     }
 
-    // Defines assembly events. Publicly readable by all users, but only managed by administrators.
     match /assemblies/{assemblyId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
@@ -92,7 +76,6 @@ service cloud.firestore {
       allow update: if isAdminOfExistingDoc() && request.resource.data.administratorId == resource.data.administratorId;
       allow delete: if isAdminOfExistingDoc();
 
-      // Manages informal chat messages for an assembly.
       match /chat/{messageId} {
         allow read, list: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.assemblyId == assemblyId;
@@ -100,7 +83,6 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // Defines polls within an assembly. Readable by users, managed by admins.
       match /polls/{pollId} {
         allow get: if isSignedIn();
         allow list: if isSignedIn();
@@ -109,7 +91,6 @@ service cloud.firestore {
         allow delete: if isAdminOfExistingDoc();
       }
 
-      // Defines the specific options for a poll (e.g., 'Yes', 'No'). Readable by users, managed by admins.
       match /polls/{pollId}/options/{optionId} {
         allow get: if isSignedIn();
         allow list: if isSignedIn();
@@ -117,21 +98,39 @@ service cloud.firestore {
         allow update: if isAdminOfExistingDoc();
         allow delete: if isAdminOfExistingDoc();
       }
-
-      // Records a single vote by a user on a poll. Users can only create their own vote.
+      
+      // Records a single vote by a user on a poll.
       match /polls/{pollId}/votes/{voteId} {
         allow get: if isSignedIn();
-        allow list: if isSignedIn(); // QAP: Client queries MUST filter by poll status (e.g., 'closed') to show results.
-        allow create: if isOwner(voteId) && request.resource.data.userId == request.auth.uid && request.resource.data.pollId == pollId;
-        allow update: if false;
-        allow delete: if false;
+        allow list: if isSignedIn();
+        
+        allow create: if isSignedIn()
+                        && request.resource.data.pollId == pollId
+                        && get(/databases/$(database)/documents/assemblies/$(request.resource.data.assemblyId)/polls/$(pollId)).data.status == 'open'
+                        && (
+                            // Case 1: User is voting for themselves.
+                            // voteId and userId must match the voter's UID. No proxyVoterId should be present.
+                            (
+                              voteId == request.auth.uid
+                              && request.resource.data.userId == request.auth.uid
+                              && !('proxyVoterId' in request.resource.data)
+                            ) ||
+                            // Case 2: User is a proxy voting for someone else.
+                            // The voteId must be the ID of the person being represented (the grantor).
+                            // The requestor must be the authorized proxy for that grantor.
+                            // The proxyVoterId field must be present and match the requestor's UID.
+                            (
+                              voteId == request.resource.data.userId
+                              && request.resource.data.proxyVoterId == request.auth.uid
+                              && isAuthorizedProxy(request.resource.data.assemblyId, request.resource.data.userId)
+                            )
+                        );
+
+        allow update, delete: if false;
       }
 
-      // Manages requests from users who want to speak during an assembly.
       match /speakerQueue/{queueItemId} {
-        // Get is restricted to the owner or an admin to protect potentially sensitive fields like a zoomLink.
         allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
-        // List is open to all signed-in users to allow viewing the public queue order.
         allow list: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.assemblyId == assemblyId;
         allow update: if isAdminOfExistingDoc() || (
@@ -144,7 +143,6 @@ service cloud.firestore {
         allow delete: if isOwnerOfExistingDoc(resource.data.userId) || isAdminOfExistingDoc();
       }
 
-      // Manages meeting minutes (Ata). Only admins can write. All signed-in users can read.
       match /ata/{ataId} {
           allow get: if isSignedIn();
           allow list: if isSignedIn();
@@ -158,9 +156,10 @@ service cloud.firestore {
 
       // Manages proxy voting assignments.
       match /proxies/{grantorId} {
-        // Grant read access to any signed-in user, as this data is considered public within the app.
-        // This allows querying for assignments where the user is the proxy.
+        // Allows any signed-in user to read proxy assignments. This is necessary for client-side queries
+        // and for security rules that need to check for proxy authorization.
         allow read: if isSignedIn();
+        allow list: if isSignedIn();
         
         // Allow creation only by the grantor, for a scheduled assembly.
         allow create: if isOwner(grantorId)
@@ -168,7 +167,7 @@ service cloud.firestore {
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         
         // Allow deletion only by the grantor, for a scheduled assembly.
-        allow delete: if isOwnerOfExistingDoc(grantorId)
+        allow delete: if isOwner(grantorId)
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         
         allow update: if false;
