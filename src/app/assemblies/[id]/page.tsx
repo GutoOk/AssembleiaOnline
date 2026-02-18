@@ -54,6 +54,35 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
+const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
+  if (!text) {
+    return null;
+  }
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  return (
+    <div className={cn('text-sm text-muted-foreground whitespace-pre-wrap', className)}>
+      {parts.map((part, index) => {
+        if (part.match(urlRegex)) {
+          return (
+            <a
+              key={index}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline hover:text-primary/80 break-all"
+            >
+              {part}
+            </a>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </div>
+  );
+};
+
 function UserDisplay({ userId }: { userId: string }) {
   const firestore = useFirestore();
   const { user } = useUser();
@@ -76,7 +105,7 @@ function UserDisplay({ userId }: { userId: string }) {
     <div className="flex items-center gap-1">
       <Avatar className="h-6 w-6">
         <AvatarImage src={userProfile.avatarDataUri} alt={userProfile.name} />
-        <AvatarFallback>{userProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
+        <AvatarFallback>{userProfile.name?.charAt(0).toUpperCase()} </AvatarFallback>
       </Avatar>
       <span>{userProfile.name}</span>
     </div>
@@ -297,7 +326,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
                   <p className="text-muted-foreground">{poll.question}</p>
                   <div>
                       <p className="text-foreground">Motivo da anulação:</p>
-                      <p className="text-muted-foreground mt-1 whitespace-pre-wrap">{poll.annulmentReason}</p>
+                      <LinkifiedText text={poll.annulmentReason || ''} className="mt-1" />
                   </div>
               </div>
             )
@@ -678,7 +707,7 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished }: { ataItem: AtaItem, isA
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{ataItem.text}</p>
+            <LinkifiedText text={ataItem.text} className="text-sm text-muted-foreground" />
           )}
         </CardContent>
         <CardFooter className="text-xs text-muted-foreground border-t p-2">
