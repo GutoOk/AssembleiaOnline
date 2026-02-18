@@ -118,7 +118,8 @@ service cloud.firestore {
        * @allow (list) A user can only list proxies where they are the grantor.
        * The client-side query MUST include `where('grantorId', '==', request.auth.uid)`.
        */
-      allow list: if isSignedIn() && resource.data.grantorId == request.auth.uid;
+      allow list: if isSignedIn()
+                  && request.query.filters.grantorId[0] == request.auth.uid;
     }
 
     // --------------------------------------------------------------------------------
