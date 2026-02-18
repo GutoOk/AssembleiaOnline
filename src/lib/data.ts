@@ -55,6 +55,17 @@ export type SpeakerQueueItem = {
   assemblyStatus: Assembly['status'];
 };
 
+export type AtaItem = {
+  id: string;
+  assemblyId: string;
+  administratorId: string;
+  text: string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+  // Denormalized for rules
+  assemblyStatus: Assembly['status'];
+};
+
 export type Assembly = {
   id: string;
   title: string;

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -49,6 +49,7 @@ import { useAssemblyContext } from '@/contexts/AssemblyContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { EndAssemblyDialog } from '@/components/EndAssemblyDialog';
 import { StartAssemblyDialog } from '@/components/StartAssemblyDialog';
+import { AtaDialog } from '@/components/AtaDialog';
 
 function UserDisplay({ userId }: { userId: string }) {
   const firestore = useFirestore();
@@ -507,6 +508,7 @@ export default function AssemblyPage() {
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
   const { toast } = useToast();
   const [isCreatePollOpen, setCreatePollOpen] = useState(false);
+  const [isAtaOpen, setIsAtaOpen] = useState(false);
   const [isEditUrlOpen, setEditUrlOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
   const [newZoomUrl, setNewZoomUrl] = useState('');
@@ -778,16 +780,28 @@ export default function AssemblyPage() {
             </Card>
 
             <div className="space-y-4">
-              {isAdmin && !assemblyFinished &&(
+              {isAdmin && !assemblyFinished && (
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => setIsAtaOpen(true)} variant="outline">
+                    <BookText className="h-4 w-4" /> Registro de Ata
+                  </Button>
+                  <Button onClick={() => setCreatePollOpen(true)}>
+                    <PlusCircle className="h-4 w-4" /> Nova Votação
+                  </Button>
+                </div>
+              )}
+
+              {isAdmin && !assemblyFinished && (
                 <>
-                  <Button onClick={() => setCreatePollOpen(true)}><PlusCircle className="h-4 w-4"/> Nova Votação</Button>
-                  <CreatePollDialog 
+                  <AtaDialog open={isAtaOpen} onOpenChange={setIsAtaOpen} assembly={assembly} />
+                  <CreatePollDialog
                     open={isCreatePollOpen}
                     onOpenChange={setCreatePollOpen}
                     assembly={assembly}
                   />
                 </>
               )}
+              
               {arePollsLoading && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
               
               {polls && polls.length > 0 ? (
