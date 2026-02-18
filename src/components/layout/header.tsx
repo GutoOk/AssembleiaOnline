@@ -56,8 +56,8 @@ export function Header() {
     }
   };
 
-  const showCreateAssemblyButton = isAdmin && pathname === '/dashboard';
   const isAssemblyPage = pathname.startsWith('/assemblies/');
+  const showCreateAssemblyButton = isAdmin && pathname === '/dashboard';
 
   const mobileNavLinks = (
     <>
@@ -69,7 +69,7 @@ export function Header() {
         )}
       >
         <Home className="h-5 w-5" />
-        Início
+        {isAssemblyPage ? 'Sair' : 'Início'}
       </Link>
       {isAdmin && (
         <Link
@@ -130,19 +130,12 @@ export function Header() {
             <UserNav />
 
             {isAssemblyPage ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button asChild variant="ghost" size="icon">
-                    <Link href="/dashboard">
-                      <Home className="h-5 w-5" />
-                      <span className="sr-only">Voltar ao Início</span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Voltar ao Início</p>
-                </TooltipContent>
-              </Tooltip>
+              <Button asChild variant="ghost" className="text-muted-foreground hover:text-foreground">
+                <Link href="/dashboard">
+                  <Home className="h-5 w-5 mr-2" />
+                  Sair
+                </Link>
+              </Button>
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
