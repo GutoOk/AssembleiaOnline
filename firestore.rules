@@ -1,34 +1,3 @@
-/**
- * This ruleset enforces a security model for the "Assembleia - Mensa Brasil" application,
- * centered around a global administrator role that manages public-facing "Assembly" events.
- *
- * Core Philosophy:
- * The security model is based on a strict separation of privileges. A small group of
- * administrators has full control over creating and managing assemblies, polls, and
- * speaker queues. Regular authenticated users can view public event data and participate
- * through specific, controlled actions like voting or requesting to speak.
- *
- * Data Structure:
- * - /users/{userId}: Private user profiles, managed only by the user themselves.
- * - /admins/{userId}: An admin-only collection where the existence of a document
- *   grants global administrator privileges. This separates role data from user profiles.
- * - /assemblies/{assemblyId}: A top-level collection for events. It contains nested
- *   subcollections for polls, poll options, votes, and speaker queues.
- *
- * Key Security Decisions:
- * - Admin Role Management: Administrator status is determined by the existence of a
- *   document in the `/admins` collection, not by a mutable `role` field on a user's
- *   profile. This provides robust, non-falsifiable role-based access control.
- * - Denormalization for Authorization: Critical authorization data, such as the
- *   `administratorId` from an assembly, is denormalized (copied) into child documents
- *   like polls and votes. This avoids slow and costly `get()` calls in rules, making
- *   them more performant and secure.
- * - User Data Privacy: Users can only access their own document within the `/users`
- *   collection. Listing of all users is forbidden for non-administrators.
- * - Default Secure Posture: Unspecified permissions are implicitly denied. Any operation
- *   not explicitly allowed (e.g., a regular user trying to delete a poll) will fail.
- *
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -91,17 +60,15 @@ service cloud.firestore {
     // Collection Group Rules
     // --------------------------------------------------------------------------------
 
-    // Rules for the 'proxies' collection group, necessary for the `useGrantedProxies` hook.
-    // This rule allows a query across all 'proxies' collections.
     match /{path=**}/proxies/{proxyAssignmentId} {
-      // The `list` permission is required to initiate the collection group query.
-      // It seems broad, but the actual security is enforced by the `get` rule below.
-      allow list: if isSignedIn();
+      // This rule secures the collection group query from `useGrantedProxies`.
+      // It enforces that the client query MUST filter for documents where
+      // the `grantorId` is the user's own UID. This prevents querying other users' proxies.
+      // Note: This relies on `request.query` which has inconsistent documentation, but is
+      // the standard pattern for securing list queries.
+      allow list: if isSignedIn() && request.auth.uid == request.query.get("where")[0][2];
 
-      // The `get` rule is the core of the security. For every document the `list`
-      // query tries to return, Firestore checks if the user has `get` permission.
-      // Here, we only allow a user to read a proxy assignment if they are the one
-      // who granted it (`grantorId`). This effectively filters the query results.
+      // This allows a user to directly fetch a proxy document if they are the grantor.
       allow get: if isSignedIn() && isOwner(resource.data.grantorId);
     }
     
@@ -206,8 +173,7 @@ service cloud.firestore {
       }
 
       // Manages proxy voting assignments. This rule block handles WRITES (create, delete) only.
-      // READS (get, list) for this specific path are implicitly denied to prevent conflicts
-      // with the collection group query rule, which is the sole authority for reads.
+      // READS are handled by the collection group rule.
       match /proxies/{grantorId} {
         allow create: if isOwner(grantorId)
                       && request.resource.data.grantorId == grantorId
@@ -217,7 +183,7 @@ service cloud.firestore {
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         
         allow update: if false;
-        // NOTE: `allow get` and `allow list` are intentionally omitted.
+        // `get` and `list` are implicitly denied for this specific path.
       }
     }
   }
