@@ -243,24 +243,27 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
                 </Button>
             )}
         </div>
-        <CardTitle className={cn("text-lg", pollAnnulled && "font-normal")}>{poll.question}</CardTitle>
-        {!pollAnnulled && (
+        {!pollAnnulled && 
+          <>
+            <CardTitle className="text-lg">{poll.question}</CardTitle>
             <CardDescription className="flex items-center gap-1">
                 <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
             </CardDescription>
-        )}
+          </>
+        }
       </CardHeader>
       <CardContent className="p-4 pt-0">
         {pollAnnulled ? (
-            <div>
-                <h3 className="mb-2 text-sm text-foreground/80">Motivo da anulação:</h3>
-                <blockquote className="mt-2 border-l-2 pl-4 italic text-muted-foreground">
-                    "{poll.annulmentReason}"
-                </blockquote>
+            <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">{poll.question}</p>
+                <div>
+                    <p className="text-sm text-foreground">Motivo da anulação:</p>
+                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{poll.annulmentReason}</p>
+                </div>
             </div>
         ) : userVote || pollEnded ? (
           <div>
-            <h3 className="mb-2 text-sm">Resultado:</h3>
+            <h3 className="mb-2 text-sm font-normal">Resultado:</h3>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={voteData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
@@ -275,7 +278,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
             {votes && votes.length > 0 && (
                 <>
                 <Separator className="my-2" />
-                <h3 className="mb-2 text-sm">Votos individuais:</h3>
+                <h3 className="mb-2 text-sm font-normal">Votos individuais:</h3>
                 <div className={cn("space-y-1", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
                 {votesToShow.map(vote => {
                     const voter = userProfiles[vote.userId];
