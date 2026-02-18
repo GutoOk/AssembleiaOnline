@@ -220,5 +220,21 @@ service cloud.firestore {
       );
       allow delete: if isOwnerOfExistingDoc(resource.data.userId) || isAdminOfExistingDoc();
     }
+
+    /**
+     * @description Manages meeting minutes (Ata). Only admins can write. All signed-in users can read.
+     * @path /assemblies/{assemblyId}/ata/{ataId}
+     * @principle Admin-only writes, locked after assembly completion.
+     */
+    match /assemblies/{assemblyId}/ata/{ataId} {
+        allow get: if isSignedIn();
+        allow list: if isSignedIn();
+        allow create: if isAdmin() 
+                      && request.resource.data.assemblyId == assemblyId
+                      && request.resource.data.administratorId == request.auth.uid
+                      && request.resource.data.assemblyStatus != 'finished';
+        allow update: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
+        allow delete: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
+    }
   }
 }
