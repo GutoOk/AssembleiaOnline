@@ -13,10 +13,20 @@ import { useAdmin } from '@/hooks/use-admin';
 import { updateDocumentNonBlocking, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import type { Assembly } from '@/lib/data';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription as DialogDescriptionComponent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 
 const assemblySchema = z.object({
   title: z.string().min(10, 'O título deve ter pelo menos 10 caracteres.'),
@@ -28,6 +38,27 @@ const assemblySchema = z.object({
   zoomUrl: z.string().url("Por favor, insira um link de reunião válido.").optional().or(z.literal('')),
 });
 
+// Helper function for cropping
+function centerAspectCrop(
+  mediaWidth: number,
+  mediaHeight: number,
+  aspect: number
+) {
+  return centerCrop(
+    makeAspectCrop(
+      {
+        unit: '%',
+        width: 90,
+      },
+      aspect,
+      mediaWidth,
+      mediaHeight
+    ),
+    mediaWidth,
+    mediaHeight
+  );
+}
+
 export default function EditAssemblyPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -36,6 +67,14 @@ export default function EditAssemblyPage() {
   const { toast } = useToast();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  // State for image cropper
+  const [imgSrc, setImgSrc] = useState('');
+  const [crop, setCrop] = useState<Crop>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+  const [isCropperOpen, setCropperOpen] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
 
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id) return null;
@@ -83,31 +122,66 @@ export default function EditAssemblyPage() {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({
           variant: 'destructive',
           title: 'Imagem muito grande',
-          description: 'Por favor, selecione um arquivo com menos de 2MB.',
+          description: 'Por favor, selecione um arquivo com menos de 5MB.',
         });
         event.target.value = ''; // Reset input
         return;
       }
       setIsUploading(true);
+      setCrop(undefined); // Reset crop
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+      reader.addEventListener('load', () => {
+        setImgSrc(reader.result?.toString() || '');
+        setCropperOpen(true);
         setIsUploading(false);
-      };
-      reader.onerror = () => {
-        setIsUploading(false);
-        toast({
-          variant: 'destructive',
-          title: 'Erro ao processar imagem',
-          description: 'Não foi possível ler o arquivo da imagem.',
-        });
-      };
+      });
       reader.readAsDataURL(file);
+      event.target.value = ''; // Reset file input
     }
+  };
+  
+  function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+      imgRef.current = e.currentTarget;
+      const { width, height } = e.currentTarget;
+      setCrop(centerAspectCrop(width, height, 16 / 9));
+  }
+  
+  const handleApplyCrop = async () => {
+      if (completedCrop && imgRef.current) {
+          const canvas = document.createElement('canvas');
+          const scaleX = imgRef.current.naturalWidth / imgRef.current.width;
+          const scaleY = imgRef.current.naturalHeight / imgRef.current.height;
+          canvas.width = completedCrop.width;
+          canvas.height = completedCrop.height;
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+              toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível processar a imagem.' });
+              return;
+          }
+
+          ctx.drawImage(
+              imgRef.current,
+              completedCrop.x * scaleX,
+              completedCrop.y * scaleY,
+              completedCrop.width * scaleX,
+              completedCrop.height * scaleY,
+              0,
+              0,
+              completedCrop.width,
+              completedCrop.height
+          );
+
+          // Compress to JPEG with 80% quality
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          setImagePreview(compressedDataUrl);
+          setCropperOpen(false);
+          setImgSrc('');
+      }
   };
   
   const onSubmit = async (values: z.infer<typeof assemblySchema>) => {
@@ -169,6 +243,7 @@ export default function EditAssemblyPage() {
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Editar Assembleia</CardTitle>
@@ -227,7 +302,7 @@ export default function EditAssemblyPage() {
                 />
               </FormControl>
               <FormDescription>
-                Selecione uma nova imagem para substituir a atual (máximo 2MB).
+                Selecione uma imagem para a capa. Você poderá cortá-la em seguida (máx 5MB).
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -282,5 +357,40 @@ export default function EditAssemblyPage() {
         </Form>
       </CardContent>
     </Card>
+    
+    <Dialog open={isCropperOpen} onOpenChange={setCropperOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+          <DialogHeader>
+            <DialogTitle>Recortar Imagem</DialogTitle>
+            <DialogDescriptionComponent>
+              Ajuste a imagem para a capa da assembleia (16:9).
+            </DialogDescriptionComponent>
+          </DialogHeader>
+          <div className="py-4 flex justify-center">
+            {imgSrc && (
+              <ReactCrop
+                crop={crop}
+                onChange={(_, percentCrop) => setCrop(percentCrop)}
+                onComplete={(c) => setCompletedCrop(c)}
+                aspect={16 / 9}
+                minWidth={320}
+              >
+                <img
+                  ref={imgRef}
+                  alt="Crop me"
+                  src={imgSrc}
+                  onLoad={onImageLoad}
+                  style={{ maxHeight: '70vh' }}
+                />
+              </ReactCrop>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setCropperOpen(false); setImgSrc(''); }}>Cancelar</Button>
+            <Button type="button" onClick={handleApplyCrop} disabled={!completedCrop}>Aplicar Recorte</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
