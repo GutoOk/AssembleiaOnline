@@ -132,7 +132,7 @@ export function Header() {
             {isAssemblyPage ? (
               <Button asChild variant="ghost" className="text-muted-foreground hover:text-foreground">
                 <Link href="/dashboard">
-                  <Home className="h-5 w-5 mr-2" />
+                  <Home className="h-5 w-5" />
                   Sair
                 </Link>
               </Button>
@@ -155,11 +155,11 @@ export function Header() {
             {showAssemblyButtons && (
               <div className="flex items-center gap-1">
                   <Button variant="ghost" className="text-muted-foreground" disabled>
-                      <MessageCircle className="h-4 w-4 mr-2" />
+                      <MessageCircle className="h-4 w-4" />
                       Chat
                   </Button>
                   <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground">
-                      <Users className="h-4 w-4 mr-2" />
+                      <Users className="h-4 w-4" />
                       Fila de Inscrição
                   </Button>
               </div>

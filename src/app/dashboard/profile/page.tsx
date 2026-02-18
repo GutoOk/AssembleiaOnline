@@ -262,7 +262,7 @@ export default function ProfilePage() {
                       disabled={isLoading}
                   />
                   <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Trocar Foto
                   </Button>
               </div>
@@ -292,7 +292,7 @@ export default function ProfilePage() {
               </FormItem>
 
               <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Salvar Alterações
               </Button>
             </form>

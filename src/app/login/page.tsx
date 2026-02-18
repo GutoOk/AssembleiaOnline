@@ -190,7 +190,7 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent className="space-y-4">
            <Button variant="outline" className="w-full" type="button" disabled={isLoading} onClick={handleGoogleLogin}>
-              {isLoadingGoogle ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Icons.google className="mr-2 h-4 w-4" />}
+              {isLoadingGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icons.google className="h-4 w-4" />}
               Entrar com Google
             </Button>
             <div className="relative">
@@ -221,7 +221,7 @@ export default function LoginPage() {
             </CardDescription>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoadingMock ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 "Entrar com conta de teste"
               )}

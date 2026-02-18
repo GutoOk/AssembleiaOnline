@@ -225,8 +225,8 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
               ))}
             </RadioGroup>
             <Button onClick={handleVote} disabled={!selectedOption || isLoadingVotes}>
-              {isLoadingVotes && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Send className="mr-2 h-4 w-4" />
+              {isLoadingVotes && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Send className="h-4 w-4" />
               Votar
             </Button>
           </div>
@@ -303,7 +303,7 @@ function SpeakingQueue({
             <p className="text-xs text-muted-foreground">{speakerUser.email}</p>
              {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl && userInQueue ? (
                 <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl, userInQueue)} className="mt-2">
-                    <Video className="h-4 w-4 mr-2" /> Entrar para Falar
+                    <Video className="h-4 w-4" /> Entrar para Falar
                 </Button>
             ) : (
                 <div className="mt-1">{getStatusBadge(speaker.status)}</div>
@@ -322,7 +322,7 @@ function SpeakingQueue({
         {isAdmin && (
            <>
             <Button className="w-full" onClick={() => setManageQueueOpen(true)} disabled={!queue || assemblyFinished}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Gerenciar Inscrições
+                <PlusCircle className="h-4 w-4" /> Gerenciar Inscrições
             </Button>
             {queue && (
               <ManageQueueDialog
@@ -335,7 +335,7 @@ function SpeakingQueue({
             )}
           </>
         )}
-        {!userInQueue && !isAdmin && <Button className="w-full" onClick={onJoinQueue} disabled={isLoading || assemblyFinished}><Hand className="mr-2 h-4 w-4" /> Solicitar Palavra</Button>}
+        {!userInQueue && !isAdmin && <Button className="w-full" onClick={onJoinQueue} disabled={isLoading || assemblyFinished}><Hand className="h-4 w-4" /> Solicitar Palavra</Button>}
         {userInQueue && <Button variant="outline" className="w-full" onClick={onLeaveQueue}>Cancelar Inscrição</Button>}
         
         {isLoading ? (
@@ -555,7 +555,7 @@ export default function AssemblyPage() {
                 <div className="flex items-center gap-2">
                   {isSpeaking && (
                       <Button onClick={handleEndParticipation} variant="destructive">
-                          <LogOut className="mr-2 h-4 w-4" />
+                          <LogOut className="h-4 w-4" />
                           Encerrar Participação
                       </Button>
                   )}
@@ -640,7 +640,7 @@ export default function AssemblyPage() {
             <div className="space-y-4">
               {isAdmin && !assemblyFinished &&(
                 <>
-                  <Button onClick={() => setCreatePollOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/> Nova Votação</Button>
+                  <Button onClick={() => setCreatePollOpen(true)}><PlusCircle className="h-4 w-4"/> Nova Votação</Button>
                   <CreatePollDialog 
                     open={isCreatePollOpen}
                     onOpenChange={setCreatePollOpen}
@@ -663,5 +663,3 @@ export default function AssemblyPage() {
     </>
   );
 }
-
-    
