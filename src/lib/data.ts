@@ -82,4 +82,14 @@ export type Assembly = {
   endedAt?: Timestamp;
 };
 
-    
+export type ChatMessage = {
+  id: string;
+  assemblyId: string;
+  userId: string;
+  text: string;
+  timestamp: Timestamp;
+};
+
+export type BlockedUser = {
+  id: string; // The UID of the user who is blocked.
+};

@@ -34,13 +34,19 @@ export function Header() {
 
   const assemblyStatus = assemblyContext?.assembly?.status;
   
-  const showAssemblyButtons = assemblyStatus === 'live';
+  const showAssemblyButtons = assemblyStatus === 'live' || assemblyStatus === 'scheduled';
   const showEndAssemblyButton = isAdmin && assemblyStatus === 'live';
   const showStartAssemblyButton = isAdmin && assemblyStatus === 'scheduled';
   
   const handleQueueClick = () => {
     if (assemblyContext) {
       assemblyContext.setIsQueueOpen(true);
+    }
+  }
+
+  const handleChatClick = () => {
+    if (assemblyContext) {
+      assemblyContext.setIsChatOpen(true);
     }
   }
 
@@ -86,10 +92,8 @@ export function Header() {
       {showAssemblyButtons && (
         <>
             <Separator className="my-2" />
-            <Button variant="ghost" className="text-muted-foreground justify-start px-0 text-lg font-normal" disabled>Chat</Button>
-            <Button variant="ghost" onClick={() => {
-                handleQueueClick();
-            }} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
+            <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Chat</Button>
+            <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
                 Fila de Inscrição
             </Button>
         </>
@@ -154,7 +158,7 @@ export function Header() {
 
             {showAssemblyButtons && (
               <div className="flex items-center gap-1">
-                  <Button variant="ghost" className="text-muted-foreground" disabled>
+                  <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground">
                       <MessageCircle className="h-4 w-4" />
                       Chat
                   </Button>

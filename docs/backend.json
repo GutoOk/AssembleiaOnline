@@ -420,6 +420,48 @@
         "createdAt",
         "assemblyStatus"
       ]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chat Message",
+      "type": "object",
+      "description": "Represents a single message sent in an assembly's informal chat.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ChatMessage entity."
+        },
+        "assemblyId": {
+          "type": "string",
+          "description": "Reference to the Assembly where the message was sent."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who sent the message."
+        },
+        "text": {
+          "type": "string",
+          "description": "The content of the chat message."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when the message was sent."
+        }
+      },
+      "required": [
+        "assemblyId",
+        "userId",
+        "text",
+        "timestamp"
+      ]
+    },
+    "BlockedUserMarker": {
+      "title": "Blocked User Marker",
+      "description": "An empty object used as a marker in the /users/{userId}/blockedUsers subcollection. The existence of this document for a blockedId means the user is blocked by the parent userId.",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
     }
   },
   "auth": {
@@ -577,6 +619,36 @@
             {
               "name": "ataId",
               "description": "The unique identifier for a minute entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/assemblies/{assemblyId}/chat/{messageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": {
+            "$ref": "#/backend/entities/ChatMessage"
+          },
+          "description": "Subcollection for informal chat messages during an assembly. Publicly readable by signed-in users, but users can only create their own messages."
+        }
+      },
+      {
+        "path": "/users/{userId}/blockedUsers/{blockedUserId}",
+        "definition": {
+          "entityName": "BlockedUserMarker",
+          "schema": {
+            "$ref": "#/backend/entities/BlockedUserMarker"
+          },
+          "description": "Subcollection storing the UIDs of users that the parent user has blocked. The document ID is the UID of the blocked user. Managed only by the parent user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user who is blocking someone."
+            },
+            {
+              "name": "blockedUserId",
+              "description": "The UID of the user being blocked."
             }
           ]
         }

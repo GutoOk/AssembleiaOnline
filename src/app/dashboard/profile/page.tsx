@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useUser, useFirestore, useAuth, updateDocumentNonBlocking, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useAuth, updateDocumentNonBlocking, useDoc, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useRef } from 'react';
@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/dialog';
 import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
+import { useUserProfiles } from '@/hooks/use-user-profiles';
 
 
 const profileSchema = z.object({
@@ -86,6 +88,10 @@ export default function ProfilePage() {
   }, [firestore, user]);
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
+
+  const { blockedUserIds } = useBlockedUsers();
+  const { profiles: blockedUserProfiles, isLoading: areBlockedProfilesLoading } = useUserProfiles(Array.from(blockedUserIds));
+
 
  useEffect(() => {
     if (!isUserLoading && !user) {
@@ -210,6 +216,19 @@ export default function ProfilePage() {
         });
     }
   };
+
+  const handleUnblockUser = (userIdToUnblock: string) => {
+    if (!user || !firestore) return;
+
+    const blockRef = doc(firestore, 'users', user.uid, 'blockedUsers', userIdToUnblock);
+    deleteDocumentNonBlocking(blockRef);
+
+    const unblockedUserProfile = blockedUserProfiles[userIdToUnblock];
+    toast({
+      title: 'Usuário Desbloqueado',
+      description: `Você agora verá as mensagens de ${unblockedUserProfile?.name ?? 'este usuário'}.`,
+    });
+  };
   
   const isLoading = form.formState.isSubmitting || isUserLoading || isUploading || isProfileLoading;
 
@@ -300,6 +319,44 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
       
+      {blockedUserIds.size > 0 && (
+            <Card className="max-w-3xl mx-auto mt-8">
+                <CardHeader>
+                    <CardTitle>Gerenciamento de Bloqueios</CardTitle>
+                    <CardDescription>Usuários que você bloqueou no chat. Você não vê as mensagens deles.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {areBlockedProfilesLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                        <div className="space-y-4">
+                            {Array.from(blockedUserIds).map(userId => {
+                                const blockedUser = blockedUserProfiles[userId];
+                                if (!blockedUser) return null;
+                                return (
+                                    <div key={userId} className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar>
+                                                <AvatarImage src={blockedUser.avatarDataUri} alt={blockedUser.name} />
+                                                <AvatarFallback>{blockedUser.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <p className="font-medium">{blockedUser.name}</p>
+                                                <p className="text-sm text-muted-foreground">{blockedUser.email}</p>
+                                            </div>
+                                        </div>
+                                        <Button variant="outline" onClick={() => handleUnblockUser(userId)}>
+                                            Desbloquear
+                                        </Button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        )}
+
       <Dialog open={isCropperOpen} onOpenChange={setCropperOpen}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>

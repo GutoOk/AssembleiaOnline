@@ -53,6 +53,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { ChatSheet } from '@/components/ChatSheet';
 
 const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
   if (!text) {
@@ -298,7 +299,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
         </div>
         {!pollAnnulled && 
           <>
-            <CardTitle className="text-lg font-bold">{poll.question}</CardTitle>
+            <CardTitle className="text-lg">{poll.question}</CardTitle>
             <CardDescription className="flex items-center gap-1 !mt-1">
                 <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
             </CardDescription>
@@ -332,7 +333,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
             )
         ) : userVote || pollEnded ? (
           <div>
-            <h3 className="mb-2 text-sm">Resultado:</h3>
+            <h3 className="mb-2 text-sm font-normal">Resultado:</h3>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={voteData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
@@ -347,7 +348,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
             {votes && votes.length > 0 && (
                 <>
                 <Separator className="my-2" />
-                <h3 className="mb-2 text-sm">Votos individuais:</h3>
+                <h3 className="mb-2 text-sm font-normal">Votos individuais:</h3>
                 <div className={cn("space-y-1", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
                 {votesToShow.map(vote => {
                     const voter = userProfiles[vote.userId];
@@ -763,7 +764,7 @@ export default function AssemblyPage() {
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
 
   const assemblyContext = useAssemblyContext();
-  const { setAssembly, isQueueOpen, setIsQueueOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen } = assemblyContext!;
+  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen } = assemblyContext!;
 
 
   const assemblyRef = useMemoFirebase(() => {
@@ -944,6 +945,11 @@ export default function AssemblyPage() {
       open={isEndAssemblyDialogOpen}
       onOpenChange={setIsEndAssemblyDialogOpen}
       assembly={assembly}
+    />
+    <ChatSheet
+      open={isChatOpen}
+      onOpenChange={setIsChatOpen}
+      assemblyId={assembly.id}
     />
     <Sheet open={isQueueOpen} onOpenChange={setIsQueueOpen}>
         <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
