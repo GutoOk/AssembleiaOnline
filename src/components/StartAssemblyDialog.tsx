@@ -57,8 +57,10 @@ export function StartAssemblyDialog({ open, onOpenChange, assembly }: StartAssem
           <AlertDialogTitle>Iniciar Assembleia?</AlertDialogTitle>
           <AlertDialogDescription>
             Tem certeza que deseja iniciar esta assembleia? O status será alterado
-            para "Ao Vivo" e o horário de início será registrado. Esta ação não
-            pode ser desfeita.
+            para "Ao Vivo" e o horário de início será registrado.
+            <br />
+            <br />
+            <span className="font-bold">⚠️ Esta ação não pode ser desfeita.</span>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
