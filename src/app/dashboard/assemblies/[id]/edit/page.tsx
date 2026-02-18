@@ -289,7 +289,7 @@ export default function EditAssemblyPage() {
                 name="date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Data e Hora</FormLabel>
+                    <FormLabel>Data e Hora Previstas</FormLabel>
                     <FormControl>
                       <Input type="datetime-local" {...field} />
                     </FormControl>
@@ -401,3 +401,5 @@ export default function EditAssemblyPage() {
     </>
   );
 }
+
+    

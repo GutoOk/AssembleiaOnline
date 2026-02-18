@@ -37,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAssemblyContext } from '@/contexts/AssemblyContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { EndAssemblyDialog } from '@/components/EndAssemblyDialog';
+import { StartAssemblyDialog } from '@/components/StartAssemblyDialog';
 
 function UserDisplay({ userId }: { userId: string }) {
   const firestore = useFirestore();
@@ -373,7 +374,7 @@ export default function AssemblyPage() {
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
 
   const assemblyContext = useAssemblyContext();
-  const { setAssembly, isQueueOpen, setIsQueueOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen } = assemblyContext!;
+  const { setAssembly, isQueueOpen, setIsQueueOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen } = assemblyContext!;
 
 
   const assemblyRef = useMemoFirebase(() => {
@@ -507,6 +508,11 @@ export default function AssemblyPage() {
 
   return (
     <>
+    <StartAssemblyDialog
+      open={isStartAssemblyDialogOpen}
+      onOpenChange={setIsStartAssemblyDialogOpen}
+      assembly={assembly}
+    />
     <EndAssemblyDialog
       open={isEndAssemblyDialogOpen}
       onOpenChange={setIsEndAssemblyDialogOpen}
@@ -657,3 +663,5 @@ export default function AssemblyPage() {
     </>
   );
 }
+
+    

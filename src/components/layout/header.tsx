@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, MessageCircle, Users, Home, PlusCircle, PowerOff } from 'lucide-react';
+import { Menu, MessageCircle, Users, Home, PlusCircle, PowerOff, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -35,12 +35,19 @@ export function Header() {
   const assemblyStatus = assemblyContext?.assembly?.status;
   const showAssemblyButtons = assemblyStatus === 'live';
   const showEndAssemblyButton = isAdmin && (assemblyStatus === 'live' || assemblyStatus === 'scheduled');
+  const showStartAssemblyButton = isAdmin && assemblyStatus === 'scheduled';
   
   const handleQueueClick = () => {
     if (assemblyContext) {
       assemblyContext.setIsQueueOpen(true);
     }
   }
+
+  const handleStartAssemblyClick = () => {
+    if (assemblyContext) {
+      assemblyContext.setIsStartAssemblyDialogOpen(true);
+    }
+  };
   
   const handleEndAssemblyClick = () => {
     if (assemblyContext) {
@@ -144,6 +151,19 @@ export function Header() {
       </div>
       
       <div className="flex flex-1 items-center justify-end gap-2">
+        {showStartAssemblyButton && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={handleStartAssemblyClick} variant="ghost" size="icon" className="h-9 w-9 text-green-600 hover:text-green-600 hover:bg-green-600/10">
+                <Play className="h-5 w-5" fill="currentColor"/>
+                <span className="sr-only">Iniciar Assembleia</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Iniciar Assembleia</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
          {showEndAssemblyButton && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -174,3 +194,5 @@ export function Header() {
     </header>
   );
 }
+
+    

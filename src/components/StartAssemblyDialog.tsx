@@ -15,60 +15,56 @@ import { useFirestore, updateDocumentNonBlocking } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { Assembly } from '@/lib/data';
-import { useRouter } from 'next/navigation';
 
-interface EndAssemblyDialogProps {
+interface StartAssemblyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assembly: Assembly | null;
 }
 
-export function EndAssemblyDialog({ open, onOpenChange, assembly }: EndAssemblyDialogProps) {
+export function StartAssemblyDialog({ open, onOpenChange, assembly }: StartAssemblyDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const router = useRouter();
 
   const handleConfirm = () => {
     if (!firestore || !assembly) {
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: 'Não foi possível encerrar a assembleia.',
+        description: 'Não foi possível iniciar a assembleia.',
       });
       return;
     }
 
     const assemblyRef = doc(firestore, 'assemblies', assembly.id);
     updateDocumentNonBlocking(assemblyRef, {
-      status: 'finished',
+      status: 'live',
+      startedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      endedAt: serverTimestamp(),
     });
 
     toast({
-      title: 'Assembleia Encerrada',
-      description: 'A assembleia foi marcada como finalizada.',
+      title: 'Assembleia Iniciada!',
+      description: 'A assembleia foi marcada como "Ao Vivo".',
     });
     onOpenChange(false);
-    router.push('/dashboard');
   };
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Encerrar Assembleia?</AlertDialogTitle>
+          <AlertDialogTitle>Iniciar Assembleia?</AlertDialogTitle>
           <AlertDialogDescription>
-            Tem certeza que deseja encerrar esta assembleia? Após o encerramento,
-            nenhuma alteração poderá ser feita e as funcionalidades como votação
-            e fila de inscrição serão desativadas permanentemente para este evento.
+            Tem certeza que deseja iniciar esta assembleia? O status será alterado
+            para "Ao Vivo" e o horário de início será registrado.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
           <AlertDialogAction asChild>
-            <Button onClick={handleConfirm} variant="destructive">
-              Encerrar Assembleia
+            <Button onClick={handleConfirm} className="bg-green-600 hover:bg-green-700">
+              Iniciar Assembleia
             </Button>
           </AlertDialogAction>
         </AlertDialogFooter>

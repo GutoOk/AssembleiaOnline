@@ -9,6 +9,8 @@ interface AssemblyContextType {
   setIsQueueOpen: (isOpen: boolean) => void;
   isEndAssemblyDialogOpen: boolean;
   setIsEndAssemblyDialogOpen: (isOpen: boolean) => void;
+  isStartAssemblyDialogOpen: boolean;
+  setIsStartAssemblyDialogOpen: (isOpen: boolean) => void;
 }
 
 const AssemblyContext = createContext<AssemblyContextType | undefined>(undefined);
@@ -17,9 +19,10 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
   const [assembly, setAssembly] = useState<Assembly | null>(null);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen] = useState(false);
+  const [isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen] = useState(false);
 
   return (
-    <AssemblyContext.Provider value={{ assembly, setAssembly, isQueueOpen, setIsQueueOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen }}>
+    <AssemblyContext.Provider value={{ assembly, setAssembly, isQueueOpen, setIsQueueOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen }}>
       {children}
     </AssemblyContext.Provider>
   );
@@ -30,3 +33,5 @@ export function useAssemblyContext() {
   // Do not throw an error, so the header can use it optionally
   return context;
 }
+
+    

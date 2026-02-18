@@ -62,4 +62,8 @@ export type Assembly = {
   administratorId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  startedAt?: Timestamp;
+  endedAt?: Timestamp;
 };
+
+    
