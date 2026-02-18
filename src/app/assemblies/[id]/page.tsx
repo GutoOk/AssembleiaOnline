@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -239,7 +239,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
                 </Button>
             )}
         </div>
-        <CardTitle className="text-lg pt-2">{poll.question}</CardTitle>
+        <CardTitle className={cn("text-lg pt-2", pollAnnulled && "font-normal")}>{poll.question}</CardTitle>
         {!pollAnnulled && (
             <CardDescription className="flex items-center gap-2">
                 <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
@@ -249,7 +249,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
       <CardContent>
         {pollAnnulled ? (
             <div>
-                <h3 className="font-semibold text-destructive mb-2">Motivo da anulação:</h3>
+                <h3 className="mb-2 text-foreground">Motivo da anulação:</h3>
                 <blockquote className="mt-2 border-l-2 pl-4 italic text-muted-foreground">
                     "{poll.annulmentReason}"
                 </blockquote>
