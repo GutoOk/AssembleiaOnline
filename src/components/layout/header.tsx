@@ -33,6 +33,7 @@ export function Header() {
   }, []);
 
   const assemblyStatus = assemblyContext?.assembly?.status;
+  
   const showAssemblyButtons = assemblyStatus === 'live';
   const showEndAssemblyButton = isAdmin && assemblyStatus === 'live';
   const showStartAssemblyButton = isAdmin && assemblyStatus === 'scheduled';
@@ -56,6 +57,7 @@ export function Header() {
   };
 
   const showCreateAssemblyButton = isAdmin && pathname === '/dashboard';
+  const isAssemblyPage = pathname.startsWith('/assemblies/');
 
   const mobileNavLinks = (
     <>
@@ -78,7 +80,7 @@ export function Header() {
           )}
         >
           <Users className="h-5 w-5" />
-          Usuários
+          Gerenciar Usuários
         </Link>
       )}
       {showAssemblyButtons && (
@@ -96,60 +98,90 @@ export function Header() {
   );
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
+    <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 md:px-6">
       <TooltipProvider>
-        <nav className="hidden flex-row items-center gap-2 text-sm font-medium md:flex lg:gap-4">
-          <Link
-            href="/dashboard"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="Início"
-          >
-            <Home className="h-5 w-5" />
-            <span className="sr-only">Início</span>
-          </Link>
+        {/* Left side */}
+        <div className="flex items-center gap-2">
+          {/* Mobile menu trigger */}
+          <div className="md:hidden">
+            {isMounted && (
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                  >
+                    <Menu className="h-5 w-5" />
+                    <span className="sr-only">Alternar menu de navegação</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="pr-0">
+                  <nav className="grid gap-6 text-lg font-medium pt-4">
+                      {mobileNavLinks}
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            )}
+          </div>
           
-          {showCreateAssemblyButton && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button asChild variant="ghost" size="icon" className="h-9 w-9">
-                  <Link href="/dashboard/assemblies/create">
-                    <PlusCircle className="h-5 w-5" />
-                    <span className="sr-only">Criar Assembleia</span>
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Criar Assembleia</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-2">
+            <UserNav />
 
-        </nav>
+            {isAssemblyPage ? (
+              <Button asChild variant="ghost">
+                <Link href="/dashboard">Sair</Link>
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild variant="ghost" size="icon">
+                    <Link href="/dashboard">
+                      <Home className="h-5 w-5" />
+                      <span className="sr-only">Início</span>
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Início</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
 
-        {/* Mobile Navigation */}
-        <div className="flex-1 md:hidden">
-          {isMounted && (
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="shrink-0"
-                >
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Alternar menu de navegação</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="pr-0">
-                <nav className="grid gap-6 text-lg font-medium pt-4">
-                    {mobileNavLinks}
-                </nav>
-              </SheetContent>
-            </Sheet>
-          )}
+            {showAssemblyButtons && (
+              <div className="flex items-center gap-1">
+                  <Button variant="ghost" className="text-muted-foreground" disabled>
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Chat
+                  </Button>
+                  <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground">
+                      <Users className="h-4 w-4 mr-2" />
+                      Fila de Inscrição
+                  </Button>
+              </div>
+           )}
+
+            {showCreateAssemblyButton && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild variant="ghost" size="icon" className="h-9 w-9">
+                    <Link href="/dashboard/assemblies/create">
+                      <PlusCircle className="h-5 w-5" />
+                      <span className="sr-only">Criar Assembleia</span>
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Criar Assembleia</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </nav>
         </div>
         
-        <div className="flex flex-1 items-center justify-end gap-2">
+        {/* Right side */}
+        <div className="flex items-center gap-2">
           {showStartAssemblyButton && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -176,19 +208,11 @@ export function Header() {
               </TooltipContent>
             </Tooltip>
           )}
-           {showAssemblyButtons && (
-              <div className="hidden md:flex items-center gap-1">
-                  <Button variant="ghost" className="text-muted-foreground" disabled>
-                      <MessageCircle className="h-4 w-4 mr-2" />
-                      Chat
-                  </Button>
-                  <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground">
-                      <Users className="h-4 w-4 mr-2" />
-                      Fila de Inscrição
-                  </Button>
-              </div>
-           )}
-          <UserNav />
+          
+          {/* UserNav for mobile view is on the right */}
+          <div className="md:hidden">
+            <UserNav />
+          </div>
         </div>
       </TooltipProvider>
     </header>
