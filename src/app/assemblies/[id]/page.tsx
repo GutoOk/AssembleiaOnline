@@ -949,7 +949,10 @@ export default function AssemblyPage() {
         <div className="space-y-4">
           <Card>
               <CardHeader className="flex flex-row items-center justify-between p-4">
-                <CardTitle className="flex items-center gap-1"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
+                <h2 className="text-xl tracking-tight flex items-center gap-2">
+                  <Video className="h-5 w-5 text-muted-foreground" />
+                  {assemblyFinished ? 'Gravação da Transmissão' : 'Transmissão ao Vivo'}
+                </h2>
                 <div className="flex items-center gap-1">
                   {isSpeaking && (
                       <Button onClick={handleEndParticipation} variant="destructive">
