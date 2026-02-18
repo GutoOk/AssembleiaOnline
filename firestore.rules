@@ -206,8 +206,8 @@ service cloud.firestore {
       }
 
       // Manages proxy voting assignments. This rule block handles WRITES (create, delete) only.
-      // READS (get, list) for the collection group query are handled by the separate
-      // `match /{path=**}/proxies/{proxyAssignmentId}` block above.
+      // READS (get, list) for this specific path are implicitly denied to prevent conflicts
+      // with the collection group query rule, which is the sole authority for reads.
       match /proxies/{grantorId} {
         allow create: if isOwner(grantorId)
                       && request.resource.data.grantorId == grantorId
@@ -216,11 +216,8 @@ service cloud.firestore {
         allow delete: if isOwnerOfExistingDoc(grantorId)
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         
-        // Disallow direct updates and individual gets/lists on this specific path
-        // to force queries through the secure collection group rule.
         allow update: if false;
-        allow get: if false;
-        allow list: if false;
+        // NOTE: `allow get` and `allow list` are intentionally omitted.
       }
     }
   }
