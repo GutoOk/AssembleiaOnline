@@ -9,7 +9,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser, useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, getDocs, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Trash2 } from 'lucide-react';
@@ -30,7 +30,7 @@ const proxySchema = z.object({
 function useGrantedProxies(assemblies: Assembly[] | null) {
     const { user } = useUser();
     const firestore = useFirestore();
-    const [proxies, setProxies] = useState<ProxyAssignment[] | null>(null);
+    const [proxies, setProxies] = useState<Record<string, ProxyAssignment>>({});
     const [isLoading, setIsLoading] = useState(true);
 
     const assemblyIdsJson = useMemo(() => {
@@ -38,49 +38,74 @@ function useGrantedProxies(assemblies: Assembly[] | null) {
         return JSON.stringify(assemblies.map(a => a.id).sort());
     }, [assemblies]);
 
-
     useEffect(() => {
         if (!user || !firestore || !assemblyIdsJson) {
-            setProxies(null);
+            setProxies({});
             setIsLoading(false);
             return;
         }
 
-        const assemblyIds = JSON.parse(assemblyIdsJson);
+        const assemblyIds = JSON.parse(assemblyIdsJson) as string[];
         if (assemblyIds.length === 0) {
-            setProxies([]);
+            setProxies({});
             setIsLoading(false);
             return;
         }
-
+        
         setIsLoading(true);
+        // Reset proxies for new set of assemblies
+        setProxies({});
 
-        const fetchProxies = async () => {
-            try {
-                const proxyPromises = assemblyIds.map((assemblyId: string) => {
-                    const proxyRef = doc(firestore, 'assemblies', assemblyId, 'proxies', user.uid);
-                    return getDoc(proxyRef);
-                });
+        let initialLoadsPending = assemblyIds.length;
+        if (initialLoadsPending === 0) {
+            setIsLoading(false);
+        }
 
-                const proxySnapshots = await Promise.all(proxyPromises);
-                const foundProxies = proxySnapshots
-                    .filter(snap => snap.exists())
-                    .map(snap => snap.data() as ProxyAssignment);
-                
-                setProxies(foundProxies);
-            } catch (error) {
-                console.error("Error fetching granted proxies:", error);
-                setProxies([]);
-            } finally {
-                setIsLoading(false);
-            }
+        const unsubscribes = assemblyIds.map(assemblyId => {
+            const proxyRef = doc(firestore, 'assemblies', assemblyId, 'proxies', user.uid);
+            
+            return onSnapshot(proxyRef, 
+                (snapshot) => {
+                    // Update state with new/changed profiles
+                    setProxies(currentProxies => {
+                        const newProxies = { ...currentProxies };
+                        if (snapshot.exists()) {
+                            newProxies[assemblyId] = snapshot.data() as ProxyAssignment;
+                        } else {
+                            delete newProxies[assemblyId];
+                        }
+                        return newProxies;
+                    });
+
+                    if (initialLoadsPending > 0) {
+                        initialLoadsPending--;
+                        if (initialLoadsPending === 0) {
+                            setIsLoading(false);
+                        }
+                    }
+                }, 
+                (error) => {
+                    console.error(`Error fetching proxy for assembly ${assemblyId}:`, error);
+                    if (initialLoadsPending > 0) {
+                        initialLoadsPending--;
+                        if (initialLoadsPending === 0) {
+                            setIsLoading(false);
+                        }
+                    }
+                }
+            );
+        });
+
+        // Cleanup function to unsubscribe from all listeners.
+        return () => {
+            unsubscribes.forEach(unsub => unsub());
         };
-
-        fetchProxies();
 
     }, [assemblyIdsJson, user, firestore]);
 
-    return { data: proxies, isLoading };
+    const proxiesArray = useMemo(() => Object.values(proxies), [proxies]);
+
+    return { data: proxiesArray, isLoading };
 }
 
 
