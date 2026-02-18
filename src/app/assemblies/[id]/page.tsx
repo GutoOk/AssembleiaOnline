@@ -321,13 +321,20 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
         )}
       </CardContent>
       {poll.createdAt && (
-        <CardFooter className="text-xs text-muted-foreground flex-col items-start gap-1 border-t pt-4">
+        <CardFooter className="text-xs text-muted-foreground border-t pt-3 flex-wrap justify-between items-center gap-x-4 gap-y-1">
             {pollAnnulled && poll.annulledAt ? (
-                <p>Anulada por <span className="font-medium">{pollAnnuler?.name ?? '...'}</span> em {format(poll.annulledAt.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
+                <>
+                    <span>Anulada por <span className="font-medium">{pollAnnuler?.name ?? '...'}</span></span>
+                    <span>às {format(poll.annulledAt.toDate(), "HH:mm")}</span>
+                </>
             ) : (
                 <>
-                    <p>Criada por: <span className="font-medium">{pollCreator ? pollCreator.name : '...'}</span> em {format(poll.createdAt.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
-                    <p>Encerramento em: {format(poll.endDate.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
+                    <span>Criada por <span className="font-medium">{pollCreator ? pollCreator.name : '...'}</span></span>
+                    <div className="flex items-center gap-1.5">
+                         <span>Início: {format(poll.createdAt.toDate(), "HH:mm")}</span>
+                         <Separator orientation="vertical" className="h-3"/>
+                         <span>Término: {format(poll.endDate.toDate(), "HH:mm")}</span>
+                    </div>
                 </>
             )}
         </CardFooter>
@@ -623,7 +630,7 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished }: { ataItem: AtaItem, isA
             <p className="text-sm text-muted-foreground whitespace-pre-wrap">{ataItem.text}</p>
           )}
         </CardContent>
-        <CardFooter className="text-xs text-muted-foreground flex-col items-start gap-1 border-t pt-4">
+        <CardFooter className="text-xs text-muted-foreground border-t pt-3">
           <div className="flex items-center gap-1.5">
             {admin ? (
               <>
@@ -634,7 +641,7 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished }: { ataItem: AtaItem, isA
                 <span className="font-medium">{admin.name}</span>
               </>
             ) : <Loader2 className="h-4 w-4 animate-spin"/>}
-            <span>em {ataItem.createdAt ? format(ataItem.createdAt.toDate(), "dd/MM/yy 'às' HH:mm", { locale: ptBR }) : '...'}</span>
+            <span>às {ataItem.createdAt ? format(ataItem.createdAt.toDate(), "HH:mm", { locale: ptBR }) : '...'}</span>
           </div>
         </CardFooter>
       </Card>
