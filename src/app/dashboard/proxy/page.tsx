@@ -124,11 +124,15 @@ export default function ProxyPage() {
 
   const assembliesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'assemblies'), where('status', '==', 'scheduled'), where('allowProxyVoting', '==', true));
+    return query(collection(firestore, 'assemblies'), where('status', 'in', ['scheduled', 'live']), where('allowProxyVoting', '==', true));
   }, [firestore]);
 
-  const { data: scheduledAssemblies, isLoading: areAssembliesLoading } = useCollection<Assembly>(assembliesQuery);
-  const { data: grantedProxies, isLoading: areProxiesLoading } = useGrantedProxies(scheduledAssemblies);
+  const { data: assembliesForProxy, isLoading: areAssembliesLoading } = useCollection<Assembly>(assembliesQuery);
+  const { data: grantedProxies, isLoading: areProxiesLoading } = useGrantedProxies(assembliesForProxy);
+  
+  const availableForGranting = useMemo(() => {
+      return assembliesForProxy?.filter(a => a.status === 'scheduled');
+  }, [assembliesForProxy]);
 
   const proxyUserIds = useMemo(() => {
       if (!grantedProxies) return [];
@@ -213,8 +217,8 @@ export default function ProxyPage() {
                             </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                            {scheduledAssemblies && scheduledAssemblies.length > 0 ? (
-                                scheduledAssemblies.map(assembly => (
+                            {availableForGranting && availableForGranting.length > 0 ? (
+                                availableForGranting.map(assembly => (
                                     <SelectItem key={assembly.id} value={assembly.id}>{assembly.title}</SelectItem>
                                 ))
                             ) : (
@@ -252,7 +256,7 @@ export default function ProxyPage() {
       <Card>
         <CardHeader>
             <CardTitle>Minhas Procurações Concedidas</CardTitle>
-            <CardDescription>Procurações que você concedeu para assembleias futuras. Você pode revogá-las a qualquer momento antes do início da assembleia.</CardDescription>
+            <CardDescription>Procurações que você concedeu. Você pode revogá-las apenas para assembleias que ainda não iniciaram.</CardDescription>
         </CardHeader>
         <CardContent>
             {isLoading ? (
@@ -262,9 +266,9 @@ export default function ProxyPage() {
             ) : grantedProxies && grantedProxies.length > 0 ? (
                 <div className="space-y-4">
                     {grantedProxies.map(proxy => {
-                        const assembly = scheduledAssemblies?.find(a => a.id === proxy.assemblyId);
+                        const assembly = assembliesForProxy?.find(a => a.id === proxy.assemblyId);
                         const proxyUser = proxyUserProfiles[proxy.proxyId];
-                        if (!assembly || !proxyUser) return null; // Only show for scheduled assemblies
+                        if (!assembly || !proxyUser) return null;
 
                         return (
                             <div key={proxy.id} className="flex items-center justify-between rounded-lg border p-4">
@@ -280,7 +284,9 @@ export default function ProxyPage() {
 
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="outline" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                    <Button variant="outline" size="icon" disabled={assembly.status !== 'scheduled'}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
                                   </AlertDialogTrigger>
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
