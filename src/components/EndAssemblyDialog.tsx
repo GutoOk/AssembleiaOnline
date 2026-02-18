@@ -62,6 +62,7 @@ export function EndAssemblyDialog({ open, onOpenChange, assembly }: EndAssemblyD
             Tem certeza que deseja encerrar esta assembleia? Após o encerramento,
             nenhuma alteração poderá ser feita e as funcionalidades como votação
             e fila de inscrição serão desativadas permanentemente para este evento.
+            Esta ação não pode ser desfeita.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -76,5 +77,3 @@ export function EndAssemblyDialog({ open, onOpenChange, assembly }: EndAssemblyD
     </AlertDialog>
   );
 }
-
-    
