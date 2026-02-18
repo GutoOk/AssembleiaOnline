@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Send, Info, MoreVertical, ShieldBan } from 'lucide-react';
+import { Loader2, Send, MoreVertical, ShieldBan } from 'lucide-react';
 import { useCollection, useFirestore, useUser, addDocumentNonBlocking, setDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, limit, doc } from 'firebase/firestore';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
@@ -17,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from './ui/skeleton';
+import { Separator } from './ui/separator';
 
 interface ChatSheetProps {
   open: boolean;
@@ -157,18 +157,14 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
-                <SheetHeader className="p-4 pb-2 border-b">
-                    <SheetTitle className="flex items-center gap-2">Chat da Assembleia</SheetTitle>
-                </SheetHeader>
-                 <Alert variant="default" className="m-4 rounded-lg border-blue-500 bg-blue-50 text-blue-800">
-                    <Info className="h-4 w-4 !text-blue-500" />
-                    <AlertTitle className="font-semibold">Bate-papo informal</AlertTitle>
-                    <AlertDescription className="text-xs">
+                <div className="p-4">
+                    <h3 className="font-semibold text-foreground">Bate-papo informal</h3>
+                    <p className="text-xs text-destructive mt-1">
                         Este chat não faz parte oficial da assembleia. Para participar, peça a palavra na Fila de Inscrição. Mantenha o respeito e o bom senso. Você pode bloquear mensagens indesejadas.
-                    </AlertDescription>
-                </Alert>
-
-                <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-4">
+                    </p>
+                </div>
+                <Separator />
+                <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-4 pt-2">
                     {isLoading ? (
                         <div className="flex h-full items-center justify-center">
                             <Loader2 className="h-6 w-6 animate-spin text-primary" />
