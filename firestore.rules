@@ -92,17 +92,17 @@ service cloud.firestore {
     // --------------------------------------------------------------------------------
 
     // Rules for the 'proxies' collection group, necessary for the `useGrantedProxies` hook.
+    // This rule allows a query across all 'proxies' collections.
     match /{path=**}/proxies/{proxyAssignmentId} {
-      // This `get` rule is the core of the security for the collection group query.
-      // Firestore checks this for each document the query tries to return. It ensures
-      // that a user can only ever retrieve proxy assignments that they created.
-      allow get: if isSignedIn() && request.auth.uid == resource.data.grantorId;
-
-      // This `list` rule is required to allow the collection group query to be initiated.
-      // It seems broad, but the security is enforced by the `get` rule above.
-      // An unfiltered query by a malicious client would fail because the `get` rule would
-      // fail on the first document they don't have permission to read.
+      // The `list` permission is required to initiate the collection group query.
+      // It seems broad, but the actual security is enforced by the `get` rule below.
       allow list: if isSignedIn();
+
+      // The `get` rule is the core of the security. For every document the `list`
+      // query tries to return, Firestore checks if the user has `get` permission.
+      // Here, we only allow a user to read a proxy assignment if they are the one
+      // who granted it (`grantorId`). This effectively filters the query results.
+      allow get: if isSignedIn() && isOwner(resource.data.grantorId);
     }
     
     // --------------------------------------------------------------------------------
@@ -205,24 +205,22 @@ service cloud.firestore {
           allow delete: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
       }
 
-      // Manages proxy voting assignments for a specific assembly path.
+      // Manages proxy voting assignments. This rule block handles WRITES (create, delete) only.
+      // READS (get, list) for the collection group query are handled by the separate
+      // `match /{path=**}/proxies/{proxyAssignmentId}` block above.
       match /proxies/{grantorId} {
-        // This 'list' rule is redundant with the collection group rule, but it is
-        // necessary. Without it, this more specific path rule would implicitly
-        // deny 'list' operations, which would block the collection group query.
-        allow list: if isSignedIn();
-
-        // This rule is for direct `get` access to a document, e.g., by an admin or the proxy holder.
-        allow get: if isSignedIn() && (isOwner(resource.data.grantorId) || isOwner(resource.data.proxyId) || isAdmin());
-        
         allow create: if isOwner(grantorId)
                       && request.resource.data.grantorId == grantorId
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         
-        allow delete: if isOwner(resource.data.grantorId)
+        allow delete: if isOwnerOfExistingDoc(grantorId)
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         
+        // Disallow direct updates and individual gets/lists on this specific path
+        // to force queries through the secure collection group rule.
         allow update: if false;
+        allow get: if false;
+        allow list: if false;
       }
     }
   }
