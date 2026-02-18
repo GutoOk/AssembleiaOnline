@@ -65,7 +65,7 @@ function UserDisplay({ userId }: { userId: string }) {
   const { data: userProfile, isLoading } = useDoc<UserProfile>(userProfileRef);
 
   if (isLoading) {
-    return <div className="flex items-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>;
+    return <div className="flex items-center gap-1"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>;
   }
 
   if (!userProfile) {
@@ -73,7 +73,7 @@ function UserDisplay({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1">
       <Avatar className="h-6 w-6">
         <AvatarImage src={userProfile.avatarDataUri} alt={userProfile.name} />
         <AvatarFallback>{userProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
@@ -224,7 +224,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
     <Card>
       <CardHeader className="p-4">
         <div className="flex justify-between items-start">
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 {pollAnnulled ? (
                     <span className="font-medium text-destructive">Votação Anulada</span>
                 ) : pollEnded ? (
@@ -245,7 +245,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
         </div>
         <CardTitle className={cn("text-lg", pollAnnulled && "font-normal")}>{poll.question}</CardTitle>
         {!pollAnnulled && (
-            <CardDescription className="flex items-center gap-1.5">
+            <CardDescription className="flex items-center gap-1">
                 <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
             </CardDescription>
         )}
@@ -253,14 +253,14 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
       <CardContent className="p-4 pt-0">
         {pollAnnulled ? (
             <div>
-                <h3 className="mb-2 text-foreground/80">Motivo da anulação:</h3>
+                <h3 className="mb-2 text-sm text-foreground/80">Motivo da anulação:</h3>
                 <blockquote className="mt-2 border-l-2 pl-4 italic text-muted-foreground">
                     "{poll.annulmentReason}"
                 </blockquote>
             </div>
         ) : userVote || pollEnded ? (
           <div>
-            <h3 className="font-semibold mb-2 text-sm">Resultado:</h3>
+            <h3 className="mb-2 text-sm">Resultado:</h3>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={voteData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
@@ -275,14 +275,14 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
             {votes && votes.length > 0 && (
                 <>
                 <Separator className="my-2" />
-                <h3 className="font-semibold mb-2 text-sm">Votos individuais:</h3>
+                <h3 className="mb-2 text-sm">Votos individuais:</h3>
                 <div className={cn("space-y-1", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
                 {votesToShow.map(vote => {
                     const voter = userProfiles[vote.userId];
                     const option = options?.find(o => o.id === vote.pollOptionId);
                     return (
                     <div key={vote.id} className="flex items-center justify-between text-sm p-1.5 rounded-md bg-muted/50">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
                           <Avatar className="h-6 w-6">
                               <AvatarImage src={voter?.avatarDataUri} />
                               <AvatarFallback>{voter?.name?.charAt(0)}</AvatarFallback>
@@ -308,7 +308,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
               {options?.map(option => (
                 <div key={option.id} className="flex items-center space-x-2">
                   <RadioGroupItem value={option.id} id={option.id} />
-                  <Label htmlFor={option.id}>{option.text}</Label>
+                  <Label htmlFor={option.id} className="font-normal">{option.text}</Label>
                 </div>
               ))}
             </RadioGroup>
@@ -321,21 +321,21 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
         )}
       </CardContent>
       {poll.createdAt && (
-        <CardFooter className="text-xs text-muted-foreground border-t p-4 pt-2 flex-wrap justify-between items-center gap-x-4 gap-y-1">
+        <CardFooter className="text-xs text-muted-foreground border-t p-2 flex-wrap justify-between items-center gap-x-4 gap-y-1">
             {pollAnnulled && poll.annulledAt ? (
                 <>
                     <span>Anulada por <span className="font-medium">{pollAnnuler?.name ?? '...'}</span></span>
                     <span>às {format(poll.annulledAt.toDate(), "HH:mm")}</span>
                 </>
             ) : (
-                <>
+                <div className='flex justify-between w-full'>
                     <span>Criada por <span className="font-medium">{pollCreator ? pollCreator.name : '...'}</span></span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                          <span>Início: {format(poll.createdAt.toDate(), "HH:mm")}</span>
                          <Separator orientation="vertical" className="h-3"/>
                          <span>Término: {format(poll.endDate.toDate(), "HH:mm")}</span>
                     </div>
-                </>
+                </div>
             )}
         </CardFooter>
       )}
@@ -416,7 +416,7 @@ function SpeakingQueue({
   const getStatusBadge = (status: SpeakerQueueItem['status']) => {
       switch (status) {
         case 'Com a Fala':
-            return <Badge variant="default" className="flex items-center gap-1.5"><MessageCircle className="h-3 w-3"/>{status}</Badge>;
+            return <Badge variant="default" className="flex items-center gap-1"><MessageCircle className="h-3 w-3"/>{status}</Badge>;
         case 'Entrada Autorizada':
             return <Badge variant="secondary">{status}</Badge>;
         case 'Na Fila':
@@ -433,7 +433,7 @@ function SpeakingQueue({
        return (
         <div key={speaker.id} className="flex items-start p-2 bg-muted/50 rounded-lg gap-2">
           <Skeleton className="h-10 w-10 rounded-full" />
-          <div className="space-y-1.5 flex-1">
+          <div className="space-y-1 flex-1">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-3 w-40" />
             <Skeleton className="h-3 w-24" />
@@ -494,7 +494,7 @@ function SpeakingQueue({
             {[...Array(queue?.length || 2)].map((_, i) => (
                <div key={i} className="flex items-start p-2 bg-muted/50 rounded-lg gap-2">
                   <Skeleton className="h-10 w-10 rounded-full" />
-                  <div className="space-y-1.5 flex-1">
+                  <div className="space-y-1 flex-1">
                     <Skeleton className="h-4 w-32" />
                     <Skeleton className="h-3 w-40" />
                     <Skeleton className="h-3 w-24" />
@@ -543,7 +543,7 @@ function AddAtaRecordCard({ assembly, user }: { assembly: Assembly, user: any })
   return (
     <Card>
       <CardHeader className="p-4">
-        <CardTitle className="flex items-center gap-1.5 text-lg"><PlusCircle className="h-5 w-5" /> Adicionar Registro à Ata</CardTitle>
+        <CardTitle className="flex items-center gap-1 text-lg"><PlusCircle className="h-5 w-5" /> Adicionar Registro à Ata</CardTitle>
         <CardDescription>O que aconteceu ou foi dito?</CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -630,8 +630,8 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished }: { ataItem: AtaItem, isA
             <p className="text-sm text-muted-foreground whitespace-pre-wrap">{ataItem.text}</p>
           )}
         </CardContent>
-        <CardFooter className="text-xs text-muted-foreground border-t p-4 pt-2">
-          <div className="flex items-center gap-1.5">
+        <CardFooter className="text-xs text-muted-foreground border-t p-2">
+          <div className="flex items-center gap-1">
             {admin ? (
               <>
                 <Avatar className="h-5 w-5">
@@ -854,7 +854,7 @@ export default function AssemblyPage() {
     <Sheet open={isQueueOpen} onOpenChange={setIsQueueOpen}>
         <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
           <SheetHeader className="p-6 pb-4">
-            <SheetTitle className="flex items-center gap-1.5"><Mic className="h-6 w-6" /> Fila de Inscrição</SheetTitle>
+            <SheetTitle className="flex items-center gap-1"><Mic className="h-6 w-6" /> Fila de Inscrição</SheetTitle>
             <SheetDescription>Membros que solicitaram a palavra.</SheetDescription>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto p-6 pt-0">
@@ -873,7 +873,7 @@ export default function AssemblyPage() {
           </div>
         </SheetContent>
       </Sheet>
-      <div className="container mx-auto p-0 space-y-4">
+      <div className="container mx-auto p-0 space-y-2">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{assembly.title}</h1>
           <p className="text-muted-foreground mt-1">
@@ -881,11 +881,11 @@ export default function AssemblyPage() {
           </p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-2">
           <Card>
               <CardHeader className="flex flex-row items-center justify-between p-4">
-                <CardTitle className="flex items-center gap-1.5"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
-                <div className="flex items-center gap-1.5">
+                <CardTitle className="flex items-center gap-1"><Video className="h-6 w-6" /> Transmissão ao Vivo</CardTitle>
+                <div className="flex items-center gap-1">
                   {isSpeaking && (
                       <Button onClick={handleEndParticipation} variant="destructive">
                           <LogOut className="h-4 w-4" />
