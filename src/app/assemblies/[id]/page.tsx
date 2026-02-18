@@ -50,7 +50,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { EndAssemblyDialog } from '@/components/EndAssemblyDialog';
 import { StartAssemblyDialog } from '@/components/StartAssemblyDialog';
 import { z } from 'zod';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { ChatSheet } from '@/components/ChatSheet';
@@ -588,14 +588,19 @@ const ataSchema = z.object({
   text: z.string().min(1, 'O registro não pode estar vazio.'),
 });
 
-function AdminActionCard({ assembly, user, onCreatePoll }: { assembly: Assembly, user: any, onCreatePoll: (text: string) => void }) {
+function AdminActionCard({
+  assembly,
+  user,
+  onCreatePoll,
+  form,
+}: {
+  assembly: Assembly;
+  user: any;
+  onCreatePoll: (text: string) => void;
+  form: UseFormReturn<z.infer<typeof ataSchema>>;
+}) {
   const firestore = useFirestore();
   const { toast } = useToast();
-
-  const form = useForm<z.infer<typeof ataSchema>>({
-    resolver: zodResolver(ataSchema),
-    defaultValues: { text: '' },
-  });
 
   const onSubmit = (values: z.infer<typeof ataSchema>) => {
     if (!user) return;
@@ -766,6 +771,10 @@ export default function AssemblyPage() {
   const assemblyContext = useAssemblyContext();
   const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen } = assemblyContext!;
 
+  const ataForm = useForm<z.infer<typeof ataSchema>>({
+    resolver: zodResolver(ataSchema),
+    defaultValues: { text: '' },
+  });
 
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -1078,6 +1087,7 @@ export default function AssemblyPage() {
                 assembly={assembly} 
                 user={user} 
                 onCreatePoll={handleCreatePollFromText} 
+                form={ataForm}
               />
             )}
             
@@ -1086,6 +1096,7 @@ export default function AssemblyPage() {
               onOpenChange={setCreatePollOpen}
               assembly={assembly}
               initialQuestion={pollQuestionFromAta}
+              onSuccess={() => ataForm.reset()}
             />
 
             <div className="flex items-center gap-2 pt-4 pb-2">

@@ -47,9 +47,10 @@ interface CreatePollDialogProps {
   onOpenChange: (open: boolean) => void;
   assembly: Assembly;
   initialQuestion?: string;
+  onSuccess?: () => void;
 }
 
-export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion }: CreatePollDialogProps) {
+export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion, onSuccess }: CreatePollDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [pollDataToConfirm, setPollDataToConfirm] = useState<z.infer<typeof pollSchema> | null>(null);
@@ -128,6 +129,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
         duration: 5,
         options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
       });
+      onSuccess?.();
       onOpenChange(false); // Close main dialog
     } catch (error) {
       console.error("Error creating poll:", error);
