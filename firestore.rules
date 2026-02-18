@@ -104,6 +104,24 @@ service cloud.firestore {
     }
 
     // --------------------------------------------------------------------------------
+    // Collection Group Rules
+    // --------------------------------------------------------------------------------
+
+    /**
+     * @description Rules for the 'proxies' collection group.
+     * @path /{path=**}/proxies/{grantorId}
+     * This rule is necessary to support the `useGrantedProxies` hook which uses a
+     * collection group query to find all proxies a user has granted across all assemblies.
+     */
+    match /{path=**}/proxies/{grantorId} {
+      /**
+       * @allow (list) A user can only list proxies where they are the grantor.
+       * The client-side query MUST include `where('grantorId', '==', request.auth.uid)`.
+       */
+      allow list: if isSignedIn() && resource.data.grantorId == request.auth.uid;
+    }
+
+    // --------------------------------------------------------------------------------
     // Collection Rules
     // --------------------------------------------------------------------------------
 
