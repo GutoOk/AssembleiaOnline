@@ -1,7 +1,7 @@
 'use client';
 
 import { z } from 'zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Dialog,
@@ -19,12 +19,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import type { Assembly } from '@/lib/data';
+import { Separator } from './ui/separator';
 
 const pollSchema = z.object({
   question: z.string().min(10, 'A pergunta deve ter pelo menos 10 caracteres.'),
   duration: z.coerce.number().min(1, 'A duração deve ser de pelo menos 1 minuto.'),
+  options: z.array(z.object({
+    text: z.string().min(1, 'O texto da opção não pode estar vazio.'),
+  })).min(2, 'A votação deve ter pelo menos 2 opções.'),
 });
 
 interface CreatePollDialogProps {
@@ -42,7 +46,13 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
     defaultValues: {
       question: '',
       duration: 5,
+      options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "options"
   });
 
   const onSubmit = async (values: z.infer<typeof pollSchema>) => {
@@ -67,25 +77,29 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
           throw new Error("Failed to create poll document.");
       }
 
-      // 2. Create Poll Options
+      // 2. Create Poll Options from form
       const optionsRef = collection(firestore, 'assemblies', assembly.id, 'polls', pollDocRef.id, 'options');
-      const options = ['Sim', 'Não', 'Abstenção'];
-      
-      await Promise.all(options.map(optionText => {
+      const optionPromises = values.options.map(option => {
         const optionData = {
-          text: optionText,
+          text: option.text,
           pollId: pollDocRef.id,
           assemblyId: assembly.id,
           assemblyStatus: assembly.status,
         };
         return addDocumentNonBlocking(optionsRef, optionData);
-      }));
+      });
+      
+      await Promise.all(optionPromises);
 
       toast({
         title: 'Votação Criada!',
         description: 'A nova votação já está disponível para os participantes.',
       });
-      form.reset();
+       form.reset({
+        question: '',
+        duration: 5,
+        options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
+      });
       onOpenChange(false);
     } catch (error) {
       console.error("Error creating poll:", error);
@@ -99,11 +113,11 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Criar Nova Votação</DialogTitle>
           <DialogDescription>
-            Defina a pergunta e a duração da votação. As opções serão "Sim", "Não" e "Abstenção".
+            Defina a pergunta, a duração e as opções de resposta para a votação.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -134,6 +148,53 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
                 </FormItem>
               )}
             />
+
+            <Separator />
+            
+            <div className="space-y-2">
+              <FormLabel>Opções de Resposta</FormLabel>
+              <div className="space-y-2">
+                {fields.map((field, index) => (
+                  <FormField
+                    key={field.id}
+                    control={form.control}
+                    name={`options.${index}.text`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-2">
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => remove(index)}
+                            disabled={fields.length <= 2}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <span className="sr-only">Remover opção</span>
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
+              </div>
+               <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => append({ text: '' })}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Adicionar Opção
+                </Button>
+                <FormMessage>{form.formState.errors.options?.root?.message}</FormMessage>
+            </div>
+
             <DialogFooter>
                <DialogClose asChild>
                 <Button type="button" variant="secondary">
