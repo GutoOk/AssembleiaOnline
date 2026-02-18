@@ -25,7 +25,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription as AlertDialogDescriptionComponent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle as AlertDialogTitleComponent,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
@@ -100,12 +111,15 @@ function Countdown({ endDate }: { endDate: Date }) {
 }
 
 
-function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId: string, assemblyStatus: Assembly['status'] }) {
+function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; assemblyId: string, assemblyStatus: Assembly['status'], isAdmin: boolean }) {
   const firestore = useFirestore();
-  const { user } = useAdmin();
+  const { user } = useUser();
   const { toast } = useToast();
   const [selectedOption, setSelectedOption] = useState<string | undefined>();
   const [showAllVotes, setShowAllVotes] = useState(false);
+  const [isAnnulDialogOpen, setAnnulDialogOpen] = useState(false);
+  const [isAnnulConfirmOpen, setAnnulConfirmOpen] = useState(false);
+  const [annulReason, setAnnulReason] = useState('');
 
   const optionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -123,18 +137,19 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
   const userVote = useMemo(() => votes?.find(v => v.id === user?.uid), [votes, user]);
   const pollEndDate = poll.endDate.toDate();
   const pollEnded = isPast(pollEndDate) || poll.status === 'closed' || assemblyStatus === 'finished';
+  const pollAnnulled = poll.status === 'annulled';
 
   const userIdsToFetch = useMemo(() => {
       const ids = new Set<string>();
-      if (poll.administratorId) {
-          ids.add(poll.administratorId);
-      }
+      if (poll.administratorId) ids.add(poll.administratorId);
+      if (poll.annulledBy) ids.add(poll.annulledBy);
       votes?.forEach(v => ids.add(v.userId));
       return Array.from(ids);
-  }, [votes, poll.administratorId]);
+  }, [votes, poll.administratorId, poll.annulledBy]);
 
   const { profiles: userProfiles } = useUserProfiles(userIdsToFetch);
   const pollCreator = userProfiles[poll.administratorId];
+  const pollAnnuler = userProfiles[poll.annulledBy ?? ''];
 
 
   const handleVote = () => {
@@ -155,6 +170,25 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
     toast({ title: 'Voto Registrado!', description: 'Seu voto foi computado com sucesso.' });
   };
   
+  const handleAnnulConfirm = () => {
+    if (!user || !annulReason.trim()) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'O motivo da anulação é obrigatório.' });
+        return;
+    }
+    const pollRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id);
+    updateDocumentNonBlocking(pollRef, {
+        status: 'annulled',
+        annulmentReason: annulReason,
+        annulledBy: user.uid,
+        annulledAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    });
+    toast({ title: 'Votação Anulada', description: 'A votação foi anulada com sucesso.' });
+    setAnnulConfirmOpen(false);
+    setAnnulDialogOpen(false);
+    setAnnulReason('');
+  };
+
   const voteData = useMemo(() => {
     if (!options || !votes) return [];
     return options.map(option => ({
@@ -182,26 +216,45 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            {pollEnded ? (
-                <span className="font-medium text-destructive">Votação encerrada</span>
-            ) : (
-                <>
-                    <span>Tempo restante para votar: </span>
-                    <Countdown endDate={pollEndDate} />
-                </>
+        <div className="flex justify-between items-start">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground pt-1">
+                <Clock className="h-4 w-4" />
+                {pollAnnulled ? (
+                    <span className="font-medium text-destructive">Votação Anulada</span>
+                ) : pollEnded ? (
+                    <span className="font-medium text-destructive">Votação encerrada</span>
+                ) : (
+                    <>
+                        <span>Tempo restante para votar: </span>
+                        <Countdown endDate={pollEndDate} />
+                    </>
+                )}
+            </div>
+            {isAdmin && !pollAnnulled && assemblyStatus !== 'finished' && (
+                <Button variant="ghost" size="sm" className="h-8 -mt-1 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setAnnulDialogOpen(true)}>
+                    Anular
+                </Button>
             )}
         </div>
         <CardTitle className="text-lg pt-2">{poll.question}</CardTitle>
-        <CardDescription className="flex items-center gap-2">
-            <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
-        </CardDescription>
+        {!pollAnnulled && (
+            <CardDescription className="flex items-center gap-2">
+                <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
+            </CardDescription>
+        )}
       </CardHeader>
       <CardContent>
-        {userVote || pollEnded ? (
+        {pollAnnulled ? (
+            <div>
+                <h3 className="font-semibold text-destructive mb-2">Motivo da anulação:</h3>
+                <blockquote className="mt-2 border-l-2 pl-4 italic text-muted-foreground">
+                    "{poll.annulmentReason}"
+                </blockquote>
+            </div>
+        ) : userVote || pollEnded ? (
           <div>
             <h3 className="font-semibold mb-2 text-sm">Resultado:</h3>
             <div className="h-40">
@@ -263,13 +316,63 @@ function PollCard({ poll, assemblyId, assemblyStatus }: { poll: Poll; assemblyId
           </div>
         )}
       </CardContent>
-      {poll.createdAt && poll.endDate && (
+      {poll.createdAt && (
         <CardFooter className="text-xs text-muted-foreground flex-col items-start gap-1 border-t pt-4">
-            <p>Criada por: <span className="font-medium">{pollCreator ? pollCreator.name : '...'}</span> em {format(poll.createdAt.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
-            <p>Encerramento em: {format(poll.endDate.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
+            {pollAnnulled && poll.annulledAt ? (
+                <p>Anulada por <span className="font-medium">{pollAnnuler?.name ?? '...'}</span> em {format(poll.annulledAt.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
+            ) : (
+                <>
+                    <p>Criada por: <span className="font-medium">{pollCreator ? pollCreator.name : '...'}</span> em {format(poll.createdAt.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
+                    <p>Encerramento em: {format(poll.endDate.toDate(), "dd/MM/yy 'às' HH:mm")}</p>
+                </>
+            )}
         </CardFooter>
       )}
     </Card>
+    
+    <Dialog open={isAnnulDialogOpen} onOpenChange={setAnnulDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Anular Votação</DialogTitle>
+          <DialogDescription>
+            Por favor, descreva o motivo para anular esta votação. Esta informação será visível para todos os participantes.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <Textarea
+            placeholder="Escreva o motivo aqui..."
+            value={annulReason}
+            onChange={(e) => setAnnulReason(e.target.value)}
+            rows={4}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setAnnulDialogOpen(false)}>Cancelar</Button>
+          <Button variant="destructive" onClick={() => { if(annulReason.trim()) { setAnnulConfirmOpen(true) } else { toast({ variant: 'destructive', title: 'Motivo obrigatório' }) } }}>Anular Votação</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <AlertDialog open={isAnnulConfirmOpen} onOpenChange={setAnnulConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitleComponent>Tem certeza?</AlertDialogTitleComponent>
+                <AlertDialogDescriptionComponent>
+                    Você está prestes a anular esta votação. Os resultados serão descartados.
+                    <br /><br />
+                    <span className="font-bold">⚠️ Esta ação não pode ser desfeita.</span>
+                </AlertDialogDescriptionComponent>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleAnnulConfirm} asChild>
+                  <Button variant="destructive">Confirmar Anulação</Button>
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+    </>
   )
 }
 
@@ -689,7 +792,7 @@ export default function AssemblyPage() {
               
               {polls && polls.length > 0 ? (
                   polls.map(poll => (
-                    <PollCard key={poll.id} poll={poll} assemblyId={assembly.id} assemblyStatus={assembly.status} />
+                    <PollCard key={poll.id} poll={poll} assemblyId={assembly.id} assemblyStatus={assembly.status} isAdmin={isAdmin} />
                   ))
               ) : (
                   !arePollsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação para esta assembleia.</p>

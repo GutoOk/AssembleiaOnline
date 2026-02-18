@@ -31,12 +31,17 @@ export type Poll = {
   id: string;
   question: string;
   endDate: Timestamp;
-  status: 'draft' | 'open' | 'closed';
+  status: 'draft' | 'open' | 'closed' | 'annulled';
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
   // Denormalized fields for rules
   assemblyId: string;
   administratorId: string;
   assemblyStatus: Assembly['status'];
+  // Annulment fields
+  annulmentReason?: string;
+  annulledBy?: string; // UID of admin
+  annulledAt?: Timestamp;
 };
 
 export type SpeakerQueueItem = {

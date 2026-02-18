@@ -135,7 +135,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Poll",
       "type": "object",
-      "description": "Represents a poll conducted during an assembly, created by an administrator, with specific questions and voting periods.",
+      "description": "Represents a poll conducted during an assembly. Can be annulled by an administrator.",
       "properties": {
         "id": {
           "type": "string",
@@ -143,26 +143,40 @@
         },
         "assemblyId": {
           "type": "string",
-          "description": "Reference to the Assembly in which this poll is conducted. (Relationship: Assembly 1:N Poll)"
+          "description": "Reference to the Assembly in which this poll is conducted."
+        },
+        "administratorId": {
+          "type": "string",
+          "description": "UID of the admin who created the poll. Denormalized for security rules."
         },
         "question": {
           "type": "string",
           "description": "The question posed to members for this poll."
         },
-        "startTime": {
-          "type": "string",
-          "description": "The date and time when voting for this poll opens.",
-          "format": "date-time"
-        },
-        "endTime": {
+        "endDate": {
           "type": "string",
           "description": "The date and time when voting for this poll closes.",
           "format": "date-time"
         },
         "status": {
           "type": "string",
-          "description": "The current status of the poll (e.g., 'draft', 'open', 'closed').",
-          "format": "enum"
+          "description": "The current status of the poll.",
+          "enum": [
+            "draft",
+            "open",
+            "closed",
+            "annulled"
+          ]
+        },
+        "assemblyStatus": {
+          "type": "string",
+          "description": "Denormalized status of the parent assembly at the time of poll creation.",
+          "enum": [
+            "scheduled",
+            "live",
+            "finished",
+            "cancelled"
+          ]
         },
         "createdAt": {
           "type": "string",
@@ -173,17 +187,30 @@
           "type": "string",
           "description": "Timestamp indicating the last time the poll's information was updated.",
           "format": "date-time"
+        },
+        "annulmentReason": {
+          "type": "string",
+          "description": "Reason provided by the administrator for annulling the poll."
+        },
+        "annulledBy": {
+          "type": "string",
+          "description": "The UID of the administrator who annulled the poll."
+        },
+        "annulledAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the poll was annulled.",
+          "format": "date-time"
         }
       },
       "required": [
         "id",
         "assemblyId",
+        "administratorId",
         "question",
-        "startTime",
-        "endTime",
+        "endDate",
         "status",
-        "createdAt",
-        "updatedAt"
+        "assemblyStatus",
+        "createdAt"
       ]
     },
     "PollOption": {
@@ -438,5 +465,3 @@
     "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence, Structural Segregation, and Access Modeling, emphasizing robust and debuggable security rules. \n\n**Authorization Independence via Denormalization:**\nEach subcollection document (`Poll`, `PollOption`, `Vote`, `SpeakerQueueItem`) denormalizes critical authorization context from its parent `Assembly` and `Poll` entities. Specifically, the `administratorId` of the parent `Assembly` and the `status` fields (`assemblyStatus` and `pollStatus`) are copied down to the child documents. This eliminates the need for `get()` calls in security rules to check parent documents for authorization, making rule evaluation atomic, faster, and easier to debug. For instance, a `Poll` document will contain its `administratorId` and `assemblyStatus`, allowing rules to determine admin write access or member read access (e.g., if the assembly is `live` or `scheduled`) directly from the `Poll` document itself.\n\n**Support for Query-Aware Permissions (QAPs):**\n1.  **`/users/{userId}`:** Intended for individual profile reads/writes by the user themselves. The `request.auth.uid` must match `{userId}`. Listing of all users is not explicitly a requirement but could be enabled for administrators or for public profiles if needed, without additional filtering needs.\n2.  **`/admins/{userId}`:** This collection adheres to the 'Existence over Content' principle for global roles. An administrator is identified by the mere existence of a document at `/admins/{request.auth.uid}`. This allows rules to check `exists(/databases/$(database)/documents/admins/$(request.auth.uid))` for admin privileges without relying on a `role` field within a user's own mutable profile, ensuring robust DBAC.\n3.  **`/assemblies/{assemblyId}`:** Members can securely `list` assemblies. Security rules will filter based on the `status` field (e.g., allowing reads only if `resource.data.status` is 'scheduled' or 'live' for non-admin users). Administrators, identified by the `/admins/{userId}` collection, can `list` and manage all assemblies regardless of status.\n4.  **`/assemblies/{assemblyId}/polls/{pollId}` and `/assemblies/{assemblyId}/polls/{pollId}/options/{optionId}`:** Members can `list` polls and their options within a specific assembly. Rules enforce that this is only possible if the denormalized `assemblyStatus` indicates the assembly is active (e.g., `live` or `scheduled`) and the `pollStatus` is `open` or `closed` (depending on whether voting is allowed or results are visible). Administrators can manage all polls and options based on the denormalized `administratorId`.\n5.  **`/assemblies/{assemblyId}/polls/{pollId}/votes/{voteId}`:** This structure explicitly supports 'Transparent Voting' as a QAP. Members can `list` votes *only* if the denormalized `pollStatus` is 'closed', revealing results after voting concludes. Individual users can create their own vote (`request.auth.uid == request.resource.data.userId`).\n6.  **`/assemblies/{assemblyId}/speakerQueue/{queueItemId}`:** Members can `list` items in the queue to see their position and potentially others' `userId` and `status` (e.g., `queued`), but sensitive fields like `zoomLink` for other users would be restricted via rules to only the item's `userId` or the `administratorId`. This allows public visibility of the queue order while protecting private information.\n\nThis design prioritizes secure, efficient, and maintainable Firestore security rules by explicitly embedding authorization data where it's needed, segregating data by access pattern, and using predictable, consistent pathing and naming conventions. Each path clearly defines its security posture."
   }
 }
-
-    
