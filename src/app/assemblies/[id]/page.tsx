@@ -124,6 +124,8 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
   const [isAnnulDialogOpen, setAnnulDialogOpen] = useState(false);
   const [isAnnulConfirmOpen, setAnnulConfirmOpen] = useState(false);
   const [annulReason, setAnnulReason] = useState('');
+  const [isEditingAnnulment, setIsEditingAnnulment] = useState(false);
+  const [editTextAnnulment, setEditTextAnnulment] = useState(poll.annulmentReason || '');
 
   const optionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -193,6 +195,20 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
     setAnnulReason('');
   };
 
+  const handleUpdateAnnulmentReason = () => {
+    if (!editTextAnnulment.trim()) {
+        toast({ variant: 'destructive', title: 'O motivo não pode estar vazio.' });
+        return;
+    }
+    const pollRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id);
+    updateDocumentNonBlocking(pollRef, { 
+        annulmentReason: editTextAnnulment,
+        updatedAt: serverTimestamp() 
+    });
+    toast({ title: 'Motivo da anulação atualizado.' });
+    setIsEditingAnnulment(false);
+  };
+
   const voteData = useMemo(() => {
     if (!options || !votes) return [];
     return options.map(option => ({
@@ -221,7 +237,15 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
 
   return (
     <>
-    <Card>
+    <Card className="group relative">
+        {isAdmin && pollAnnulled && !isEditingAnnulment && (
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsEditingAnnulment(true)}>
+                    <Pencil className="h-4 w-4" />
+                    <span className="sr-only">Editar Motivo</span>
+                </Button>
+            </div>
+        )}
       <CardHeader className="p-4">
         <div className="flex justify-between items-start">
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -254,13 +278,29 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
       </CardHeader>
       <CardContent className="p-4 pt-0">
         {pollAnnulled ? (
-            <div className="space-y-2 text-sm">
-                <p className="text-muted-foreground">{poll.question}</p>
-                <div>
-                    <p className="text-foreground">Motivo da anulação:</p>
-                    <p className="text-muted-foreground mt-1 whitespace-pre-wrap">{poll.annulmentReason}</p>
-                </div>
-            </div>
+            isEditingAnnulment ? (
+              <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">{poll.question}</p>
+                   <Textarea
+                      placeholder="Escreva o motivo aqui..."
+                      value={editTextAnnulment}
+                      onChange={(e) => setEditTextAnnulment(e.target.value)}
+                      rows={4}
+                    />
+                  <div className="flex justify-end gap-1 pt-1">
+                    <Button variant="outline" size="sm" onClick={() => { setIsEditingAnnulment(false); setEditTextAnnulment(poll.annulmentReason || ''); }}>Cancelar</Button>
+                    <Button size="sm" onClick={handleUpdateAnnulmentReason}>Salvar</Button>
+                  </div>
+              </div>
+            ) : (
+              <div className="space-y-2 text-sm">
+                  <p className="text-muted-foreground">{poll.question}</p>
+                  <div>
+                      <p className="text-foreground">Motivo da anulação:</p>
+                      <p className="text-muted-foreground mt-1 whitespace-pre-wrap">{poll.annulmentReason}</p>
+                  </div>
+              </div>
+            )
         ) : userVote || pollEnded ? (
           <div>
             <h3 className="mb-2 text-sm">Resultado:</h3>
@@ -996,20 +1036,19 @@ export default function AssemblyPage() {
             </Card>
 
             {isAdmin && !assemblyFinished && (
-              <>
-                <AdminActionCard 
-                  assembly={assembly} 
-                  user={user} 
-                  onCreatePoll={handleCreatePollFromText} 
-                />
-                <CreatePollDialog
-                  open={isCreatePollOpen}
-                  onOpenChange={setCreatePollOpen}
-                  assembly={assembly}
-                  initialQuestion={pollQuestionFromAta}
-                />
-              </>
+              <AdminActionCard 
+                assembly={assembly} 
+                user={user} 
+                onCreatePoll={handleCreatePollFromText} 
+              />
             )}
+            
+            <CreatePollDialog
+              open={isCreatePollOpen}
+              onOpenChange={setCreatePollOpen}
+              assembly={assembly}
+              initialQuestion={pollQuestionFromAta}
+            />
 
             <div className="flex items-center gap-2 pt-4 pb-2">
                 <BookText className="h-5 w-5 text-muted-foreground" />
