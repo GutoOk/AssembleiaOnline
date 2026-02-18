@@ -32,7 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import type { Assembly } from '@/lib/data';
 import { Separator } from './ui/separator';
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const pollSchema = z.object({
   question: z.string().min(10, 'A pergunta deve ter pelo menos 10 caracteres.'),
@@ -46,9 +46,10 @@ interface CreatePollDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assembly: Assembly;
+  initialQuestion?: string;
 }
 
-export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDialogProps) {
+export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion }: CreatePollDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [pollDataToConfirm, setPollDataToConfirm] = useState<z.infer<typeof pollSchema> | null>(null);
@@ -67,6 +68,13 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
     control: form.control,
     name: "options"
   });
+
+  useEffect(() => {
+    if (open && initialQuestion) {
+      form.setValue('question', initialQuestion);
+    }
+  }, [open, initialQuestion, form]);
+
 
   const onSubmit = (values: z.infer<typeof pollSchema>) => {
     setPollDataToConfirm(values);
@@ -236,7 +244,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
                  </DialogClose>
                 <Button type="submit" disabled={form.formState.isSubmitting}>
                   {form.formState.isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Criar Votação
+                  Publicar Votação
                 </Button>
               </DialogFooter>
             </form>
@@ -247,7 +255,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
       <AlertDialog open={!!pollDataToConfirm} onOpenChange={(open) => !open && setPollDataToConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Iniciar Votação?</AlertDialogTitle>
+            <AlertDialogTitle>Publicar Votação?</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja iniciar esta votação? Uma vez iniciada, os membros poderão votar imediatamente.
             </AlertDialogDescription>
@@ -256,7 +264,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
             <AlertDialogCancel onClick={() => setPollDataToConfirm(null)}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleCreatePoll} disabled={isCreating}>
               {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
-              Iniciar Votação
+              Publicar Votação
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
