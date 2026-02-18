@@ -12,6 +12,16 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -22,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import type { Assembly } from '@/lib/data';
 import { Separator } from './ui/separator';
+import { useState } from 'react';
 
 const pollSchema = z.object({
   question: z.string().min(10, 'A pergunta deve ter pelo menos 10 caracteres.'),
@@ -40,6 +51,8 @@ interface CreatePollDialogProps {
 export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [pollDataToConfirm, setPollDataToConfirm] = useState<z.infer<typeof pollSchema> | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const form = useForm<z.infer<typeof pollSchema>>({
     resolver: zodResolver(pollSchema),
@@ -55,8 +68,15 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
     name: "options"
   });
 
-  const onSubmit = async (values: z.infer<typeof pollSchema>) => {
-    if (!assembly) return;
+  const onSubmit = (values: z.infer<typeof pollSchema>) => {
+    setPollDataToConfirm(values);
+  };
+
+  const handleCreatePoll = async () => {
+    if (!pollDataToConfirm || !assembly) return;
+
+    setIsCreating(true);
+    const values = pollDataToConfirm;
 
     try {
       // 1. Create Poll Document
@@ -95,12 +115,12 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
         title: 'Votação Criada!',
         description: 'A nova votação já está disponível para os participantes.',
       });
-       form.reset({
+      form.reset({
         question: '',
         duration: 5,
         options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
       });
-      onOpenChange(false);
+      onOpenChange(false); // Close main dialog
     } catch (error) {
       console.error("Error creating poll:", error);
       toast({
@@ -108,109 +128,139 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
         title: 'Erro ao criar votação',
         description: 'Não foi possível criar a votação. Tente novamente.',
       });
+    } finally {
+        setIsCreating(false);
+        setPollDataToConfirm(null); // Close confirmation dialog
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Criar Nova Votação</DialogTitle>
-          <DialogDescription>
-            Defina a pergunta, a duração e as opções de resposta para a votação.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="question"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Pergunta</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Ex: Você aprova a proposta X?" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="duration"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Duração (em minutos)</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="5" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <>
+      <Dialog open={open} onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          form.reset({
+            question: '',
+            duration: 5,
+            options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
+          });
+        }
+        onOpenChange(isOpen);
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Criar Nova Votação</DialogTitle>
+            <DialogDescription>
+              Defina a pergunta, a duração e as opções de resposta para a votação.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="question"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pergunta</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Ex: Você aprova a proposta X?" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="duration"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Duração (em minutos)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="5" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <Separator />
-            
-            <div className="space-y-2">
-              <FormLabel>Opções de Resposta</FormLabel>
+              <Separator />
+              
               <div className="space-y-2">
-                {fields.map((field, index) => (
-                  <FormField
-                    key={field.id}
-                    control={form.control}
-                    name={`options.${index}.text`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center gap-2">
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => remove(index)}
-                            disabled={fields.length <= 2}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                            <span className="sr-only">Remover opção</span>
-                          </Button>
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ))}
+                <FormLabel>Opções de Resposta</FormLabel>
+                <div className="space-y-2">
+                  {fields.map((field, index) => (
+                    <FormField
+                      key={field.id}
+                      control={form.control}
+                      name={`options.${index}.text`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center gap-2">
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => remove(index)}
+                              disabled={fields.length <= 2}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                              <span className="sr-only">Remover opção</span>
+                            </Button>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
+                 <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => append({ text: '' })}
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Adicionar Opção
+                  </Button>
+                  <FormMessage>{form.formState.errors.options?.root?.message}</FormMessage>
               </div>
-               <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => append({ text: '' })}
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Adicionar Opção
-                </Button>
-                <FormMessage>{form.formState.errors.options?.root?.message}</FormMessage>
-            </div>
 
-            <DialogFooter>
-               <DialogClose asChild>
-                <Button type="button" variant="secondary">
-                    Cancelar
+              <DialogFooter>
+                 <DialogClose asChild>
+                  <Button type="button" variant="secondary" disabled={form.formState.isSubmitting}>
+                      Cancelar
+                  </Button>
+                 </DialogClose>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Criar Votação
                 </Button>
-               </DialogClose>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                Criar Votação
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
+      <AlertDialog open={!!pollDataToConfirm} onOpenChange={(open) => !open && setPollDataToConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Iniciar Votação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja iniciar esta votação? Uma vez iniciada, os membros poderão votar imediatamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPollDataToConfirm(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCreatePoll} disabled={isCreating}>
+              {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
+              Iniciar Votação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
