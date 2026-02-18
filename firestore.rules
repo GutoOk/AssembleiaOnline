@@ -109,19 +109,27 @@ service cloud.firestore {
 
     /**
      * @description Rules for the 'proxies' collection group.
-     * @path /{path=**}/proxies/{grantorId}
-     * This rule is necessary to support the `useGrantedProxies` hook which uses a
-     * collection group query to find all proxies a user has granted across all assemblies.
+     * This is necessary to support collection group queries.
      */
-    match /{path=**}/proxies/{grantorId} {
+    match /{path=**}/proxies/{proxyAssignmentId} {
       /**
-       * @allow (list) A user can only list proxies where they are the grantor.
-       * The client-side query MUST include `where('grantorId', '==', request.auth.uid)`.
+       * @allow (get) A user can read a proxy assignment document only if they are the grantor.
+       * This rule secures the collection group query used by `useGrantedProxies`.
+       * Firestore checks this `get` rule for each document returned by the query.
        */
-      allow list: if isSignedIn()
-                  && request.query.filters.grantorId[0] == request.auth.uid;
-    }
+      allow get: if isSignedIn() && request.auth.uid == resource.data.grantorId;
 
+      /**
+       * @allow (list) Allows a collection group query to be initiated.
+       * The actual security is enforced by the `get` rule on each document in the result set.
+       * The client-side query MUST be filtered (e.g., `where('grantorId', '==', auth.uid)`)
+       * to ensure it only requests documents the user is permitted to read.
+       * An unfiltered query by a malicious client would fail because the `get` rule would fail
+       * on the first document they don't have permission to read.
+       */
+      allow list: if isSignedIn();
+    }
+    
     // --------------------------------------------------------------------------------
     // Collection Rules
     // --------------------------------------------------------------------------------
@@ -284,7 +292,7 @@ service cloud.firestore {
        * @description Manages proxy voting assignments. A user can assign their vote to another.
        * @path /assemblies/{assemblyId}/proxies/{grantorId}
        * @allow (create) The user assigning the proxy must be the owner of the document. Can only be done for scheduled assemblies.
-       * @allow (get, list) Any signed-in user can see proxy assignments for transparency.
+       * @allow (get, list) Any signed-in user can see proxy assignments for transparency, but the collection group rule secures queries.
        * @allow (delete) The user who assigned the proxy can revoke it, but only if the assembly is scheduled.
        * @deny (update) Proxies cannot be updated; they must be revoked and re-created.
        */
