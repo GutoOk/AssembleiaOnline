@@ -211,7 +211,13 @@ service cloud.firestore {
       // List is open to all signed-in users to allow viewing the public queue order.
       allow list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.assemblyId == assemblyId;
-      allow update: if isAdminOfExistingDoc() || (isOwner(resource.data.userId) && isExistingDoc() && request.resource.data.keys().size() == 1 && 'status' in request.resource.data && request.resource.data.status == 'Com a Fala' && resource.data.status == 'Entrada Autorizada');
+      allow update: if isAdminOfExistingDoc() || (
+        isOwnerOfExistingDoc(resource.data.userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasAll(['status']) &&
+        request.resource.data.diff(resource.data).affectedKeys().size() == 1 &&
+        request.resource.data.status == 'Com a Fala' &&
+        resource.data.status == 'Entrada Autorizada'
+      );
       allow delete: if isOwnerOfExistingDoc(resource.data.userId) || isAdminOfExistingDoc();
     }
   }
