@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, MessageCircle, Users } from 'lucide-react';
+import { Menu, MessageCircle, Users, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -9,7 +9,6 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { UserNav } from './user-nav';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAdmin } from '@/hooks/use-admin';
 import { cn } from '@/lib/utils';
@@ -40,20 +39,22 @@ export function Header() {
       <Link
         href="/dashboard"
         className={cn(
-          "transition-colors hover:text-foreground",
+          "flex items-center gap-4 text-lg font-medium transition-colors hover:text-foreground",
           (pathname === '/dashboard' || pathname.startsWith('/dashboard/assemblies')) ? "text-foreground" : "text-muted-foreground"
         )}
       >
+        <Home className="h-5 w-5" />
         Início
       </Link>
       {isAdmin && (
         <Link
           href="/dashboard/users"
           className={cn(
-            "transition-colors hover:text-foreground",
+            "flex items-center gap-4 text-lg font-medium transition-colors hover:text-foreground",
             pathname.startsWith('/dashboard/users') ? "text-foreground" : "text-muted-foreground"
           )}
         >
+          <Users className="h-5 w-5" />
           Usuários
         </Link>
       )}
@@ -63,7 +64,6 @@ export function Header() {
             <Button variant="ghost" className="text-muted-foreground justify-start px-0 text-lg font-normal" disabled>Chat</Button>
             <Button variant="ghost" onClick={() => {
                 handleQueueClick();
-                // We assume Sheet will close itself, but good to have a way to close it if needed
             }} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
                 Fila de Inscrição
             </Button>
@@ -74,14 +74,28 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
-      <nav className="hidden flex-row items-center gap-5 text-sm font-medium md:flex lg:gap-6">
+      <nav className="hidden flex-row items-center gap-4 text-sm font-medium md:flex lg:gap-6">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 text-lg font-semibold"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+          aria-label="Início"
         >
-          <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={28} height={28} />
-          <span className="sr-only">Assembleia Mensa</span>
+          <Home className="h-5 w-5" />
+          <span className="sr-only">Início</span>
         </Link>
+        
+        {isAdmin && (
+            <Link
+              href="/dashboard/users"
+              className={cn(
+                "transition-colors hover:text-foreground",
+                 pathname.startsWith('/dashboard/users') ? "text-foreground" : "text-muted-foreground"
+              )}
+            >
+              Usuários
+            </Link>
+        )}
+
       </nav>
 
       {/* Mobile Navigation */}
@@ -98,16 +112,9 @@ export function Header() {
                 <span className="sr-only">Alternar menu de navegação</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left">
-              <nav className="grid gap-6 text-lg font-medium">
-                <Link
-                  href="/dashboard"
-                  className="flex items-center gap-2 text-lg font-semibold"
-                >
-                  <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={28} height={28} />
-                  <span>Assembleia Mensa</span>
-                </Link>
-                {mobileNavLinks}
+            <SheetContent side="left" className="pr-0">
+              <nav className="grid gap-6 text-lg font-medium pt-4">
+                  {mobileNavLinks}
               </nav>
             </SheetContent>
           </Sheet>
