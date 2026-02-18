@@ -158,19 +158,20 @@ service cloud.firestore {
 
       // Manages proxy voting assignments.
       match /proxies/{grantorId} {
-        // Allows a user to read their own proxy assignment document directly.
-        // This is used instead of a collection group query to find all granted proxies.
-        allow get: if isOwner(grantorId);
+        // Grant read access to any signed-in user, as this data is considered public within the app.
+        // This allows querying for assignments where the user is the proxy.
+        allow read: if isSignedIn();
         
+        // Allow creation only by the grantor, for a scheduled assembly.
         allow create: if isOwner(grantorId)
                       && request.resource.data.grantorId == grantorId
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         
+        // Allow deletion only by the grantor, for a scheduled assembly.
         allow delete: if isOwnerOfExistingDoc(grantorId)
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         
         allow update: if false;
-        // Direct list is implicitly denied and not needed.
       }
     }
   }
