@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2 } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -38,10 +38,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
-import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
-import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote } from '@/lib/data';
+import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -49,7 +49,10 @@ import { useAssemblyContext } from '@/contexts/AssemblyContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { EndAssemblyDialog } from '@/components/EndAssemblyDialog';
 import { StartAssemblyDialog } from '@/components/StartAssemblyDialog';
-import { AtaDialog } from '@/components/AtaDialog';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 function UserDisplay({ userId }: { userId: string }) {
   const firestore = useFirestore();
@@ -222,16 +225,16 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin }: { poll: Poll; a
       <CardHeader>
         <div className="flex justify-between items-start">
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground pt-1">
-                <Clock className="h-4 w-4" />
                 {pollAnnulled ? (
                     <span className="font-medium text-destructive">Votação Anulada</span>
                 ) : pollEnded ? (
                     <span className="font-medium text-destructive">Votação encerrada</span>
                 ) : (
-                    <>
-                        <span>Tempo restante para votar: </span>
-                        <Countdown endDate={pollEndDate} />
-                    </>
+                  <>
+                    <Clock className="h-4 w-4" />
+                    <span>Tempo restante para votar: </span>
+                    <Countdown endDate={pollEndDate} />
+                  </>
                 )}
             </div>
             {isAdmin && !pollAnnulled && assemblyStatus !== 'finished' && (
@@ -501,6 +504,160 @@ function SpeakingQueue({
   )
 }
 
+const ataSchema = z.object({
+  text: z.string().min(1, 'O registro não pode estar vazio.'),
+});
+
+function AddAtaRecordCard({ assembly, user }: { assembly: Assembly, user: any }) {
+  const firestore = useFirestore();
+  const { toast } = useToast();
+
+  const form = useForm<z.infer<typeof ataSchema>>({
+    resolver: zodResolver(ataSchema),
+    defaultValues: { text: '' },
+  });
+
+  const onSubmit = (values: z.infer<typeof ataSchema>) => {
+    if (!user) return;
+    const ataRef = collection(firestore, 'assemblies', assembly.id, 'ata');
+    addDocumentNonBlocking(ataRef, {
+      text: values.text,
+      assemblyId: assembly.id,
+      administratorId: user.uid,
+      assemblyStatus: assembly.status,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    toast({ title: 'Registro de Ata Adicionado!' });
+    form.reset();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg"><PlusCircle className="h-5 w-5" /> Adicionar Registro à Ata</CardTitle>
+        <CardDescription>O que aconteceu ou foi dito?</CardDescription>
+      </CardHeader>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <CardContent>
+            <FormField
+              control={form.control}
+              name="text"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea placeholder="Ex: O membro X levantou a questão sobre o orçamento..." {...field} rows={3} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Salvar Registro
+            </Button>
+          </CardFooter>
+        </form>
+      </Form>
+    </Card>
+  )
+}
+
+function AtaCard({ ataItem, isAdmin, assemblyFinished }: { ataItem: AtaItem, isAdmin: boolean, assemblyFinished: boolean }) {
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(ataItem.text);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const { profiles: adminProfile } = useUserProfiles([ataItem.administratorId]);
+  const admin = adminProfile[ataItem.administratorId];
+
+  const handleUpdate = () => {
+    if (!editText.trim()) {
+      toast({ variant: 'destructive', title: 'O registro não pode estar vazio.' });
+      return;
+    }
+    const itemRef = doc(firestore, 'assemblies', ataItem.assemblyId, 'ata', ataItem.id);
+    updateDocumentNonBlocking(itemRef, { text: editText, updatedAt: serverTimestamp() });
+    toast({ title: 'Registro atualizado!' });
+    setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    const itemRef = doc(firestore, 'assemblies', ataItem.assemblyId, 'ata', ataItem.id);
+    deleteDocumentNonBlocking(itemRef);
+    toast({ title: 'Registro removido.' });
+    setIsDeleteDialogOpen(false);
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex-row justify-between items-center">
+          <CardTitle className="flex items-center gap-2 text-lg"><BookText className="h-5 w-5" /> Registro de Ata</CardTitle>
+          {isAdmin && !assemblyFinished && (
+            <div className="flex items-center gap-2">
+              {!isEditing && <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}><Pencil className="h-4 w-4" /> Editar</Button>}
+              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setIsDeleteDialogOpen(true)}><Trash2 className="h-4 w-4" /> Remover</Button>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {isEditing ? (
+            <div className="space-y-2">
+              <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={4} />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setEditText(ataItem.text); }}>Cancelar</Button>
+                <Button size="sm" onClick={handleUpdate}>Salvar</Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{ataItem.text}</p>
+          )}
+        </CardContent>
+        <CardFooter className="text-xs text-muted-foreground flex-col items-start gap-1 border-t pt-4">
+          <div className="flex items-center gap-2">
+            {admin ? (
+              <>
+                <Avatar className="h-5 w-5">
+                  <AvatarImage src={admin.avatarDataUri} />
+                  <AvatarFallback>{admin.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <span className="font-medium">{admin.name}</span>
+              </>
+            ) : <Loader2 className="h-4 w-4 animate-spin"/>}
+            <span>em {ataItem.createdAt ? format(ataItem.createdAt.toDate(), "dd/MM/yy 'às' HH:mm", { locale: ptBR }) : '...'}</span>
+          </div>
+        </CardFooter>
+      </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitleComponent>Tem certeza?</AlertDialogTitleComponent>
+            <AlertDialogDescriptionComponent>
+              Você está prestes a remover este registro da ata.
+              <br /><br />
+              <span className="font-bold">⚠️ Esta ação não pode ser desfeita.</span>
+            </AlertDialogDescriptionComponent>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} asChild>
+              <Button variant="destructive">Remover Registro</Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
 
 export default function AssemblyPage() {
   const params = useParams<{ id: string }>();
@@ -508,7 +665,6 @@ export default function AssemblyPage() {
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
   const { toast } = useToast();
   const [isCreatePollOpen, setCreatePollOpen] = useState(false);
-  const [isAtaOpen, setIsAtaOpen] = useState(false);
   const [isEditUrlOpen, setEditUrlOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
   const [newZoomUrl, setNewZoomUrl] = useState('');
@@ -534,13 +690,38 @@ export default function AssemblyPage() {
     return query(collection(firestore, 'assemblies', params.id, 'speakerQueue'), orderBy('joinedAt', 'asc'));
   }, [firestore, params.id, user]);
 
+  const ataQuery = useMemoFirebase(() => {
+    if (!firestore || !params.id || !user) return null;
+    return query(collection(firestore, 'assemblies', params.id, 'ata'), orderBy('createdAt', 'desc'));
+  }, [firestore, params.id, user]);
+
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
   const { data: polls, isLoading: arePollsLoading } = useCollection<Poll>(pollsQuery);
   const { data: queue, isLoading: isQueueLoading } = useCollection<SpeakerQueueItem>(queueQuery);
+  const { data: ataItems, isLoading: areAtaItemsLoading } = useCollection<AtaItem>(ataQuery);
+
 
   const userIdsInQueue = useMemo(() => queue?.map(s => s.userId) ?? [], [queue]);
-  const { profiles: userProfiles, isLoading: areProfilesLoading } = useUserProfiles(userIdsInQueue);
+  const userIdsInAta = useMemo(() => ataItems?.map(a => a.administratorId) ?? [], [ataItems]);
+  const allUserIdsToFetch = useMemo(() => [...new Set([...userIdsInQueue, ...userIdsInAta])], [userIdsInQueue, userIdsInAta]);
+
+  const { profiles: userProfiles, isLoading: areProfilesLoading } = useUserProfiles(allUserIdsToFetch);
   const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.uid), [queue, user]);
+
+  const timelineItems = useMemo(() => {
+    const combined = [
+      ...(polls || []),
+      ...(ataItems || [])
+    ];
+    
+    combined.sort((a, b) => {
+        const dateA = a.createdAt?.toDate() ?? new Date(0);
+        const dateB = b.createdAt?.toDate() ?? new Date(0);
+        return dateB.getTime() - dateA.getTime();
+    });
+
+    return combined;
+  }, [polls, ataItems]);
   
   useEffect(() => {
     if (assembly) {
@@ -781,19 +962,13 @@ export default function AssemblyPage() {
 
             <div className="space-y-4">
               {isAdmin && !assemblyFinished && (
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => setIsAtaOpen(true)} variant="outline">
-                    <BookText className="h-4 w-4" /> Registro de Ata
-                  </Button>
-                  <Button onClick={() => setCreatePollOpen(true)}>
-                    <PlusCircle className="h-4 w-4" /> Nova Votação
-                  </Button>
-                </div>
-              )}
-
-              {isAdmin && !assemblyFinished && (
                 <>
-                  <AtaDialog open={isAtaOpen} onOpenChange={setIsAtaOpen} assembly={assembly} />
+                  <AddAtaRecordCard assembly={assembly} user={user} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => setCreatePollOpen(true)}>
+                      <PlusCircle className="h-4 w-4" /> Nova Votação
+                    </Button>
+                  </div>
                   <CreatePollDialog
                     open={isCreatePollOpen}
                     onOpenChange={setCreatePollOpen}
@@ -802,14 +977,16 @@ export default function AssemblyPage() {
                 </>
               )}
               
-              {arePollsLoading && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
+              {(arePollsLoading || areAtaItemsLoading) && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
               
-              {polls && polls.length > 0 ? (
-                  polls.map(poll => (
-                    <PollCard key={poll.id} poll={poll} assemblyId={assembly.id} assemblyStatus={assembly.status} isAdmin={isAdmin} />
+              {timelineItems && timelineItems.length > 0 ? (
+                  timelineItems.map(item => (
+                     'question' in item
+                      ? <PollCard key={item.id} poll={item as Poll} assemblyId={assembly.id} assemblyStatus={assembly.status} isAdmin={isAdmin} />
+                      : <AtaCard key={item.id} ataItem={item as AtaItem} isAdmin={isAdmin} assemblyFinished={assemblyFinished} />
                   ))
               ) : (
-                  !arePollsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação para esta assembleia.</p>
+                  !arePollsLoading && !areAtaItemsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação ou registro na ata para esta assembleia.</p>
               )}
             </div>
         </div>
