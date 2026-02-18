@@ -9,7 +9,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser, useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, getDocs, doc, serverTimestamp, collectionGroup } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Trash2 } from 'lucide-react';
@@ -27,16 +27,60 @@ const proxySchema = z.object({
   proxyEmail: z.string().email('Por favor, insira um email válido.'),
 });
 
-function useGrantedProxies() {
+function useGrantedProxies(assemblies: Assembly[] | null) {
     const { user } = useUser();
     const firestore = useFirestore();
+    const [proxies, setProxies] = useState<ProxyAssignment[] | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const proxiesQuery = useMemoFirebase(() => {
-        if (!user) return null;
-        return query(collectionGroup(firestore, 'proxies'), where('grantorId', '==', user.uid));
-    }, [firestore, user]);
+    const assemblyIdsJson = useMemo(() => {
+        if (!assemblies) return null;
+        return JSON.stringify(assemblies.map(a => a.id).sort());
+    }, [assemblies]);
 
-    return useCollection<ProxyAssignment>(proxiesQuery);
+
+    useEffect(() => {
+        if (!user || !firestore || !assemblyIdsJson) {
+            setProxies(null);
+            setIsLoading(false);
+            return;
+        }
+
+        const assemblyIds = JSON.parse(assemblyIdsJson);
+        if (assemblyIds.length === 0) {
+            setProxies([]);
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+
+        const fetchProxies = async () => {
+            try {
+                const proxyPromises = assemblyIds.map((assemblyId: string) => {
+                    const proxyRef = doc(firestore, 'assemblies', assemblyId, 'proxies', user.uid);
+                    return getDoc(proxyRef);
+                });
+
+                const proxySnapshots = await Promise.all(proxyPromises);
+                const foundProxies = proxySnapshots
+                    .filter(snap => snap.exists())
+                    .map(snap => snap.data() as ProxyAssignment);
+                
+                setProxies(foundProxies);
+            } catch (error) {
+                console.error("Error fetching granted proxies:", error);
+                setProxies([]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchProxies();
+
+    }, [assemblyIdsJson, user, firestore]);
+
+    return { data: proxies, isLoading };
 }
 
 
@@ -59,7 +103,7 @@ export default function ProxyPage() {
   }, [firestore]);
 
   const { data: scheduledAssemblies, isLoading: areAssembliesLoading } = useCollection<Assembly>(assembliesQuery);
-  const { data: grantedProxies, isLoading: areProxiesLoading } = useGrantedProxies();
+  const { data: grantedProxies, isLoading: areProxiesLoading } = useGrantedProxies(scheduledAssemblies);
 
   const proxyUserIds = useMemo(() => {
       if (!grantedProxies) return [];

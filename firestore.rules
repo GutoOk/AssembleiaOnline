@@ -55,22 +55,6 @@ service cloud.firestore {
       let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
       return changedKeys.size() > 0 && !changedKeys.hasAny(['id', 'email', 'createdAt']);
     }
-
-    // --------------------------------------------------------------------------------
-    // Collection Group Rules
-    // --------------------------------------------------------------------------------
-
-    match /{path=**}/proxies/{proxyAssignmentId} {
-      // This rule secures the collection group query from `useGrantedProxies`.
-      // It enforces that the client query MUST filter for documents where
-      // the `grantorId` is the user's own UID. This prevents querying other users' proxies.
-      // Note: This relies on `request.query` which has inconsistent documentation, but is
-      // the standard pattern for securing list queries.
-      allow list: if isSignedIn() && request.auth.uid == request.query.get("where")[0][2];
-
-      // This allows a user to directly fetch a proxy document if they are the grantor.
-      allow get: if isSignedIn() && isOwner(resource.data.grantorId);
-    }
     
     // --------------------------------------------------------------------------------
     // Collection Rules
@@ -172,9 +156,12 @@ service cloud.firestore {
           allow delete: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
       }
 
-      // Manages proxy voting assignments. This rule block handles WRITES (create, delete) only.
-      // READS are handled by the collection group rule.
+      // Manages proxy voting assignments.
       match /proxies/{grantorId} {
+        // Allows a user to read their own proxy assignment document directly.
+        // This is used instead of a collection group query to find all granted proxies.
+        allow get: if isOwner(grantorId);
+        
         allow create: if isOwner(grantorId)
                       && request.resource.data.grantorId == grantorId
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
@@ -183,7 +170,7 @@ service cloud.firestore {
                       && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled';
         
         allow update: if false;
-        // `get` and `list` are implicitly denied for this specific path.
+        // Direct list is implicitly denied and not needed.
       }
     }
   }
