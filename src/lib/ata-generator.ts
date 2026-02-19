@@ -13,7 +13,6 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import {
   Assembly,
   AtaItem,
@@ -114,163 +113,187 @@ export async function downloadAta(
   }
 }
 
-// This function generates the HTML content for the PDF
-function generateAtaHtml(
-    assembly: Assembly,
-    timelineItems: (AtaItem | Poll)[],
-    allVotes: Record<string, Vote[]>,
-    allOptions: Record<string, PollOption[]>,
-    userProfiles: Record<string, UserProfile>
-): string {
-    const formatTime = (date: Date) => format(date, "HH:mm'h'", { locale: ptBR });
-    const formatDateTime = (date: Date) =>
-        format(date, "dd 'de' MMMM de yyyy, 'às' HH:mm'h'", { locale: ptBR });
-    
-    const sortedTimeline = [...timelineItems].sort((a, b) => {
-        const dateA = a.createdAt?.toDate() ?? new Date(0);
-        const dateB = b.createdAt?.toDate() ?? new Date(0);
-        return dateA.getTime() - dateB.getTime();
-    });
-
-    let html = `
-        <div style="font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: auto; padding: 20px;">
-            <h1 style="text-align: center; font-size: 24px; margin-bottom: 8px;">ATA DA ASSEMBLEIA GERAL</h1>
-            <h2 style="text-align: center; font-size: 20px; margin-top: 0; margin-bottom: 24px; font-weight: bold;">${assembly.title.toUpperCase()}</h2>
-            
-            <p><strong>Data Agendada:</strong> ${formatDateTime(assembly.date.toDate())}</p>
-    `;
-
-    if (assembly.location) {
-        const locationString = `${assembly.location.address}, ${assembly.location.city} - ${assembly.location.state}`;
-        html += `<p><strong>Local:</strong> ${locationString}</p>`;
-    }
-    if (assembly.startedAt) {
-        html += `<p><strong>Início Real:</strong> ${formatDateTime(assembly.startedAt.toDate())}</p>`;
-    }
-
-    html += `
-        <br />
-        <h3 style="text-align: center; font-size: 18px; margin-top: 24px; margin-bottom: 24px; font-weight: bold;">DELIBERAÇÕES</h3>
-    `;
-
-    sortedTimeline.forEach(item => {
-        html += '<div style="margin-top: 24px;">';
-
-        if ('question' in item) {
-            const poll = item as Poll;
-            const votes = allVotes[poll.id] || [];
-            const options = allOptions[poll.id] || [];
-            const optionMap = new Map(options.map((o) => [o.id, o.text]));
-            
-            html += `
-                <h4 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">VOTAÇÃO: ${poll.question}</h4>
-                <p style="font-size: 14px; margin-top: 0;">
-                    <strong>Iniciada em:</strong> ${formatTime(poll.createdAt.toDate())} / 
-                    <strong>Encerrada em:</strong> ${formatTime(poll.endDate.toDate())}
-                </p>
-            `;
-            
-            const voterList = votes.map((vote) => {
-              const personRepresented = userProfiles[vote.representedUserId || ''];
-              const voter = userProfiles[vote.userId];
-              const optionText = optionMap.get(vote.pollOptionId) || 'Voto inválido';
-              return {
-                name: personRepresented?.name || voter?.name || 'Usuário não encontrado',
-                email: personRepresented?.email || voter?.email || 'Email não encontrado',
-                vote: optionText,
-                proxy: vote.representedUserId ? voter?.name : '',
-              };
-            }).sort((a, b) => a.email.localeCompare(b.email));
-
-            html += `
-                <table style="width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px;">
-                    <thead>
-                        <tr style="background-color: #f2f2f2;">
-                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">NOME</th>
-                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">EMAIL</th>
-                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">VOTO</th>
-                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">POR PROCURAÇÃO A</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            voterList.forEach(voter => {
-                html += `
-                    <tr>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${voter.name}</td>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${voter.email}</td>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${voter.vote}</td>
-                        <td style="border: 1px solid #ddd; padding: 8px;">${voter.proxy || ''}</td>
-                    </tr>
-                `;
-            });
-            html += '</tbody></table>';
-
-        } else {
-            const ata = item as AtaItem;
-            html += `<p style="font-size: 14px;"><strong>[${formatTime(ata.createdAt.toDate())}]</strong> ${ata.text}</p>`;
-        }
-        html += '</div>';
-    });
-
-    html += '<br />';
-    if (assembly.endedAt) {
-        html += `<p><strong>Encerramento:</strong> ${formatDateTime(assembly.endedAt.toDate())}</p>`;
-    }
-    html += '<br />';
-    html += '<p style="text-align: center; margin-top: 24px;">A presente ata foi lavrada e segue para registro.</p>';
-    html += '</div>';
-
-    return html;
-}
-
-// This function generates the PDF
+// This function generates the PDF using jsPDF's native methods for a smaller, text-based file
 async function generatePdf(
-    assembly: Assembly,
-    timelineItems: (AtaItem | Poll)[],
-    allVotes: Record<string, Vote[]>,
-    allOptions: Record<string, PollOption[]>,
-    userProfiles: Record<string, UserProfile>
+  assembly: Assembly,
+  timelineItems: (AtaItem | Poll)[],
+  allVotes: Record<string, Vote[]>,
+  allOptions: Record<string, PollOption[]>,
+  userProfiles: Record<string, UserProfile>
 ) {
-    const htmlContent = generateAtaHtml(assembly, timelineItems, allVotes, allOptions, userProfiles);
-    
-    const container = document.createElement('div');
-    container.innerHTML = htmlContent;
-    // Append to body to ensure styles are applied and elements are rendered
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
+  const doc = new jsPDF('p', 'pt', 'a4');
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 40;
+  const contentWidth = pageWidth - margin * 2;
+  let y = margin;
 
-    const canvas = await html2canvas(container.firstElementChild as HTMLElement, {
-        scale: 2, // Higher scale for better quality
-    });
-    
-    document.body.removeChild(container);
-
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = canvas.width;
-    const imgHeight = canvas.height;
-    const ratio = imgWidth / imgHeight;
-    const canvasPdfWidth = pdfWidth - 20; // with margin
-    const canvasPdfHeight = canvasPdfWidth / ratio;
-    
-    let heightLeft = canvasPdfHeight;
-    let position = 10;
-    
-    pdf.addImage(imgData, 'PNG', 10, position, canvasPdfWidth, canvasPdfHeight);
-    heightLeft -= (pdfHeight - 20);
-
-    while (heightLeft > 0) {
-        position = heightLeft - canvasPdfHeight + 10; // move to next page
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 10, position, canvasPdfWidth, canvasPdfHeight);
-        heightLeft -= (pdfHeight - 20);
+  const checkPageBreak = (neededHeight = 20) => {
+    if (y + neededHeight > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
     }
-    
-    pdf.save(`Ata - ${assembly.title}.pdf`);
+  };
+
+  const printWrappedText = (text: string, x: number, currentY: number, maxWidth: number, options: { fontSize?: number, fontStyle?: string } = {}) => {
+      const fontSize = options.fontSize || 10;
+      const fontStyle = options.fontStyle || 'normal';
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', fontStyle);
+      const lines = doc.splitTextToSize(text, maxWidth);
+      
+      checkPageBreak(lines.length * fontSize);
+
+      doc.text(lines, x, currentY);
+      return currentY + lines.length * (doc.getLineHeight() / doc.internal.scaleFactor) * 0.8;
+  };
+  
+  const formatTime = (date: Date) => format(date, "HH:mm'h'", { locale: ptBR });
+  const formatDateTime = (date: Date) => format(date, "dd 'de' MMMM de yyyy, 'às' HH:mm'h'", { locale: ptBR });
+  
+  // Title
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ATA DA ASSEMBLEIA GERAL', pageWidth / 2, y, { align: 'center' });
+  y += 25;
+
+  doc.setFontSize(14);
+  doc.text(assembly.title.toUpperCase(), pageWidth / 2, y, { align: 'center' });
+  y += 30;
+
+  // Assembly Info
+  y = printWrappedText(`Data Agendada: ${formatDateTime(assembly.date.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
+  y += 5;
+
+  if (assembly.location) {
+    const locationString = `${assembly.location.address}, ${assembly.location.city} - ${assembly.location.state}`;
+    y = printWrappedText(`Local: ${locationString}`, margin, y, contentWidth, { fontSize: 10 });
+    y += 5;
+  }
+  if (assembly.startedAt) {
+    y = printWrappedText(`Início Real: ${formatDateTime(assembly.startedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
+  }
+  y += 20;
+  
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DELIBERAÇÕES', pageWidth / 2, y, { align: 'center' });
+  y += 25;
+
+  // Timeline Items
+  const sortedTimeline = [...timelineItems].sort((a, b) => {
+    const dateA = a.createdAt?.toDate() ?? new Date(0);
+    const dateB = b.createdAt?.toDate() ?? new Date(0);
+    return dateA.getTime() - dateB.getTime();
+  });
+
+  for (const item of sortedTimeline) {
+      checkPageBreak(40);
+      y += 20;
+
+      if ('question' in item) {
+          const poll = item as Poll;
+          const votes = allVotes[poll.id] || [];
+          const options = allOptions[poll.id] || [];
+          const optionMap = new Map(options.map((o) => [o.id, o.text]));
+          
+          y = printWrappedText(`VOTAÇÃO: ${poll.question}`, margin, y, contentWidth, { fontSize: 12, fontStyle: 'bold' });
+          y += 5;
+
+          y = printWrappedText(`Iniciada em: ${formatTime(poll.createdAt.toDate())} / Encerrada em: ${formatTime(poll.endDate.toDate())}`, margin, y, contentWidth, { fontSize: 9 });
+          y += 15;
+          
+          const head = [['NOME', 'EMAIL', 'VOTO', 'POR PROCURAÇÃO A']];
+          const body = votes.map((vote) => {
+            const personRepresented = userProfiles[vote.representedUserId || ''];
+            const voter = userProfiles[vote.userId];
+            const optionText = optionMap.get(vote.pollOptionId) || 'Voto inválido';
+            return [
+              personRepresented?.name || voter?.name || 'Usuário não encontrado',
+              personRepresented?.email || voter?.email || 'Email não encontrado',
+              optionText,
+              vote.representedUserId ? (voter?.name || '') : '',
+            ];
+          }).sort((a, b) => a[1].localeCompare(b[1]));
+
+          const tableColumnWidths = [150, 160, 70, 150];
+          const tableCellPadding = 5;
+          const lineHeight = 12;
+
+          // Header
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          checkPageBreak(lineHeight + tableCellPadding * 2);
+          let currentX = margin;
+          head[0].forEach((cell, i) => {
+              doc.text(cell, currentX + tableCellPadding, y + lineHeight);
+              currentX += tableColumnWidths[i];
+          });
+          y += lineHeight + tableCellPadding;
+          doc.line(margin, y, pageWidth - margin, y);
+          y += tableCellPadding;
+
+          // Body
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          body.forEach(row => {
+              let maxLines = 0;
+              const rowLines: string[][] = [];
+
+              row.forEach((cell, i) => {
+                  const lines = doc.splitTextToSize(cell, tableColumnWidths[i] - tableCellPadding * 2);
+                  rowLines.push(lines);
+                  if (lines.length > maxLines) {
+                      maxLines = lines.length;
+                  }
+              });
+              
+              const rowHeight = maxLines * (lineHeight * 0.8) + tableCellPadding * 2;
+              checkPageBreak(rowHeight);
+
+              const startY = y;
+              currentX = margin;
+              rowLines.forEach((lines, i) => {
+                  doc.text(lines, currentX + tableCellPadding, startY + lineHeight * 0.8);
+                  currentX += tableColumnWidths[i];
+              });
+
+              y += rowHeight;
+              doc.line(margin, y - tableCellPadding, pageWidth - margin, y - tableCellPadding);
+          });
+          y += 10;
+      } else {
+          const ata = item as AtaItem;
+          const timeText = `[${formatTime(ata.createdAt.toDate())}] `;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          const timeWidth = doc.getTextWidth(timeText);
+          
+          const textLines = doc.splitTextToSize(ata.text, contentWidth - timeWidth);
+          const neededHeight = textLines.length * (doc.getLineHeight() / doc.internal.scaleFactor);
+          checkPageBreak(neededHeight);
+
+          doc.text(timeText, margin, y);
+          
+          doc.setFont('helvetica', 'normal');
+          y = printWrappedText(ata.text, margin + timeWidth, y, contentWidth - timeWidth, { fontSize: 10 });
+      }
+  }
+
+  // Footer
+  checkPageBreak(40);
+  y += 20;
+  if (assembly.endedAt) {
+      y = printWrappedText(`Encerramento: ${formatDateTime(assembly.endedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
+  }
+  y += 30;
+
+  checkPageBreak(20);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('A presente ata foi lavrada e segue para registro.', pageWidth / 2, y, { align: 'center' });
+
+  doc.save(`Ata - ${assembly.title}.pdf`);
 }
 
 
