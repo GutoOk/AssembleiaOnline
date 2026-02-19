@@ -184,6 +184,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
         description: 'A nova votação já está disponível para os participantes.',
       });
       onSuccess?.();
+      form.reset();
       onOpenChange(false); // Close main dialog
     } catch (error) {
       console.error("Error creating poll:", error);

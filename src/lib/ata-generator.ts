@@ -118,19 +118,25 @@ export async function downloadAta(
 }
 
 function getPollResult(poll: Poll, options: PollOption[], votes: Vote[]) {
-    if (poll.type !== 'proposal' || poll.status !== 'closed') {
+    if (poll.type !== 'proposal' || poll.status === 'open' || poll.status === 'draft') {
         return null;
+    }
+    if (poll.status === 'annulled') {
+        return { status: 'Anulada', message: poll.annulmentReason || 'Votação foi anulada.' };
     }
 
     const favorOption = options.find(o => o.text.trim().toLowerCase() === 'a favor');
     const contraOption = options.find(o => o.text.trim().toLowerCase() === 'contra');
+    const abstencaoOption = options.find(o => o.text.trim().toLowerCase() === 'abstenção');
+
 
     if (!favorOption || !contraOption) {
-        return { status: 'Indeterminado', message: 'Não é uma votação de proposta padrão (A favor/Contra).' };
+      return { status: 'Indeterminado', message: 'Não é uma votação de proposta padrão (A favor/Contra).' };
     }
 
     const favorVotes = votes.filter(v => v.pollOptionId === favorOption.id).length;
     const contraVotes = votes.filter(v => v.pollOptionId === contraOption.id).length;
+    const abstencaoVotes = abstencaoOption ? votes.filter(v => v.pollOptionId === abstencaoOption.id).length : 0;
 
     let isApproved = false;
     let quorumMessage = '';
@@ -144,8 +150,8 @@ function getPollResult(poll: Poll, options: PollOption[], votes: Vote[]) {
 
     switch (poll.quorumType) {
         case 'simple_majority':
-            isApproved = favorVotes > contraVotes;
-            quorumMessage = `${quorumText}: ${favorVotes} (A favor) vs ${contraVotes} (Contra).`;
+            isApproved = favorVotes > (contraVotes + abstencaoVotes);
+            quorumMessage = `${quorumText}: ${favorVotes} (A favor) vs ${contraVotes + abstencaoVotes} (Contra + Abstenções).`;
             break;
         
         case 'absolute_majority':
@@ -158,13 +164,14 @@ function getPollResult(poll: Poll, options: PollOption[], votes: Vote[]) {
             break;
 
         case 'two_thirds_majority':
-            const totalValidVotes = favorVotes + contraVotes;
-            if (totalValidVotes === 0) {
+            const totalVotes = favorVotes + contraVotes + abstencaoVotes;
+            if (totalVotes === 0) {
                 isApproved = false;
+                quorumMessage = 'Quórum de 2/3: Nenhum voto registrado.'
             } else {
-                isApproved = favorVotes >= (2/3) * totalValidVotes;
+                isApproved = favorVotes > ( (2/3) * totalVotes );
+                quorumMessage = `${quorumText}: ${favorVotes} votos a favor de um total de ${totalVotes} votantes.`;
             }
-            quorumMessage = `${quorumText}: ${favorVotes} votos a favor de um total de ${totalValidVotes} (A favor + Contra).`;
             break;
         
         default:
@@ -238,9 +245,9 @@ async function generatePdf(
 
   for (const item of sortedTimeline) {
       checkPageBreak(40);
-      y += 20;
-      doc.setDrawColor(200);
-      doc.line(margin, y -10, pageWidth - margin, y-10);
+      doc.setDrawColor(220); // Lighter gray line
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 15;
 
       if ('question' in item) {
           const poll = item as Poll;
@@ -275,7 +282,7 @@ async function generatePdf(
               optionText,
               vote.representedUserId ? (voter?.name || '') : '',
             ];
-          }).sort((a, b) => a[1].localeCompare(b[1]));
+          }).sort((a, b) => (a[0] || '').localeCompare(b[0] || ''));
 
           const tableColumnWidths = [150, 160, 70, 150];
           const tableCellPadding = 5;
@@ -291,6 +298,7 @@ async function generatePdf(
               currentX += tableColumnWidths[i];
           });
           y += lineHeight + tableCellPadding;
+          doc.setDrawColor(200);
           doc.line(margin, y, pageWidth - margin, y);
           y += tableCellPadding;
 
@@ -320,6 +328,7 @@ async function generatePdf(
               });
 
               y += rowHeight;
+              doc.setDrawColor(230);
               doc.line(margin, y - tableCellPadding, pageWidth - margin, y - tableCellPadding);
           });
           y += 10;
@@ -331,9 +340,9 @@ async function generatePdf(
 
   // --- Footer ---
   checkPageBreak(80);
-  y += 20;
-  doc.setDrawColor(200);
-  doc.line(margin, y -10, pageWidth - margin, y-10);
+  doc.setDrawColor(220);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 15;
   if (assembly.endedAt) {
       y = printWrappedText(`Encerramento: ${formatDateTime(assembly.endedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
   }
@@ -355,7 +364,7 @@ async function generateDocx(
   const FONT = 'Arial';
   const formatDateTime = (date: Date) => format(date, "dd 'de' MMMM de yyyy, 'às' HH:mm'h'", { locale: ptBR });
   
-  const children: Paragraph[] = [];
+  const children: (Paragraph | Table)[] = [];
 
   // --- Header ---
   children.push(
@@ -364,7 +373,6 @@ async function generateDocx(
       alignment: AlignmentType.LEFT,
     })
   );
-  children.push(new Paragraph({}));
 
   if (assembly.startedAt) {
     children.push(
@@ -397,7 +405,7 @@ async function generateDocx(
   });
 
   for (const item of sortedTimeline) {
-    children.push(new Paragraph({})); // Spacer
+    children.push(new Paragraph({ text: '', style: 'line-spacing' }));
 
     if ('question' in item) {
       const poll = item as Poll;
@@ -420,6 +428,7 @@ async function generateDocx(
             new TextRun({ text: `Tipo: `, bold: true, font: FONT, size: 18 }),
             new TextRun({ text: typeText, font: FONT, size: 18 }),
           ],
+          alignment: AlignmentType.LEFT,
         })
       );
       
@@ -429,6 +438,7 @@ async function generateDocx(
             new TextRun({ text: 'Período: ', font: FONT, size: 18, bold: true }),
             new TextRun({ text: `${formatDateTime(poll.createdAt.toDate())} a ${formatDateTime(poll.endDate.toDate())}`, font: FONT, size: 18 }),
           ],
+          alignment: AlignmentType.LEFT,
         })
       );
 
@@ -439,6 +449,7 @@ async function generateDocx(
                       new TextRun({ text: `Resultado: `, bold: true, font: FONT, size: 18 }),
                       new TextRun({ text: pollResult.status, font: FONT, size: 18 }),
                   ],
+                  alignment: AlignmentType.LEFT,
               })
           );
           children.push(
@@ -447,6 +458,7 @@ async function generateDocx(
                       new TextRun({ text: `Detalhes: `, bold: true, font: FONT, size: 18 }),
                       new TextRun({ text: pollResult.message, font: FONT, size: 18 }),
                   ],
+                  alignment: AlignmentType.LEFT,
               })
           );
       }
@@ -465,7 +477,7 @@ async function generateDocx(
             proxy: vote.representedUserId ? voter?.name : undefined,
           };
         })
-        .sort((a, b) => a.email.localeCompare(b.email));
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
       const tableRows = [
         new TableRow({
@@ -513,8 +525,7 @@ async function generateDocx(
     children.push(
       new Paragraph({
         children: [
-          new TextRun({ text: 'Encerramento: ', bold: true, font: FONT, size: 20 }),
-          new TextRun({ text: formatDateTime(assembly.endedAt.toDate()), font: FONT, size: 20 }),
+          new TextRun({ text: `Encerramento: ${formatDateTime(assembly.endedAt.toDate())}`, font: FONT, size: 20 }),
         ],
         alignment: AlignmentType.LEFT,
       })
@@ -527,6 +538,25 @@ async function generateDocx(
   }));
 
   const doc = new Document({
+    styles: {
+        paragraphStyles: [
+            {
+                id: "line-spacing",
+                name: "Line Spacing",
+                basedOn: "Normal",
+                next: "Normal",
+                run: {
+                    font: FONT,
+                },
+                paragraph: {
+                    spacing: {
+                        before: 100,
+                        after: 100
+                    },
+                },
+            },
+        ],
+    },
     sections: [
       {
         properties: {},

@@ -159,6 +159,21 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const [editTextAnnulment, setEditTextAnnulment] = useState(poll.annulmentReason || '');
   const [isWithdrawConfirmOpen, setWithdrawConfirmOpen] = useState(false);
 
+  const pollEndDate = poll.endDate.toDate();
+  const [isTimeUp, setIsTimeUp] = useState(() => isPast(pollEndDate));
+
+  useEffect(() => {
+    if (isTimeUp) return;
+    const timer = setInterval(() => {
+      if (isPast(pollEndDate)) {
+        setIsTimeUp(true);
+        clearInterval(timer);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isTimeUp, pollEndDate]);
+
+
   const optionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'options'), orderBy('createdAt', 'asc'));
@@ -173,8 +188,8 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const { data: votes, isLoading: isLoadingVotes } = useCollection<Vote>(votesQuery);
 
   const userHasVotedForSelf = useMemo(() => votes?.some(v => v.userId === user?.uid && !v.representedUserId), [votes, user]);
-  const pollEndDate = poll.endDate.toDate();
-  const pollEnded = isPast(pollEndDate) || poll.status === 'closed' || assemblyStatus === 'finished';
+  
+  const pollEnded = isTimeUp || poll.status === 'closed' || assemblyStatus === 'finished';
   const pollAnnulled = poll.status === 'annulled';
   const canVote = !userHasVotedForSelf && !pollEnded && !userProxyGrant && !pollAnnulled;
 
@@ -189,6 +204,8 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
     const favorOption = options.find(o => o.text.trim().toLowerCase() === 'a favor');
     const contraOption = options.find(o => o.text.trim().toLowerCase() === 'contra');
+    const abstencaoOption = options.find(o => o.text.trim().toLowerCase() === 'abstenção');
+
 
     if (!favorOption || !contraOption) {
       return { status: 'Indeterminado', message: 'Não é uma votação de proposta padrão (A favor/Contra).' };
@@ -196,14 +213,15 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
     const favorVotes = votes.filter(v => v.pollOptionId === favorOption.id).length;
     const contraVotes = votes.filter(v => v.pollOptionId === contraOption.id).length;
+    const abstencaoVotes = abstencaoOption ? votes.filter(v => v.pollOptionId === abstencaoOption.id).length : 0;
 
     let isApproved = false;
     let quorumMessage = '';
 
     switch (poll.quorumType) {
       case 'simple_majority':
-        isApproved = favorVotes > contraVotes;
-        quorumMessage = `Maioria Simples: ${favorVotes} (A favor) vs ${contraVotes} (Contra).`;
+        isApproved = favorVotes > (contraVotes + abstencaoVotes);
+        quorumMessage = `Maioria Simples: ${favorVotes} (A favor) vs ${contraVotes + abstencaoVotes} (Contra + Abstenções).`;
         break;
       
       case 'absolute_majority':
@@ -216,13 +234,14 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
         break;
 
       case 'two_thirds_majority':
-        const totalValidVotes = favorVotes + contraVotes;
-        if (totalValidVotes === 0) {
+        const totalVotes = favorVotes + contraVotes + abstencaoVotes;
+        if (totalVotes === 0) {
             isApproved = false;
+            quorumMessage = 'Quórum de 2/3: Nenhum voto registrado.'
         } else {
-            isApproved = favorVotes >= (2/3) * totalValidVotes;
+            isApproved = favorVotes > ( (2/3) * totalVotes );
+            quorumMessage = `Quórum de 2/3: ${favorVotes} votos a favor de um total de ${totalVotes} votantes.`;
         }
-        quorumMessage = `Quórum de 2/3: ${favorVotes} votos a favor de um total de ${totalValidVotes} (A favor + Contra).`;
         break;
       
       default:
