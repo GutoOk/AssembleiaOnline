@@ -862,11 +862,10 @@ function AdminActionCard({
             />
           </CardContent>
           <CardFooter className="p-4 pt-0 flex justify-between items-center">
-            <Button type="submit" variant="secondary" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Button type="submit" variant="secondary">
               Publicar Registro
             </Button>
-            <Button type="button" onClick={handleCreatePollClick} disabled={form.formState.isSubmitting}>
+            <Button type="button" onClick={handleCreatePollClick}>
               <PlusCircle className="h-4 w-4" /> Criar Votação
             </Button>
           </CardFooter>
