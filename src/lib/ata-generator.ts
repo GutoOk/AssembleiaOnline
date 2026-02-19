@@ -4,7 +4,6 @@ import {
   Packer,
   Paragraph,
   TextRun,
-  HeadingLevel,
   AlignmentType,
   Table,
   TableRow,
@@ -31,6 +30,11 @@ import {
   where,
   documentId,
 } from 'firebase/firestore';
+
+
+const DISCLAIMER_TEXT =
+  'Este documento é uma cópia preliminar gerada pelo sistema para simples conferência e não possui valor legal. Os registros apresentados são informativos e refletem dados brutos, não substituindo a ata oficial, que será publicada na pasta de documentos do Google Drive para conferência e eventuais pedidos de retificação. A ata definitiva somente estará consolidada após a aprovação do texto oficial na próxima assembleia.';
+
 
 // This function will fetch all necessary data
 export async function downloadAta(
@@ -113,7 +117,67 @@ export async function downloadAta(
   }
 }
 
-// This function generates the PDF using jsPDF's native methods for a smaller, text-based file
+function getPollResult(poll: Poll, options: PollOption[], votes: Vote[]) {
+    if (poll.type !== 'proposal' || poll.status !== 'closed') {
+        return null;
+    }
+
+    const favorOption = options.find(o => o.text.trim().toLowerCase() === 'a favor');
+    const contraOption = options.find(o => o.text.trim().toLowerCase() === 'contra');
+
+    if (!favorOption || !contraOption) {
+        return { status: 'Indeterminado', message: 'Não é uma votação de proposta padrão (A favor/Contra).' };
+    }
+
+    const favorVotes = votes.filter(v => v.pollOptionId === favorOption.id).length;
+    const contraVotes = votes.filter(v => v.pollOptionId === contraOption.id).length;
+
+    let isApproved = false;
+    let quorumMessage = '';
+
+    const quorumTypeMap = {
+        simple_majority: 'Maioria Simples',
+        absolute_majority: 'Maioria Absoluta',
+        two_thirds_majority: '2/3 dos Votantes'
+    };
+    const quorumText = poll.quorumType ? quorumTypeMap[poll.quorumType] : '';
+
+    switch (poll.quorumType) {
+        case 'simple_majority':
+            isApproved = favorVotes > contraVotes;
+            quorumMessage = `${quorumText}: ${favorVotes} (A favor) vs ${contraVotes} (Contra).`;
+            break;
+        
+        case 'absolute_majority':
+            if (!poll.totalActiveMembers || poll.totalActiveMembers === 0) {
+                return { status: 'Indeterminado', message: 'Número total de membros ativos não definido para cálculo de maioria absoluta.' };
+            }
+            const requiredVotes = Math.floor(poll.totalActiveMembers / 2) + 1;
+            isApproved = favorVotes >= requiredVotes;
+            quorumMessage = `${quorumText}: ${favorVotes} votos de ${requiredVotes} necessários (baseado em ${poll.totalActiveMembers} membros).`;
+            break;
+
+        case 'two_thirds_majority':
+            const totalValidVotes = favorVotes + contraVotes;
+            if (totalValidVotes === 0) {
+                isApproved = false;
+            } else {
+                isApproved = favorVotes >= (2/3) * totalValidVotes;
+            }
+            quorumMessage = `${quorumText}: ${favorVotes} votos a favor de um total de ${totalValidVotes} (A favor + Contra).`;
+            break;
+        
+        default:
+            return { status: 'Indeterminado', message: 'Tipo de quórum não reconhecido.' };
+    }
+    
+    return {
+        status: isApproved ? 'Aprovada' : 'Reprovada',
+        message: quorumMessage
+    };
+}
+
+
 async function generatePdf(
   assembly: Assembly,
   timelineItems: (AtaItem | Poll)[],
@@ -127,6 +191,9 @@ async function generatePdf(
   const margin = 40;
   const contentWidth = pageWidth - margin * 2;
   let y = margin;
+  
+  const FONT = 'Helvetica'; // closest to Arial in jsPDF
+  doc.setFont(FONT);
 
   const checkPageBreak = (neededHeight = 20) => {
     if (y + neededHeight > pageHeight - margin) {
@@ -134,53 +201,35 @@ async function generatePdf(
       y = margin;
     }
   };
-
+  
   const printWrappedText = (text: string, x: number, currentY: number, maxWidth: number, options: { fontSize?: number, fontStyle?: string } = {}) => {
       const fontSize = options.fontSize || 10;
       const fontStyle = options.fontStyle || 'normal';
       doc.setFontSize(fontSize);
-      doc.setFont('helvetica', fontStyle);
+      doc.setFont(FONT, fontStyle);
       const lines = doc.splitTextToSize(text, maxWidth);
       
-      checkPageBreak(lines.length * fontSize);
+      checkPageBreak(lines.length * fontSize * 1.2);
 
       doc.text(lines, x, currentY);
       return currentY + lines.length * (doc.getLineHeight() / doc.internal.scaleFactor) * 0.8;
   };
   
-  const formatTime = (date: Date) => format(date, "HH:mm'h'", { locale: ptBR });
   const formatDateTime = (date: Date) => format(date, "dd 'de' MMMM de yyyy, 'às' HH:mm'h'", { locale: ptBR });
   
-  // Title
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ATA DA ASSEMBLEIA GERAL', pageWidth / 2, y, { align: 'center' });
-  y += 25;
-
-  doc.setFontSize(14);
-  doc.text(assembly.title.toUpperCase(), pageWidth / 2, y, { align: 'center' });
-  y += 30;
-
-  // Assembly Info
-  y = printWrappedText(`Data Agendada: ${formatDateTime(assembly.date.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
+  // --- Header ---
+  y = printWrappedText(assembly.title.toUpperCase(), margin, y, contentWidth, { fontSize: 14, fontStyle: 'bold' });
   y += 5;
-
-  if (assembly.location) {
-    const locationString = `${assembly.location.address}, ${assembly.location.city} - ${assembly.location.state}`;
-    y = printWrappedText(`Local: ${locationString}`, margin, y, contentWidth, { fontSize: 10 });
-    y += 5;
+  if(assembly.startedAt) {
+    y = printWrappedText(`Iniciada em: ${formatDateTime(assembly.startedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
   }
-  if (assembly.startedAt) {
-    y = printWrappedText(`Início Real: ${formatDateTime(assembly.startedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
-  }
+  y += 15;
+  y = printWrappedText('Minuta de Ata', margin, y, contentWidth, { fontSize: 12, fontStyle: 'bold' });
+  y += 5;
+  y = printWrappedText(DISCLAIMER_TEXT, margin, y, contentWidth, { fontSize: 8 });
   y += 20;
-  
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('DELIBERAÇÕES', pageWidth / 2, y, { align: 'center' });
-  y += 25;
 
-  // Timeline Items
+  // --- Timeline Items ---
   const sortedTimeline = [...timelineItems].sort((a, b) => {
     const dateA = a.createdAt?.toDate() ?? new Date(0);
     const dateB = b.createdAt?.toDate() ?? new Date(0);
@@ -190,17 +239,29 @@ async function generatePdf(
   for (const item of sortedTimeline) {
       checkPageBreak(40);
       y += 20;
+      doc.setDrawColor(200);
+      doc.line(margin, y -10, pageWidth - margin, y-10);
 
       if ('question' in item) {
           const poll = item as Poll;
           const votes = allVotes[poll.id] || [];
           const options = allOptions[poll.id] || [];
           const optionMap = new Map(options.map((o) => [o.id, o.text]));
+          const pollResult = getPollResult(poll, options, votes);
           
-          y = printWrappedText(`VOTAÇÃO: ${poll.question}`, margin, y, contentWidth, { fontSize: 12, fontStyle: 'bold' });
+          y = printWrappedText(`VOTAÇÃO: ${poll.question}`, margin, y, contentWidth, { fontSize: 11, fontStyle: 'bold' });
           y += 5;
+          const typeText = poll.type === 'proposal' ? 'Votação de Proposta' : 'Consulta de Opinião';
+          y = printWrappedText(`Tipo: ${typeText}`, margin, y, contentWidth, { fontSize: 9 });
+          y += 5;
+          y = printWrappedText(`Período: ${formatDateTime(poll.createdAt.toDate())} a ${formatDateTime(poll.endDate.toDate())}`, margin, y, contentWidth, { fontSize: 9 });
 
-          y = printWrappedText(`Iniciada em: ${formatTime(poll.createdAt.toDate())} / Encerrada em: ${formatTime(poll.endDate.toDate())}`, margin, y, contentWidth, { fontSize: 9 });
+          if (pollResult) {
+            y+= 5;
+            y = printWrappedText(`Resultado: ${pollResult.status}`, margin, y, contentWidth, { fontSize: 9, fontStyle: 'bold'});
+            y = printWrappedText(`Detalhes: ${pollResult.message}`, margin, y, contentWidth, { fontSize: 9 });
+          }
+
           y += 15;
           
           const head = [['NOME', 'EMAIL', 'VOTO', 'POR PROCURAÇÃO A']];
@@ -222,7 +283,7 @@ async function generatePdf(
 
           // Header
           doc.setFontSize(9);
-          doc.setFont('helvetica', 'bold');
+          doc.setFont(FONT, 'bold');
           checkPageBreak(lineHeight + tableCellPadding * 2);
           let currentX = margin;
           head[0].forEach((cell, i) => {
@@ -235,7 +296,7 @@ async function generatePdf(
 
           // Body
           doc.setFontSize(8);
-          doc.setFont('helvetica', 'normal');
+          doc.setFont(FONT, 'normal');
           body.forEach(row => {
               let maxLines = 0;
               const rowLines: string[][] = [];
@@ -264,40 +325,26 @@ async function generatePdf(
           y += 10;
       } else {
           const ata = item as AtaItem;
-          const timeText = `[${formatTime(ata.createdAt.toDate())}] `;
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(10);
-          const timeWidth = doc.getTextWidth(timeText);
-          
-          const textLines = doc.splitTextToSize(ata.text, contentWidth - timeWidth);
-          const neededHeight = textLines.length * (doc.getLineHeight() / doc.internal.scaleFactor);
-          checkPageBreak(neededHeight);
-
-          doc.text(timeText, margin, y);
-          
-          doc.setFont('helvetica', 'normal');
-          y = printWrappedText(ata.text, margin + timeWidth, y, contentWidth - timeWidth, { fontSize: 10 });
+          y = printWrappedText(ata.text, margin, y, contentWidth, { fontSize: 10 });
       }
   }
 
-  // Footer
-  checkPageBreak(40);
+  // --- Footer ---
+  checkPageBreak(80);
   y += 20;
+  doc.setDrawColor(200);
+  doc.line(margin, y -10, pageWidth - margin, y-10);
   if (assembly.endedAt) {
       y = printWrappedText(`Encerramento: ${formatDateTime(assembly.endedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
   }
   y += 30;
 
-  checkPageBreak(20);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('A presente ata foi lavrada e segue para registro.', pageWidth / 2, y, { align: 'center' });
+  y = printWrappedText(DISCLAIMER_TEXT, margin, y, contentWidth, { fontSize: 8 });
 
   doc.save(`Ata - ${assembly.title}.pdf`);
 }
 
 
-// This function generates the docx
 async function generateDocx(
   assembly: Assembly,
   timelineItems: (AtaItem | Poll)[],
@@ -305,71 +352,44 @@ async function generateDocx(
   allOptions: Record<string, PollOption[]>,
   userProfiles: Record<string, UserProfile>
 ) {
-  const formatTime = (date: Date) => format(date, "HH:mm'h'", { locale: ptBR });
-  const formatDateTime = (date: Date) =>
-    format(date, "dd 'de' MMMM de yyyy, 'às' HH:mm'h'", { locale: ptBR });
+  const FONT = 'Arial';
+  const formatDateTime = (date: Date) => format(date, "dd 'de' MMMM de yyyy, 'às' HH:mm'h'", { locale: ptBR });
+  
+  const children: Paragraph[] = [];
 
-  const children: any[] = [];
-
-  // Header
+  // --- Header ---
   children.push(
     new Paragraph({
-      text: 'ATA DA ASSEMBLEIA GERAL',
-      heading: HeadingLevel.TITLE,
-      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: assembly.title.toUpperCase(), bold: true, font: FONT, size: 28 })],
+      alignment: AlignmentType.LEFT,
     })
   );
-  children.push(
-    new Paragraph({
-      text: assembly.title.toUpperCase(),
-      heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.CENTER,
-    })
-  );
-  children.push(new Paragraph({})); // Spacer
-
-  // Basic Info
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({ text: 'Data Agendada: ', bold: true }),
-        new TextRun(formatDateTime(assembly.date.toDate())),
-      ],
-    })
-  );
-
-  if (assembly.location) {
-    const locationString = `${assembly.location.address}, ${assembly.location.city} - ${assembly.location.state}`;
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({ text: 'Local: ', bold: true }),
-          new TextRun(locationString),
-        ],
-      })
-    );
-  }
+  children.push(new Paragraph({}));
 
   if (assembly.startedAt) {
     children.push(
       new Paragraph({
-        children: [
-          new TextRun({ text: 'Início Real: ', bold: true }),
-          new TextRun(formatDateTime(assembly.startedAt.toDate())),
-        ],
+        children: [new TextRun({ text: `Iniciada em: ${formatDateTime(assembly.startedAt.toDate())}`, font: FONT, size: 20 })],
+        alignment: AlignmentType.LEFT,
       })
     );
   }
-  children.push(new Paragraph({})); // Spacer
+  children.push(new Paragraph({}));
+  
   children.push(
     new Paragraph({
-      text: 'DELIBERAÇÕES',
-      heading: HeadingLevel.HEADING_2,
-      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: 'Minuta de Ata', bold: true, font: FONT, size: 24 })],
+      alignment: AlignmentType.LEFT,
     })
   );
+  children.push(new Paragraph({
+      children: [new TextRun({ text: DISCLAIMER_TEXT, font: FONT, size: 16, italics: true })],
+      alignment: AlignmentType.LEFT,
+  }));
+  children.push(new Paragraph({}));
 
-  // Timeline Items (chronological order)
+
+  // --- Timeline Items (chronological order) ---
   const sortedTimeline = [...timelineItems].sort((a, b) => {
     const dateA = a.createdAt?.toDate() ?? new Date(0);
     const dateB = b.createdAt?.toDate() ?? new Date(0);
@@ -380,29 +400,57 @@ async function generateDocx(
     children.push(new Paragraph({})); // Spacer
 
     if ('question' in item) {
-      // It's a Poll
       const poll = item as Poll;
       const votes = allVotes[poll.id] || [];
       const options = allOptions[poll.id] || [];
       const optionMap = new Map(options.map((o) => [o.id, o.text]));
+      const pollResult = getPollResult(poll, options, votes);
 
       children.push(
         new Paragraph({
-          text: `VOTAÇÃO: ${poll.question}`,
-          heading: HeadingLevel.HEADING_3,
+          children: [new TextRun({ text: `VOTAÇÃO: ${poll.question}`, bold: true, font: FONT, size: 22 })],
+          alignment: AlignmentType.LEFT,
         })
       );
+      
+      const typeText = poll.type === 'proposal' ? 'Votação de Proposta' : 'Consulta de Opinião';
       children.push(
         new Paragraph({
           children: [
-            new TextRun({ text: 'Iniciada em: ', bold: true }),
-            new TextRun(formatTime(poll.createdAt.toDate())),
-            new TextRun(' / '),
-            new TextRun({ text: 'Encerrada em: ', bold: true }),
-            new TextRun(formatTime(poll.endDate.toDate())),
+            new TextRun({ text: `Tipo: `, bold: true, font: FONT, size: 18 }),
+            new TextRun({ text: typeText, font: FONT, size: 18 }),
           ],
         })
       );
+      
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Período: ', font: FONT, size: 18, bold: true }),
+            new TextRun({ text: `${formatDateTime(poll.createdAt.toDate())} a ${formatDateTime(poll.endDate.toDate())}`, font: FONT, size: 18 }),
+          ],
+        })
+      );
+
+      if (pollResult) {
+          children.push(
+              new Paragraph({
+                  children: [
+                      new TextRun({ text: `Resultado: `, bold: true, font: FONT, size: 18 }),
+                      new TextRun({ text: pollResult.status, font: FONT, size: 18 }),
+                  ],
+              })
+          );
+          children.push(
+              new Paragraph({
+                  children: [
+                      new TextRun({ text: `Detalhes: `, bold: true, font: FONT, size: 18 }),
+                      new TextRun({ text: pollResult.message, font: FONT, size: 18 }),
+                  ],
+              })
+          );
+      }
+      children.push(new Paragraph({}));
 
       // Votes Table
       const voterList = votes
@@ -423,30 +471,20 @@ async function generateDocx(
         new TableRow({
           tableHeader: true,
           children: [
-            new TableCell({
-              children: [new Paragraph({ text: 'NOME', bold: true })],
-            }),
-            new TableCell({
-              children: [new Paragraph({ text: 'EMAIL', bold: true })],
-            }),
-            new TableCell({
-              children: [new Paragraph({ text: 'VOTO', bold: true })],
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({ text: 'POR PROCURAÇÃO A', bold: true }),
-              ],
-            }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'NOME', bold: true, font: FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'EMAIL', bold: true, font: FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'VOTO', bold: true, font: FONT })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'POR PROCURAÇÃO A', bold: true, font: FONT })] })] }),
           ],
         }),
         ...voterList.map(
           (voter) =>
             new TableRow({
               children: [
-                new TableCell({ children: [new Paragraph(voter.name)] }),
-                new TableCell({ children: [new Paragraph(voter.email)] }),
-                new TableCell({ children: [new Paragraph(voter.vote)] }),
-                new TableCell({ children: [new Paragraph(voter.proxy || '')] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: voter.name, font: FONT })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: voter.email, font: FONT })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: voter.vote, font: FONT })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: voter.proxy || '', font: FONT })] })] }),
               ],
             })
         ),
@@ -462,44 +500,37 @@ async function generateDocx(
       const ata = item as AtaItem;
       children.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: `[${formatTime(ata.createdAt.toDate())}] `,
-              bold: true,
-            }),
-            new TextRun(ata.text),
-          ],
+          children: [new TextRun({ text: ata.text, font: FONT, size: 20 })],
+          alignment: AlignmentType.LEFT,
         })
       );
     }
   }
 
-  // Footer
+  // --- Footer ---
   children.push(new Paragraph({}));
   if (assembly.endedAt) {
     children.push(
       new Paragraph({
         children: [
-          new TextRun({ text: 'Encerramento: ', bold: true }),
-          new TextRun(formatDateTime(assembly.endedAt.toDate())),
+          new TextRun({ text: 'Encerramento: ', bold: true, font: FONT, size: 20 }),
+          new TextRun({ text: formatDateTime(assembly.endedAt.toDate()), font: FONT, size: 20 }),
         ],
+        alignment: AlignmentType.LEFT,
       })
     );
   }
   children.push(new Paragraph({}));
-  children.push(
-    new Paragraph({
-      text: 'A presente ata foi lavrada e segue para registro.',
-      alignment: AlignmentType.CENTER,
-    })
-  );
+  children.push(new Paragraph({
+      children: [new TextRun({ text: DISCLAIMER_TEXT, font: FONT, size: 16, italics: true })],
+      alignment: AlignmentType.LEFT,
+  }));
 
-  // Generate document
   const doc = new Document({
     sections: [
       {
         properties: {},
-        children: children,
+        children,
       },
     ],
   });
