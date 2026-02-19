@@ -419,7 +419,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
           <div>
             {userHasVotedForSelf && !pollEnded ? (
               <div className="flex flex-col items-start gap-2">
-                  <p className="text-sm text-muted-foreground">Seu voto foi computado. Para votar novamente, retire seu voto primeiro.</p>
+                  <p className="text-sm text-muted-foreground">Voto registrado com sucesso! Caso deseje alterá-lo enquanto a votação estiver aberta, basta remover sua seleção e votar novamente.</p>
                   <Button variant="outline" size="sm" onClick={() => setWithdrawConfirmOpen(true)}>
                     <Trash2 className="h-4 w-4" />
                     Retirar Voto
@@ -1319,5 +1319,3 @@ export default function AssemblyPage() {
     </>
   );
 }
-
-    
