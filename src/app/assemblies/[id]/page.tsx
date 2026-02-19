@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText, XCircle } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -181,6 +181,61 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const pollCreator = userProfiles[poll.administratorId];
   const pollAnnuler = userProfiles[poll.annulledBy ?? ''];
   const proxyGranteeProfile = userProxyGrant ? userProfiles[userProxyGrant.proxyId] : null;
+
+  const pollResult = useMemo(() => {
+    if (!pollEnded || !options || !votes || poll.status === 'annulled') {
+      return null;
+    }
+
+    const simOption = options.find(o => o.text.trim().toLowerCase() === 'sim');
+    const naoOption = options.find(o => o.text.trim().toLowerCase() === 'não');
+
+    // If it's not a simple Yes/No poll, we can't determine a winner.
+    if (!simOption || !naoOption) {
+      return { status: 'Não aplicável', message: 'Não é uma votação de aprovação simples (Sim/Não).' };
+    }
+
+    const simVotes = votes.filter(v => v.pollOptionId === simOption.id).length;
+    const naoVotes = votes.filter(v => v.pollOptionId === naoOption.id).length;
+
+    let isApproved = false;
+    let quorumMessage = '';
+
+    switch (poll.quorumType) {
+      case 'simple_majority':
+        isApproved = simVotes > naoVotes;
+        quorumMessage = `Maioria Simples: ${simVotes} (Sim) vs ${naoVotes} (Não).`;
+        break;
+      
+      case 'absolute_majority':
+        if (!poll.totalActiveMembers || poll.totalActiveMembers === 0) {
+          return { status: 'Indeterminado', message: 'Número total de membros ativos não definido para cálculo de maioria absoluta.' };
+        }
+        const requiredVotes = Math.floor(poll.totalActiveMembers / 2) + 1;
+        isApproved = simVotes >= requiredVotes;
+        quorumMessage = `Maioria Absoluta: ${simVotes} votos de ${requiredVotes} necessários (baseado em ${poll.totalActiveMembers} membros).`;
+        break;
+
+      case 'two_thirds_majority':
+        const totalValidVotes = simVotes + naoVotes;
+        if (totalValidVotes === 0) {
+            isApproved = false; // No valid votes, can't be approved.
+        } else {
+            isApproved = simVotes >= (2/3) * totalValidVotes;
+        }
+        quorumMessage = `Quórum de 2/3: ${simVotes} votos de um total de ${totalValidVotes} (Sim + Não).`;
+        break;
+      
+      default:
+        return { status: 'Indeterminado', message: 'Tipo de quórum não reconhecido.' };
+    }
+
+    if (isApproved) {
+      return { status: 'Aprovada', message: quorumMessage };
+    } else {
+      return { status: 'Reprovada', message: quorumMessage };
+    }
+  }, [poll, options, votes, pollEnded]);
 
   const handleVote = () => {
     if (!selectedOption || !user || !firestore) {
@@ -437,6 +492,29 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                             </p>
                         </div>
                     </div>
+                )}
+                {pollEnded && pollResult && (
+                  <div className={`mb-4 p-3 rounded-md text-sm border ${
+                      pollResult.status === 'Aprovada'
+                      ? 'bg-green-50 border-green-200 text-green-900 dark:bg-green-900/20 dark:border-green-500/30 dark:text-green-200'
+                      : pollResult.status === 'Reprovada'
+                      ? 'bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-200'
+                      : 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-500/30 dark:text-amber-200'
+                  }`}>
+                  <div className="flex items-center gap-2">
+                      {pollResult.status === 'Aprovada' && <CheckCircle2 className="h-5 w-5 text-green-700 dark:text-green-400" />}
+                      {pollResult.status === 'Reprovada' && <XCircle className="h-5 w-5 text-red-700 dark:text-red-400" />}
+                      {pollResult.status !== 'Aprovada' && pollResult.status !== 'Reprovada' && <Info className="h-5 w-5 text-amber-700 dark:text-amber-400" />}
+                      <p className="font-semibold">Proposta {pollResult.status}</p>
+                  </div>
+                  <p className={`mt-1 text-xs ${
+                      pollResult.status === 'Aprovada'
+                      ? 'text-green-800 dark:text-green-300'
+                      : pollResult.status === 'Reprovada'
+                      ? 'text-red-800 dark:text-red-300'
+                      : 'text-amber-800 dark:text-amber-300'
+                  }`}>{pollResult.message}</p>
+                  </div>
                 )}
                 <h3 className="mb-2 text-sm font-normal">Resultado:</h3>
                 <div className="h-40">
@@ -997,7 +1075,7 @@ export default function AssemblyPage() {
       if (!firestore || !user || !assemblyId) return;
 
       const presenceRef = doc(firestore, 'assemblies', assemblyId, 'presence', user.uid);
-      setDocumentNonBlocking(presenceRef, { joinedAt: serverTimestamp() }, {});
+      setDocumentNonBlocking(presenceRef, { joinedAt: serverTimestamp() }, { merge: true });
 
       return () => {
           deleteDocumentNonBlocking(presenceRef);
