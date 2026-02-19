@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { UserNav } from './user-nav';
@@ -177,8 +179,13 @@ export function Header() {
                     <span className="sr-only">Alternar menu de navegação</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="pr-0">
-                  <nav className="grid gap-6 text-lg font-medium pt-4">
+                <SheetContent side="left" className="flex flex-col p-0">
+                  <SheetHeader className="p-4 border-b">
+                    <SheetTitle className="text-left">
+                      Menu
+                    </SheetTitle>
+                  </SheetHeader>
+                  <nav className="grid gap-6 text-lg font-medium p-4">
                       {mobileNavLinks}
                   </nav>
                 </SheetContent>
