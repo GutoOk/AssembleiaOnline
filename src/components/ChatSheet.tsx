@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -156,12 +156,12 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
-                <div className="p-4">
-                    <h3 className="font-semibold text-foreground">Bate-papo informal</h3>
-                    <p className="text-xs text-destructive mt-1">
+                <SheetHeader className="p-4">
+                    <SheetTitle>Bate-papo informal</SheetTitle>
+                    <SheetDescription className="text-xs !text-destructive !mt-1">
                         Este chat não é um canal oficial! Para se pronunciar na Assembleia, utilize a Fila de Inscrição. Mantenha o respeito e o bom senso. Caso necessário, você pode bloquear usuários para ocultar mensagens indesejadas.
-                    </p>
-                </div>
+                    </SheetDescription>
+                </SheetHeader>
 
                 <div className="p-4 border-y bg-background">
                     <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2">
