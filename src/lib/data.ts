@@ -1,3 +1,4 @@
+'use client';
 import type { Timestamp } from 'firebase/firestore';
 
 // Represents the user profile stored in /users/{userId}
@@ -105,6 +106,16 @@ export type ChatMessage = {
   timestamp: Timestamp;
 };
 
+export type Reaction = {
+  id: string; // userId
+  userId: string;
+  emoji: string;
+  createdAt: Timestamp;
+  messageId: string;
+  assemblyId: string;
+};
+
+
 export type BlockedUser = {
   id: string; // The UID of the user who is blocked.
 };
@@ -121,5 +132,3 @@ export type AssemblyPresence = {
   id: string; // user UID
   joinedAt: Timestamp;
 };
-
-    

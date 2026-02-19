@@ -81,6 +81,12 @@ service cloud.firestore {
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.assemblyId == assemblyId;
         allow update: if false;
         allow delete: if false;
+
+        match /reactions/{userId} {
+          allow read: if isSignedIn();
+          allow create, update: if isOwner(userId) && request.resource.data.userId == userId;
+          allow delete: if isOwner(userId);
+        }
       }
 
       match /polls/{pollId} {

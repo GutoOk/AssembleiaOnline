@@ -6,17 +6,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send, MoreVertical, ShieldBan } from 'lucide-react';
-import { useCollection, useFirestore, useUser, addDocumentNonBlocking, setDocumentNonBlocking, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useUser, addDocumentNonBlocking, setDocumentNonBlocking, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, limit, doc } from 'firebase/firestore';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useToast } from '@/hooks/use-toast';
-import type { ChatMessage, UserProfile } from '@/lib/data';
+import type { ChatMessage, UserProfile, Reaction } from '@/lib/data';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
 import { Skeleton } from './ui/skeleton';
 import { Separator } from './ui/separator';
+import { WhoReactedSheet } from './WhoReactedSheet';
+
 
 interface ChatSheetProps {
   open: boolean;
@@ -24,9 +26,51 @@ interface ChatSheetProps {
   assemblyId: string;
 }
 
-function ChatMessageItem({ message, sender, onBlockUser }: { message: ChatMessage, sender: UserProfile | undefined, onBlockUser: (userId: string) => void }) {
+const EMOJI_REACTIONS = ['👍', '👏', '💡', '👀', '❓', '✅'];
+
+
+function ChatMessageItem({ message, sender, onBlockUser, onShowReactions }: { message: ChatMessage, sender: UserProfile | undefined, onBlockUser: (userId: string) => void, onShowReactions: (reactions: Reaction[]) => void }) {
     const { user } = useUser();
+    const firestore = useFirestore();
     
+    const isCurrentUser = user?.uid === sender?.id;
+
+     const reactionsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return collection(firestore, 'assemblies', message.assemblyId, 'chat', message.id, 'reactions');
+    }, [firestore, message.assemblyId, message.id]);
+    
+    const { data: reactions } = useCollection<Reaction>(reactionsQuery);
+
+    const handleReact = (emoji: string) => {
+        if (!user || !firestore) return;
+        const reactionRef = doc(firestore, 'assemblies', message.assemblyId, 'chat', message.id, 'reactions', user.uid);
+        const existingReaction = reactions?.find(r => r.userId === user.uid);
+
+        if (existingReaction?.emoji === emoji) {
+            deleteDocumentNonBlocking(reactionRef);
+        } else {
+            const reactionData = {
+                userId: user.uid,
+                emoji: emoji,
+                messageId: message.id,
+                assemblyId: message.assemblyId,
+                createdAt: serverTimestamp(),
+            };
+            setDocumentNonBlocking(reactionRef, reactionData, { merge: true });
+        }
+    };
+
+    const reactionSummary = useMemo(() => {
+        if (!reactions || reactions.length === 0) return [];
+        const counts: { [emoji: string]: number } = {};
+        reactions.forEach(r => {
+            counts[r.emoji] = (counts[r.emoji] || 0) + 1;
+        });
+        return Object.entries(counts).map(([emoji, count]) => ({ emoji, count }));
+    }, [reactions]);
+
+
     if (!sender) {
         return (
              <div className="flex items-start gap-2.5 py-2">
@@ -38,8 +82,6 @@ function ChatMessageItem({ message, sender, onBlockUser }: { message: ChatMessag
             </div>
         );
     }
-    
-    const isCurrentUser = user?.uid === sender.id;
 
     return (
         <div className="flex items-start gap-2.5 py-2 group">
@@ -54,16 +96,46 @@ function ChatMessageItem({ message, sender, onBlockUser }: { message: ChatMessag
                         {message.timestamp ? formatDistanceToNow(message.timestamp.toDate(), { locale: ptBR, addSuffix: true }) : 'agora'}
                     </span>
                 </div>
-                <p className="text-sm text-foreground">{message.text}</p>
+                <p className="text-sm text-foreground break-words">{message.text}</p>
+                 {reactionSummary.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        {reactionSummary.map(({ emoji, count }) => (
+                            <button
+                                key={emoji}
+                                onClick={() => onShowReactions(reactions || [])}
+                                className="flex items-center gap-1 rounded-full border bg-secondary/50 px-2 py-0.5 text-xs hover:bg-secondary"
+                            >
+                                <span>{emoji}</span>
+                                <span className="font-medium text-secondary-foreground">{count}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
             {!isCurrentUser && (
                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100">
                             <MoreVertical className="h-4 w-4" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                         <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                                Reagir
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                                <DropdownMenuSubContent>
+                                    <div className="flex p-1">
+                                        {EMOJI_REACTIONS.map(emoji => (
+                                            <button key={emoji} onClick={() => handleReact(emoji)} className="text-xl p-1 rounded-md hover:bg-accent">
+                                                {emoji}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                        </DropdownMenuSub>
                         <DropdownMenuItem onClick={() => onBlockUser(sender.id)} className="text-destructive">
                             <ShieldBan className="mr-2 h-4 w-4" />
                             Bloquear Usuário
@@ -84,6 +156,13 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
     const [isSending, setIsSending] = useState(false);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+    const [reactionsToShow, setReactionsToShow] = useState<Reaction[] | null>(null);
+
+    const handleShowReactions = (reactions: Reaction[]) => {
+        setReactionsToShow(reactions);
+    };
+
+
     const messagesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         return query(collection(firestore, 'assemblies', assemblyId, 'chat'), orderBy('timestamp', 'desc'), limit(50));
@@ -94,7 +173,10 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
     
     const userIdsInChat = useMemo(() => {
         if (!messages) return [];
-        return [...new Set(messages.map(m => m.userId))];
+        // This needs to be expanded to include users from reactions, so their profiles are loaded.
+        const ids = new Set(messages.map(m => m.userId));
+        // We will need to fetch profiles for reactions inside the WhoReactedSheet.
+        return [...ids];
     }, [messages]);
     
     const { profiles: userProfiles, isLoading: areProfilesLoading } = useUserProfiles(userIdsInChat);
@@ -192,6 +274,7 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
                                 message={msg} 
                                 sender={userProfiles[msg.userId]}
                                 onBlockUser={handleBlockUser}
+                                onShowReactions={handleShowReactions}
                             />
                         ))
                     ) : (
@@ -200,7 +283,14 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
                         </div>
                     )}
                 </div>
-
+                 {reactionsToShow && (
+                    <WhoReactedSheet
+                        isOpen={!!reactionsToShow}
+                        onOpenChange={(isOpen) => { if (!isOpen) setReactionsToShow(null); }}
+                        reactions={reactionsToShow || []}
+                        userProfiles={userProfiles}
+                    />
+                )}
             </SheetContent>
         </Sheet>
     );
