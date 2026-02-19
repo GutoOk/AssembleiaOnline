@@ -807,14 +807,16 @@ const ataSchema = z.object({
 function AdminActionCard({
   assembly,
   user,
-  form,
 }: {
   assembly: Assembly;
   user: any;
-  form: UseFormReturn<z.infer<typeof ataSchema>>;
 }) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const form = useForm<z.infer<typeof ataSchema>>({
+    resolver: zodResolver(ataSchema),
+    defaultValues: { text: '' },
+  });
 
   const onSubmit = (values: z.infer<typeof ataSchema>) => {
     if (!user) return;
@@ -972,11 +974,6 @@ export default function AssemblyPage() {
 
   const assemblyContext = useAssemblyContext();
   const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems, isCreatePollOpen, setIsCreatePollOpen } = assemblyContext!;
-
-  const ataForm = useForm<z.infer<typeof ataSchema>>({
-    resolver: zodResolver(ataSchema),
-    defaultValues: { text: '' },
-  });
 
   // --- Data Fetching ---
   const assemblyRef = useMemoFirebase(() => {
@@ -1364,7 +1361,6 @@ export default function AssemblyPage() {
               <AdminActionCard
                 assembly={assembly}
                 user={user}
-                form={ataForm}
               />
             )}
             
