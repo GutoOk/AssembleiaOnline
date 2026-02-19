@@ -43,6 +43,9 @@ export type Poll = {
   annulmentReason?: string;
   annulledBy?: string; // UID of admin
   annulledAt?: Timestamp;
+  // Quorum fields
+  quorumType: 'simple_majority' | 'absolute_majority' | 'two_thirds_majority';
+  totalActiveMembers?: number;
 };
 
 export type SpeakerQueueItem = {

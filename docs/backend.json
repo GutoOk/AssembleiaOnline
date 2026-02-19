@@ -208,6 +208,19 @@
           "type": "string",
           "description": "Timestamp indicating when the poll was annulled.",
           "format": "date-time"
+        },
+        "quorumType": {
+          "type": "string",
+          "description": "The quorum rule required for the poll's approval.",
+          "enum": [
+            "simple_majority",
+            "absolute_majority",
+            "two_thirds_majority"
+          ]
+        },
+        "totalActiveMembers": {
+          "type": "number",
+          "description": "The total number of active members at the time of the poll, required for absolute majority calculations."
         }
       },
       "required": [
@@ -218,7 +231,8 @@
         "endDate",
         "status",
         "assemblyStatus",
-        "createdAt"
+        "createdAt",
+        "quorumType"
       ]
     },
     "PollOption": {

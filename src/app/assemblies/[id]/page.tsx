@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2 } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -299,6 +299,19 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
 
   const isLoading = isLoadingOptions || isLoadingVotes;
+  
+  const quorumTextMap: Record<Poll['quorumType'], string> = {
+    simple_majority: 'Maioria Simples',
+    absolute_majority: 'Maioria Absoluta',
+    two_thirds_majority: '2/3 dos Votantes',
+  };
+
+  const quorumText = poll.quorumType ? quorumTextMap[poll.quorumType] : '';
+  let fullQuorumText = quorumText;
+  if (poll.quorumType === 'absolute_majority' && poll.totalActiveMembers) {
+    fullQuorumText = `${quorumText} (${poll.totalActiveMembers} membros)`;
+  }
+  
   if(isLoading) {
     return <Card><CardContent className="p-4"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></CardContent></Card>
   }
@@ -338,9 +351,20 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
         {!pollAnnulled && 
           <>
             <CardTitle className="text-lg">{poll.question}</CardTitle>
-            <CardDescription className="flex items-center gap-1 !mt-1">
-                <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
-            </CardDescription>
+            <div className="flex items-center gap-2 flex-wrap !mt-1">
+                <CardDescription className="flex items-center gap-1">
+                    <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
+                </CardDescription>
+                {fullQuorumText && (
+                    <>
+                        <Separator orientation="vertical" className="h-4" />
+                        <CardDescription className="flex items-center gap-1">
+                            <CheckCircle2 className="h-4 w-4 text-primary/80" />
+                            <span className="text-primary/90">{fullQuorumText}</span>
+                        </CardDescription>
+                    </>
+                )}
+            </div>
           </>
         }
       </CardHeader>

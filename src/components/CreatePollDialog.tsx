@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useFirestore, addDocumentNonBlocking } from '@/firebase';
@@ -33,6 +33,7 @@ import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import type { Assembly } from '@/lib/data';
 import { Separator } from './ui/separator';
 import React, { useState, useEffect } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const pollSchema = z.object({
   question: z.string().min(10, 'A pergunta deve ter pelo menos 10 caracteres.'),
@@ -40,7 +41,20 @@ const pollSchema = z.object({
   options: z.array(z.object({
     text: z.string().min(1, 'O texto da opção não pode estar vazio.'),
   })).min(2, 'A votação deve ter pelo menos 2 opções.'),
+  quorumType: z.enum(['simple_majority', 'absolute_majority', 'two_thirds_majority'], {
+      required_error: "Selecione o quórum de aprovação."
+  }),
+  totalActiveMembers: z.coerce.number().optional(),
+}).refine((data) => {
+    if (data.quorumType === 'absolute_majority') {
+        return data.totalActiveMembers !== undefined && data.totalActiveMembers > 0;
+    }
+    return true;
+}, {
+    message: 'O número total de associados ativos é obrigatório para Maioria Absoluta.',
+    path: ['totalActiveMembers'],
 });
+
 
 interface CreatePollDialogProps {
   open: boolean;
@@ -62,8 +76,11 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
       question: '',
       duration: 5,
       options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
+      quorumType: 'simple_majority',
     },
   });
+  
+  const watchedQuorumType = form.watch('quorumType');
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -71,8 +88,14 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
   });
 
   useEffect(() => {
-    if (open && initialQuestion) {
-      form.setValue('question', initialQuestion);
+    if (open) {
+      form.reset({
+        question: initialQuestion || '',
+        duration: 5,
+        options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
+        quorumType: 'simple_majority',
+        totalActiveMembers: undefined
+      });
     }
   }, [open, initialQuestion, form]);
 
@@ -98,6 +121,8 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
         assemblyId: assembly.id,
         administratorId: assembly.administratorId,
         assemblyStatus: assembly.status,
+        quorumType: values.quorumType,
+        totalActiveMembers: values.quorumType === 'absolute_majority' ? values.totalActiveMembers : null,
       };
       
       const pollDocRef = await addDocumentNonBlocking(pollsRef, pollData);
@@ -124,11 +149,6 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
         title: 'Votação Criada!',
         description: 'A nova votação já está disponível para os participantes.',
       });
-      form.reset({
-        question: '',
-        duration: 5,
-        options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
-      });
       onSuccess?.();
       onOpenChange(false); // Close main dialog
     } catch (error) {
@@ -143,19 +163,24 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
         setPollDataToConfirm(null); // Close confirmation dialog
     }
   };
+  
+  const handleDialogStateChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      form.reset({
+        question: '',
+        duration: 5,
+        options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
+        quorumType: 'simple_majority',
+        totalActiveMembers: undefined,
+      });
+    }
+    onOpenChange(isOpen);
+  };
+
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          form.reset({
-            question: '',
-            duration: 5,
-            options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
-          });
-        }
-        onOpenChange(isOpen);
-      }}>
+      <Dialog open={open} onOpenChange={handleDialogStateChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Criar Nova Votação</DialogTitle>
@@ -191,6 +216,46 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
                   </FormItem>
                 )}
               />
+              
+              <FormField
+                control={form.control}
+                name="quorumType"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Quórum de Aprovação</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione o quórum" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="simple_majority">Maioria Simples</SelectItem>
+                                <SelectItem value="absolute_majority">Maioria Absoluta</SelectItem>
+                                <SelectItem value="two_thirds_majority">2/3 dos Votantes</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                )}
+              />
+              {watchedQuorumType === 'absolute_majority' && (
+                  <FormField
+                      control={form.control}
+                      name="totalActiveMembers"
+                      render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>Total de Associados Ativos</FormLabel>
+                              <FormControl>
+                                  <Input type="number" placeholder="Ex: 500" {...field} value={field.value ?? ''} />
+                              </FormControl>
+                              <FormDescription>Necessário para o cálculo de maioria absoluta.</FormDescription>
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+              )}
+
 
               <Separator />
               
