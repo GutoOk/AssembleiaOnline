@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText, XCircle } from 'lucide-react';
-import React, { useEffect, useState, useMemo } from 'react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText, XCircle, MoreVertical, ShieldBan } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -41,7 +41,7 @@ import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
-import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence } from '@/lib/data';
+import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence, Reaction } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,6 +55,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { ChatSheet } from '@/components/ChatSheet';
 import { AttendeesSheet } from '@/components/AttendeesSheet';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { WhoReactedSheet } from '@/components/WhoReactedSheet';
+
 
 const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
   if (!text) {
@@ -410,7 +413,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                 {pollAnnulled ? (
                     <span className="font-medium text-destructive">Votação Anulada</span>
                 ) : pollEnded ? (
-                    <span className="font-medium text-destructive">Votação encerrada</span>
+                    null
                 ) : (
                   <>
                     <Clock className="h-4 w-4" />
