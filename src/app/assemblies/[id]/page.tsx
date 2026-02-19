@@ -964,7 +964,6 @@ export default function AssemblyPage() {
   const firestore = useFirestore();
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
   const { toast } = useToast();
-  const [isCreatePollOpen, setCreatePollOpen] = useState(false);
   const [isEditUrlOpen, setEditUrlOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
   const [newZoomUrl, setNewZoomUrl] = useState('');
@@ -972,7 +971,7 @@ export default function AssemblyPage() {
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
 
   const assemblyContext = useAssemblyContext();
-  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems } = assemblyContext!;
+  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems, isCreatePollOpen, setIsCreatePollOpen } = assemblyContext!;
 
   const ataForm = useForm<z.infer<typeof ataSchema>>({
     resolver: zodResolver(ataSchema),
@@ -1362,29 +1361,16 @@ export default function AssemblyPage() {
             </Card>
 
             {isAdmin && !assemblyFinished && (
-              <div className="grid md:grid-cols-2 gap-4 items-start">
-                <AdminActionCard 
-                  assembly={assembly} 
-                  user={user} 
-                  form={ataForm}
-                />
-                <Card>
-                  <CardHeader className="p-4">
-                    <CardTitle className="flex items-center gap-1 text-lg"><PlusCircle className="h-5 w-5" /> Criar Votação</CardTitle>
-                    <CardDescription>Inicie uma nova votação para os membros participantes.</CardDescription>
-                  </CardHeader>
-                  <CardFooter className="p-4 pt-0">
-                    <Button onClick={() => setCreatePollOpen(true)}>
-                        <PlusCircle className="h-4 w-4" /> Nova Votação
-                    </Button>
-                  </CardFooter>
-                </Card>
-              </div>
+              <AdminActionCard
+                assembly={assembly}
+                user={user}
+                form={ataForm}
+              />
             )}
             
             <CreatePollDialog
               open={isCreatePollOpen}
-              onOpenChange={setCreatePollOpen}
+              onOpenChange={setIsCreatePollOpen}
               assembly={assembly}
             />
 

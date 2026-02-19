@@ -19,6 +19,8 @@ interface AssemblyContextType {
   setIsAttendeesSheetOpen: (isOpen: boolean) => void;
   timelineItems: (AtaItem | Poll)[];
   setTimelineItems: (items: (AtaItem | Poll)[]) => void;
+  isCreatePollOpen: boolean;
+  setIsCreatePollOpen: (isOpen: boolean) => void;
 }
 
 const AssemblyContext = createContext<AssemblyContextType | undefined>(undefined);
@@ -32,6 +34,7 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
   const [attendees, setAttendees] = useState<UserProfile[]>([]);
   const [isAttendeesSheetOpen, setIsAttendeesSheetOpen] = useState(false);
   const [timelineItems, setTimelineItems] = useState<(AtaItem | Poll)[]>([]);
+  const [isCreatePollOpen, setIsCreatePollOpen] = useState(false);
 
   return (
     <AssemblyContext.Provider value={{ 
@@ -42,7 +45,8 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
         isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen,
         attendees, setAttendees,
         isAttendeesSheetOpen, setIsAttendeesSheetOpen,
-        timelineItems, setTimelineItems
+        timelineItems, setTimelineItems,
+        isCreatePollOpen, setIsCreatePollOpen
       }}>
       {children}
     </AssemblyContext.Provider>

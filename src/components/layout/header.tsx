@@ -76,6 +76,12 @@ export function Header() {
     }
   };
 
+  const handleCreatePollClick = () => {
+    if (assemblyContext) {
+      assemblyContext.setIsCreatePollOpen(true);
+    }
+  };
+
   const handleDownloadAta = async () => {
     if (!firestore || !assemblyContext?.assembly || !assemblyContext?.timelineItems) return;
     setIsDownloadingAta(true);
@@ -141,6 +147,12 @@ export function Header() {
             <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
                 Fila de Inscrição
             </Button>
+            {isAdmin && (
+              <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
+                <PlusCircle className="h-5 w-5" />
+                Criar Votação
+              </Button>
+            )}
         </>
       )}
     </>
@@ -210,6 +222,12 @@ export function Header() {
                       <Mic className="h-4 w-4" />
                       Fila de Inscrição
                   </Button>
+                  {isAdmin && (
+                    <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground">
+                      <PlusCircle className="h-4 w-4" />
+                      Criar Votação
+                    </Button>
+                  )}
               </div>
            )}
 
