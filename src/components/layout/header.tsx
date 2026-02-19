@@ -80,7 +80,7 @@ export function Header() {
     if (!firestore || !assemblyContext?.assembly || !assemblyContext?.timelineItems) return;
     setIsDownloadingAta(true);
     try {
-        await downloadAta(firestore, assemblyContext.assembly, assemblyContext.timelineItems);
+        await downloadAta(firestore, assemblyContext.assembly, assemblyContext.timelineItems, isAdmin);
     } catch (e) {
         console.error("Failed to generate ATA document", e);
         toast({
