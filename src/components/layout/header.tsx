@@ -24,6 +24,7 @@ import {
 import { useFirestore } from '@/firebase';
 import { downloadAta } from '@/lib/ata-generator';
 import { useToast } from '@/hooks/use-toast';
+import { AtaDownloadDialog } from '../AtaDownloadDialog';
 
 export function Header() {
   const pathname = usePathname();
@@ -94,6 +95,7 @@ export function Header() {
 
   const isAssemblyPage = pathname.startsWith('/assemblies/');
   const showCreateAssemblyButton = isAdmin && pathname === '/dashboard';
+  const showDownloadAtaButton = isAssemblyPage && assemblyStatus === 'finished';
 
   const mobileNavLinks = (
     <>
@@ -119,16 +121,17 @@ export function Header() {
           Gerenciar Usuários
         </Link>
       )}
-       {isAssemblyPage && isAdmin && assemblyStatus === 'finished' && (
-         <Button
-          variant="ghost"
-          onClick={handleDownloadAta}
-          disabled={isDownloadingAta}
-          className="flex items-center gap-4 text-lg font-medium text-muted-foreground hover:text-foreground justify-start w-full text-left p-0"
-        >
-          {isDownloadingAta ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-          Baixar Ata
-        </Button>
+       {showDownloadAtaButton && (
+        <AtaDownloadDialog onConfirm={handleDownloadAta} disabled={isDownloadingAta}>
+          <Button
+            variant="ghost"
+            disabled={isDownloadingAta}
+            className="flex items-center gap-4 text-lg font-medium text-muted-foreground hover:text-foreground justify-start w-full text-left p-0"
+          >
+            {isDownloadingAta ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+            Baixar Ata
+          </Button>
+        </AtaDownloadDialog>
       )}
       {isAssemblyPage && isAssemblyActive && (
         <>
@@ -175,27 +178,22 @@ export function Header() {
           <nav className="hidden md:flex items-center gap-2">
             <UserNav />
 
-            {isAssemblyPage ? (
+            {pathname !== '/dashboard' && (
               <Button asChild variant="ghost" className="text-muted-foreground hover:text-foreground">
                 <Link href="/dashboard">
                   <Home className="h-5 w-5" />
                   Sair
                 </Link>
               </Button>
-            ) : pathname !== '/dashboard' && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button asChild variant="ghost" size="icon">
-                    <Link href="/dashboard">
-                      <Home className="h-5 w-5" />
-                      <span className="sr-only">Início</span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Início</p>
-                </TooltipContent>
-              </Tooltip>
+            )}
+            
+            {showDownloadAtaButton && (
+              <AtaDownloadDialog onConfirm={handleDownloadAta} disabled={isDownloadingAta}>
+                <Button disabled={isDownloadingAta} variant="ghost" className="text-muted-foreground hover:text-foreground">
+                  {isDownloadingAta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Baixar Ata
+                </Button>
+              </AtaDownloadDialog>
             )}
 
             {isAssemblyPage && isAssemblyActive && (
@@ -214,13 +212,6 @@ export function Header() {
                   </Button>
               </div>
            )}
-
-            {isAssemblyPage && isAdmin && assemblyStatus === 'finished' && (
-              <Button onClick={handleDownloadAta} disabled={isDownloadingAta} variant="ghost" className="text-muted-foreground hover:text-foreground">
-                {isDownloadingAta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Baixar Ata
-              </Button>
-            )}
 
             {showCreateAssemblyButton && (
               <Tooltip>
