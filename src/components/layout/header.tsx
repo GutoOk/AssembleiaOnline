@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, MessageCircle, Users, Home, PlusCircle, PowerOff, Play } from 'lucide-react';
+import { Menu, MessageCircle, Users, Home, PlusCircle, PowerOff, Play, Download, Loader2, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -21,12 +21,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useFirestore } from '@/firebase';
+import { downloadAta } from '@/lib/ata-generator';
+import { useToast } from '@/hooks/use-toast';
 
 export function Header() {
   const pathname = usePathname();
   const { isAdmin } = useAdmin();
   const [isMounted, setIsMounted] = useState(false);
   const assemblyContext = useAssemblyContext();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isDownloadingAta, setIsDownloadingAta] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -35,7 +41,7 @@ export function Header() {
   const assemblyStatus = assemblyContext?.assembly?.status;
   const attendeesCount = assemblyContext?.attendees?.length ?? 0;
   
-  const showAssemblyButtons = assemblyStatus === 'live' || assemblyStatus === 'scheduled';
+  const isAssemblyActive = assemblyStatus === 'live' || assemblyStatus === 'scheduled';
   const showEndAssemblyButton = isAdmin && assemblyStatus === 'live';
   const showStartAssemblyButton = isAdmin && assemblyStatus === 'scheduled';
   
@@ -69,6 +75,23 @@ export function Header() {
     }
   };
 
+  const handleDownloadAta = async () => {
+    if (!firestore || !assemblyContext?.assembly || !assemblyContext?.timelineItems) return;
+    setIsDownloadingAta(true);
+    try {
+        await downloadAta(firestore, assemblyContext.assembly, assemblyContext.timelineItems);
+    } catch (e) {
+        console.error("Failed to generate ATA document", e);
+        toast({
+            variant: "destructive",
+            title: "Erro ao gerar Ata",
+            description: "Não foi possível gerar o documento. Tente novamente.",
+        });
+    } finally {
+        setIsDownloadingAta(false);
+    }
+  };
+
   const isAssemblyPage = pathname.startsWith('/assemblies/');
   const showCreateAssemblyButton = isAdmin && pathname === '/dashboard';
 
@@ -96,10 +119,10 @@ export function Header() {
           Gerenciar Usuários
         </Link>
       )}
-      {isAssemblyPage && (
+      {isAssemblyPage && isAssemblyActive && (
         <>
             <Separator className="my-2" />
-            <Button variant="ghost" onClick={handleAttendeesClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Presentes ({attendeesCount})</Button>
+            <Button variant="ghost" onClick={handleAttendeesClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Online ({attendeesCount})</Button>
             <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Chat</Button>
             <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
                 Fila de Inscrição
@@ -164,18 +187,18 @@ export function Header() {
               </Tooltip>
             )}
 
-            {isAssemblyPage && (
+            {isAssemblyPage && isAssemblyActive && (
               <div className="flex items-center gap-1">
                   <Button variant="ghost" onClick={handleAttendeesClick} className="text-muted-foreground hover:text-foreground">
                       <Users className="h-4 w-4" />
-                      Presentes ({attendeesCount})
+                      Online ({attendeesCount})
                   </Button>
                   <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground">
                       <MessageCircle className="h-4 w-4" />
                       Chat
                   </Button>
                   <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground">
-                      <Users className="h-4 w-4" />
+                      <Mic className="h-4 w-4" />
                       Fila de Inscrição
                   </Button>
               </div>
@@ -201,6 +224,20 @@ export function Header() {
         
         {/* Right side */}
         <div className="flex items-center gap-2">
+           {isAssemblyPage && isAdmin && assemblyStatus === 'finished' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleDownloadAta} disabled={isDownloadingAta} variant="ghost" size="icon" className="h-9 w-9">
+                  {isDownloadingAta ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                  <span className="sr-only">Baixar Ata</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Baixar Ata</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
           {showStartAssemblyButton && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -237,5 +274,3 @@ export function Header() {
     </header>
   );
 }
-
-    

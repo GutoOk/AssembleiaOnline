@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText, XCircle, Download } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText, XCircle } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -55,7 +55,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { ChatSheet } from '@/components/ChatSheet';
 import { AttendeesSheet } from '@/components/AttendeesSheet';
-import { downloadAta } from '@/lib/ata-generator';
 
 const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
   if (!text) {
@@ -963,10 +962,9 @@ export default function AssemblyPage() {
   const [newZoomUrl, setNewZoomUrl] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
-  const [isDownloadingAta, setIsDownloadingAta] = useState(false);
 
   const assemblyContext = useAssemblyContext();
-  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees } = assemblyContext!;
+  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems } = assemblyContext!;
 
   const ataForm = useForm<z.infer<typeof ataSchema>>({
     resolver: zodResolver(ataSchema),
@@ -1063,6 +1061,15 @@ export default function AssemblyPage() {
       setAssembly(null);
     };
   }, [assembly, setAssembly]);
+
+  useEffect(() => {
+    if (timelineItems) {
+        setTimelineItems(timelineItems);
+    }
+    return () => {
+        setTimelineItems([]);
+    }
+  }, [timelineItems, setTimelineItems]);
 
   // --- Presence Logic ---
   const presenceQuery = useMemoFirebase(() => {
@@ -1185,24 +1192,6 @@ export default function AssemblyPage() {
     toast({ title: 'Links atualizados!', description: 'Os links da transmissão foram atualizados com sucesso.' });
     setEditUrlOpen(false);
   };
-
-  const handleDownloadAta = async () => {
-    if (!firestore || !assembly) return;
-    setIsDownloadingAta(true);
-    try {
-        await downloadAta(firestore, assembly, timelineItems);
-    } catch (e) {
-        console.error("Failed to generate ATA document", e);
-        toast({
-            variant: "destructive",
-            title: "Erro ao gerar Ata",
-            description: "Não foi possível gerar o documento. Tente novamente.",
-        });
-    } finally {
-        setIsDownloadingAta(false);
-    }
-  };
-
 
   const isLoading = isAdminLoading || isAssemblyLoading;
   const isQueueComponentLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
@@ -1398,12 +1387,6 @@ export default function AssemblyPage() {
             <div className="flex items-center gap-2 pt-4 pb-2">
                 <BookText className="h-5 w-5 text-muted-foreground" />
                 <h2 className="text-xl font-semibold tracking-tight">Ata da Assembleia</h2>
-                {isAdmin && assemblyFinished && (
-                    <Button variant="outline" onClick={handleDownloadAta} disabled={isDownloadingAta} size="sm">
-                        {isDownloadingAta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                        Baixar Ata
-                    </Button>
-                )}
             </div>
 
             <div className="space-y-4">

@@ -1,5 +1,5 @@
 'use client';
-import type { Assembly, UserProfile } from '@/lib/data';
+import type { Assembly, UserProfile, AtaItem, Poll } from '@/lib/data';
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface AssemblyContextType {
@@ -17,6 +17,8 @@ interface AssemblyContextType {
   setAttendees: (attendees: UserProfile[]) => void;
   isAttendeesSheetOpen: boolean;
   setIsAttendeesSheetOpen: (isOpen: boolean) => void;
+  timelineItems: (AtaItem | Poll)[];
+  setTimelineItems: (items: (AtaItem | Poll)[]) => void;
 }
 
 const AssemblyContext = createContext<AssemblyContextType | undefined>(undefined);
@@ -29,6 +31,7 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
   const [isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen] = useState(false);
   const [attendees, setAttendees] = useState<UserProfile[]>([]);
   const [isAttendeesSheetOpen, setIsAttendeesSheetOpen] = useState(false);
+  const [timelineItems, setTimelineItems] = useState<(AtaItem | Poll)[]>([]);
 
   return (
     <AssemblyContext.Provider value={{ 
@@ -38,7 +41,8 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
         isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, 
         isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen,
         attendees, setAttendees,
-        isAttendeesSheetOpen, setIsAttendeesSheetOpen
+        isAttendeesSheetOpen, setIsAttendeesSheetOpen,
+        timelineItems, setTimelineItems
       }}>
       {children}
     </AssemblyContext.Provider>
@@ -50,5 +54,3 @@ export function useAssemblyContext() {
   // Do not throw an error, so the header can use it optionally
   return context;
 }
-
-    
