@@ -119,6 +119,17 @@ export function Header() {
           Gerenciar Usuários
         </Link>
       )}
+       {isAssemblyPage && isAdmin && assemblyStatus === 'finished' && (
+        <Button
+          variant="ghost"
+          onClick={handleDownloadAta}
+          disabled={isDownloadingAta}
+          className="flex items-center gap-4 text-lg font-medium text-muted-foreground hover:text-foreground justify-start w-full text-left p-0"
+        >
+          {isDownloadingAta ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+          Baixar Ata
+        </Button>
+      )}
       {isAssemblyPage && isAssemblyActive && (
         <>
             <Separator className="my-2" />
@@ -204,6 +215,13 @@ export function Header() {
               </div>
            )}
 
+            {isAssemblyPage && isAdmin && assemblyStatus === 'finished' && (
+              <Button onClick={handleDownloadAta} disabled={isDownloadingAta} variant="ghost" className="text-muted-foreground hover:text-foreground">
+                {isDownloadingAta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Baixar Ata
+              </Button>
+            )}
+
             {showCreateAssemblyButton && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -224,20 +242,6 @@ export function Header() {
         
         {/* Right side */}
         <div className="flex items-center gap-2">
-           {isAssemblyPage && isAdmin && assemblyStatus === 'finished' && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button onClick={handleDownloadAta} disabled={isDownloadingAta} variant="ghost" size="icon" className="h-9 w-9">
-                  {isDownloadingAta ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-                  <span className="sr-only">Baixar Ata</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Baixar Ata</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
           {showStartAssemblyButton && (
             <Tooltip>
               <TooltipTrigger asChild>
