@@ -11,11 +11,6 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from '@/components/ui/sidebar';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import Image from 'next/image';
 import { LayoutDashboard, Users } from 'lucide-react';
 import { useAdmin } from '@/hooks/use-admin';
@@ -40,34 +35,32 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarHeader>
         <SidebarMenu className="grid gap-2 px-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === '/dashboard' || pathname.startsWith('/dashboard/assemblies')}>
-                    <Link href="/dashboard">
-                      <LayoutDashboard className="h-5 w-5" />
-                      <span className="sr-only">Assembleias</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </TooltipTrigger>
-              <TooltipContent side="right">Assembleias</TooltipContent>
-            </Tooltip>
-            {isAdmin && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/users')}>
-                      <Link href="/dashboard/users">
-                        <Users className="h-5 w-5" />
-                        <span className="sr-only">Usuários</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </TooltipTrigger>
-                <TooltipContent side="right">Usuários</TooltipContent>
-              </Tooltip>
-            )}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === '/dashboard' || pathname.startsWith('/dashboard/assemblies')}
+              tooltip="Assembleias"
+            >
+              <Link href="/dashboard">
+                <LayoutDashboard className="h-5 w-5" />
+                <span>Assembleias</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith('/dashboard/users')}
+                tooltip="Usuários"
+              >
+                <Link href="/dashboard/users">
+                  <Users className="h-5 w-5" />
+                  <span>Usuários</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>

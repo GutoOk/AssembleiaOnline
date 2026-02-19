@@ -97,9 +97,6 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Assembleias</h1>
-      </div>
       {isLoading ? (
          <div className="flex h-64 w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />

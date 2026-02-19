@@ -120,7 +120,7 @@ export function Header() {
         </Link>
       )}
        {isAssemblyPage && isAdmin && assemblyStatus === 'finished' && (
-        <Button
+         <Button
           variant="ghost"
           onClick={handleDownloadAta}
           disabled={isDownloadingAta}
@@ -182,7 +182,7 @@ export function Header() {
                   Sair
                 </Link>
               </Button>
-            ) : (
+            ) : pathname !== '/dashboard' && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button asChild variant="ghost" size="icon">
