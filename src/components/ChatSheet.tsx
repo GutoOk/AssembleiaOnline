@@ -101,17 +101,16 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
 
     const filteredMessages = useMemo(() => {
         if (!messages) return [];
-        return messages.filter(m => !blockedUserIds.has(m.userId)).reverse();
+        return messages.filter(m => !blockedUserIds.has(m.userId));
     }, [messages, blockedUserIds]);
 
-    // Auto-scroll to bottom
+    // Auto-scroll to top
     useEffect(() => {
         if (scrollAreaRef.current) {
-            const { scrollHeight, clientHeight, scrollTop } = scrollAreaRef.current;
-            // If user is near the bottom, auto-scroll.
-            const isNearBottom = scrollHeight - clientHeight - scrollTop < 100;
-            if (isNearBottom) {
-                 scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+             const { scrollTop } = scrollAreaRef.current;
+            // If user is near the top, auto-scroll.
+            if (scrollTop < 100) {
+                 scrollAreaRef.current.scrollTop = 0;
             }
         }
     }, [filteredMessages]);
@@ -163,7 +162,22 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
                         Este chat não é um canal oficial! Para se pronunciar na Assembleia, utilize a Fila de Inscrição. Mantenha o respeito e o bom senso. Caso necessário, você pode bloquear usuários para ocultar mensagens indesejadas.
                     </p>
                 </div>
-                <Separator />
+
+                <div className="p-4 border-y bg-background">
+                    <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2">
+                        <Input
+                            placeholder="Digite sua mensagem..."
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            disabled={isSending}
+                            autoComplete="off"
+                        />
+                        <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
+                            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        </Button>
+                    </form>
+                </div>
+
                 <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-4 pt-2">
                     {isLoading ? (
                         <div className="flex h-full items-center justify-center">
@@ -185,20 +199,6 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
                     )}
                 </div>
 
-                <div className="p-4 border-t bg-background">
-                    <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2">
-                        <Input
-                            placeholder="Digite sua mensagem..."
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            disabled={isSending}
-                            autoComplete="off"
-                        />
-                        <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
-                            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        </Button>
-                    </form>
-                </div>
             </SheetContent>
         </Sheet>
     );
