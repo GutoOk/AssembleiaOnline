@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { ChatMessage, UserProfile, Reaction } from '@/lib/data';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Skeleton } from './ui/skeleton';
 import { Separator } from './ui/separator';
 import { WhoReactedSheet } from './WhoReactedSheet';
@@ -120,22 +120,15 @@ function ChatMessageItem({ message, sender, onBlockUser, onShowReactions }: { me
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                         <DropdownMenuSub>
-                            <DropdownMenuSubTrigger>
-                                Reagir
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuPortal>
-                                <DropdownMenuSubContent>
-                                    <div className="flex p-1">
-                                        {EMOJI_REACTIONS.map(emoji => (
-                                            <button key={emoji} onClick={() => handleReact(emoji)} className="text-xl p-1 rounded-md hover:bg-accent">
-                                                {emoji}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </DropdownMenuSubContent>
-                            </DropdownMenuPortal>
-                        </DropdownMenuSub>
+                         <DropdownMenuLabel>Reagir:</DropdownMenuLabel>
+                         <div className="flex justify-around px-2 py-1">
+                            {EMOJI_REACTIONS.map(emoji => (
+                                <button key={emoji} onClick={() => handleReact(emoji)} className="text-xl p-1 rounded-md hover:bg-accent">
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => onBlockUser(sender.id)} className="text-destructive">
                             <ShieldBan className="mr-2 h-4 w-4" />
                             Bloquear Usuário
@@ -238,14 +231,14 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
-                <SheetHeader className="p-4 pb-2">
+                <SheetHeader className="p-4 pb-0">
                     <SheetTitle>Bate-papo informal</SheetTitle>
                     <SheetDescription className="text-xs !text-destructive !mt-1">
                         Este chat não é um canal oficial! Para se pronunciar na Assembleia, utilize a Fila de Inscrição. Mantenha o respeito e o bom senso. Caso necessário, você pode bloquear usuários para ocultar mensagens indesejadas.
                     </SheetDescription>
                 </SheetHeader>
                 
-                <Separator />
+                <Separator className="mt-2" />
                 
                 <div className="px-4 py-2 bg-background">
                     <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2">
