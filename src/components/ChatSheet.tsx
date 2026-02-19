@@ -238,7 +238,7 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
                     </SheetDescription>
                 </SheetHeader>
                 
-                <Separator className="mt-2" />
+                <Separator />
                 
                 <div className="px-4 py-2 bg-background">
                     <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2">
