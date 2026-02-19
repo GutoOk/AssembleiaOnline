@@ -30,7 +30,7 @@ import { useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
-import type { Assembly } from '@/lib/data';
+import type { Assembly, Poll } from '@/lib/data';
 import { Separator } from './ui/separator';
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -139,7 +139,8 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
     try {
       // 1. Create Poll Document
       const pollsRef = collection(firestore, 'assemblies', assembly.id, 'polls');
-      const pollData = {
+      
+      const pollData: Omit<Poll, 'id' | 'createdAt' | 'updatedAt' | 'endDate' | 'status'> & { endDate: Timestamp; status: 'open'; createdAt: any } = {
         question: values.question,
         endDate: Timestamp.fromMillis(Date.now() + values.duration * 60 * 1000),
         status: 'open' as const,
@@ -148,9 +149,14 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
         administratorId: assembly.administratorId,
         assemblyStatus: assembly.status,
         type: values.type,
-        quorumType: values.type === 'proposal' ? values.quorumType : undefined,
-        totalActiveMembers: values.type === 'proposal' ? values.totalActiveMembers : undefined,
       };
+
+      if (values.type === 'proposal') {
+          pollData.quorumType = values.quorumType;
+          if (values.quorumType === 'absolute_majority' && values.totalActiveMembers) {
+              pollData.totalActiveMembers = values.totalActiveMembers;
+          }
+      }
       
       const pollDocRef = await addDocumentNonBlocking(pollsRef, pollData);
       
@@ -166,6 +172,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
           pollId: pollDocRef.id,
           assemblyId: assembly.id,
           assemblyStatus: assembly.status,
+          createdAt: serverTimestamp(),
         };
         return addDocumentNonBlocking(optionsRef, optionData);
       });
@@ -402,5 +409,3 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
     </>
   );
 }
-
-    
