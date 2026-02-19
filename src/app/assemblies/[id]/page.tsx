@@ -385,6 +385,9 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
       <CardHeader className="p-4">
         <div className="flex justify-between items-start">
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                <Badge variant={poll.type === 'proposal' ? 'default' : 'secondary'} className="mr-3">
+                    {poll.type === 'proposal' ? 'Votação de Proposta' : 'Consulta de Opinião'}
+                </Badge>
                 {pollAnnulled ? (
                     <span className="font-medium text-destructive">Votação Anulada</span>
                 ) : pollEnded ? (
@@ -1405,5 +1408,3 @@ export default function AssemblyPage() {
     </>
   );
 }
-
-    
