@@ -33,6 +33,7 @@ export function Header() {
   }, []);
 
   const assemblyStatus = assemblyContext?.assembly?.status;
+  const attendeesCount = assemblyContext?.attendees?.length ?? 0;
   
   const showAssemblyButtons = assemblyStatus === 'live' || assemblyStatus === 'scheduled';
   const showEndAssemblyButton = isAdmin && assemblyStatus === 'live';
@@ -47,6 +48,12 @@ export function Header() {
   const handleChatClick = () => {
     if (assemblyContext) {
       assemblyContext.setIsChatOpen(true);
+    }
+  }
+
+  const handleAttendeesClick = () => {
+    if (assemblyContext) {
+      assemblyContext.setIsAttendeesSheetOpen(true);
     }
   }
 
@@ -89,9 +96,10 @@ export function Header() {
           Gerenciar Usuários
         </Link>
       )}
-      {showAssemblyButtons && (
+      {isAssemblyPage && (
         <>
             <Separator className="my-2" />
+            <Button variant="ghost" onClick={handleAttendeesClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Presentes ({attendeesCount})</Button>
             <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Chat</Button>
             <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
                 Fila de Inscrição
@@ -156,8 +164,12 @@ export function Header() {
               </Tooltip>
             )}
 
-            {showAssemblyButtons && (
+            {isAssemblyPage && (
               <div className="flex items-center gap-1">
+                  <Button variant="ghost" onClick={handleAttendeesClick} className="text-muted-foreground hover:text-foreground">
+                      <Users className="h-4 w-4" />
+                      Presentes ({attendeesCount})
+                  </Button>
                   <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground">
                       <MessageCircle className="h-4 w-4" />
                       Chat
@@ -225,3 +237,5 @@ export function Header() {
     </header>
   );
 }
+
+    

@@ -28,6 +28,7 @@ import {
 import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 
 const assemblySchema = z.object({
   title: z.string().min(10, 'O título deve ter pelo menos 10 caracteres.'),
@@ -39,6 +40,12 @@ const assemblySchema = z.object({
   zoomUrl: z.string().url("Por favor, insira um link de reunião válido.").optional().or(z.literal('')),
   allowProxyVoting: z.boolean().default(false),
   maxProxiesPerUser: z.coerce.number().int().min(0, "O valor deve ser positivo.").default(4),
+  convocationNoticeUrl: z.string().url("Por favor, insira um link válido para o edital.").optional().or(z.literal('')),
+  locationAddress: z.string().optional(),
+  locationCity: z.string().optional(),
+  locationState: z.string().optional(),
+  locationZip: z.string().optional(),
+  locationDetails: z.string().optional(),
 });
 
 // Helper function for cropping
@@ -97,6 +104,12 @@ export default function EditAssemblyPage() {
       zoomUrl: '',
       allowProxyVoting: false,
       maxProxiesPerUser: 4,
+      convocationNoticeUrl: '',
+      locationAddress: '',
+      locationCity: '',
+      locationState: '',
+      locationZip: '',
+      locationDetails: '',
     },
   });
 
@@ -122,6 +135,12 @@ export default function EditAssemblyPage() {
         zoomUrl: assembly.zoomUrl || '',
         allowProxyVoting: assembly.allowProxyVoting || false,
         maxProxiesPerUser: assembly.maxProxiesPerUser || 4,
+        convocationNoticeUrl: assembly.convocationNoticeUrl || '',
+        locationAddress: assembly.location?.address || '',
+        locationCity: assembly.location?.city || '',
+        locationState: assembly.location?.state || '',
+        locationZip: assembly.location?.zip || '',
+        locationDetails: assembly.location?.details || '',
       });
       setImagePreview(assembly.imageUrl);
     }
@@ -211,12 +230,26 @@ export default function EditAssemblyPage() {
       return;
     }
 
-    const dataToUpdate = {
-        ...values,
+    const { locationAddress, locationCity, locationState, locationZip, locationDetails, ...restOfValues } = values;
+
+    const location = locationAddress && locationCity && locationState && locationZip
+        ? {
+            address: locationAddress,
+            city: locationCity,
+            state: locationState,
+            zip: locationZip,
+            details: locationDetails || '',
+        } : null;
+
+    const dataToUpdate: any = {
+        ...restOfValues,
         date: new Date(values.date),
         imageUrl: imagePreview,
         updatedAt: serverTimestamp(),
     };
+    
+    dataToUpdate.location = location;
+
 
     updateDocumentNonBlocking(assemblyRef, dataToUpdate);
 
@@ -358,6 +391,102 @@ export default function EditAssemblyPage() {
                 )}
               />
               <FormField
+                control={form.control}
+                name="convocationNoticeUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Edital de Convocação (URL)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://..." {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Link para o documento PDF do edital de convocação.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Separator className="my-6" />
+
+              <div className="space-y-4">
+                  <div className='space-y-1'>
+                      <h3 className="text-lg font-medium">Local Físico (Opcional)</h3>
+                      <p className="text-sm text-muted-foreground">Preencha se a assembleia for híbrida e tiver um local para participação presencial.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="locationAddress"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Endereço</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Av. Paulista, 123" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="locationCity"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Cidade</FormLabel>
+                            <FormControl>
+                              <Input placeholder="São Paulo" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="locationState"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Estado</FormLabel>
+                            <FormControl>
+                              <Input placeholder="SP" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="locationZip"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CEP</FormLabel>
+                            <FormControl>
+                              <Input placeholder="01311-000" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="locationDetails"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Detalhes Adicionais do Local</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Andar, sala, etc." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+              </div>
+
+              <Separator className="my-6" />
+
+              <FormField
                   control={form.control}
                   name="allowProxyVoting"
                   render={({ field }) => (
@@ -444,3 +573,5 @@ export default function EditAssemblyPage() {
     </>
   );
 }
+
+    

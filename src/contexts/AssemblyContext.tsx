@@ -1,5 +1,5 @@
 'use client';
-import type { Assembly } from '@/lib/data';
+import type { Assembly, UserProfile } from '@/lib/data';
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface AssemblyContextType {
@@ -13,6 +13,10 @@ interface AssemblyContextType {
   setIsEndAssemblyDialogOpen: (isOpen: boolean) => void;
   isStartAssemblyDialogOpen: boolean;
   setIsStartAssemblyDialogOpen: (isOpen: boolean) => void;
+  attendees: UserProfile[];
+  setAttendees: (attendees: UserProfile[]) => void;
+  isAttendeesSheetOpen: boolean;
+  setIsAttendeesSheetOpen: (isOpen: boolean) => void;
 }
 
 const AssemblyContext = createContext<AssemblyContextType | undefined>(undefined);
@@ -23,9 +27,19 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen] = useState(false);
   const [isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen] = useState(false);
+  const [attendees, setAttendees] = useState<UserProfile[]>([]);
+  const [isAttendeesSheetOpen, setIsAttendeesSheetOpen] = useState(false);
 
   return (
-    <AssemblyContext.Provider value={{ assembly, setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen }}>
+    <AssemblyContext.Provider value={{ 
+        assembly, setAssembly, 
+        isQueueOpen, setIsQueueOpen, 
+        isChatOpen, setIsChatOpen, 
+        isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, 
+        isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen,
+        attendees, setAttendees,
+        isAttendeesSheetOpen, setIsAttendeesSheetOpen
+      }}>
       {children}
     </AssemblyContext.Provider>
   );
@@ -36,3 +50,5 @@ export function useAssemblyContext() {
   // Do not throw an error, so the header can use it optionally
   return context;
 }
+
+    

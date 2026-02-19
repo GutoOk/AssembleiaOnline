@@ -86,6 +86,14 @@ export type Assembly = {
   endedAt?: Timestamp;
   allowProxyVoting?: boolean;
   maxProxiesPerUser?: number;
+  location?: {
+    address: string;
+    city: string;
+    state: string;
+    zip: string;
+    details?: string;
+  };
+  convocationNoticeUrl?: string;
 };
 
 export type ChatMessage = {
@@ -107,3 +115,10 @@ export type ProxyAssignment = {
   proxyId: string; // Representative's UID
   createdAt: Timestamp;
 };
+
+export type AssemblyPresence = {
+  id: string; // user UID
+  joinedAt: Timestamp;
+};
+
+    

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2 } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -41,7 +41,7 @@ import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
-import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment } from '@/lib/data';
+import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -54,6 +54,7 @@ import { useForm, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { ChatSheet } from '@/components/ChatSheet';
+import { AttendeesSheet } from '@/components/AttendeesSheet';
 
 const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
   if (!text) {
@@ -884,7 +885,7 @@ export default function AssemblyPage() {
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
 
   const assemblyContext = useAssemblyContext();
-  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen } = assemblyContext!;
+  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees } = assemblyContext!;
 
   const ataForm = useForm<z.infer<typeof ataSchema>>({
     resolver: zodResolver(ataSchema),
@@ -898,6 +899,7 @@ export default function AssemblyPage() {
   }, [firestore, params.id, user]);
 
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
+  const assemblyId = assembly?.id;
 
   const pollsQuery = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -930,6 +932,7 @@ export default function AssemblyPage() {
   const { data: ataItems, isLoading: areAtaItemsLoading } = useCollection<AtaItem>(ataQuery);
   const { data: representedAssignments } = useCollection<ProxyAssignment>(representedUsersQuery);
   const { data: userProxyGrant } = useDoc<ProxyAssignment>(userProxyGrantQuery);
+
 
   // This is a complex dependency. To avoid re-fetching profiles unnecessarily,
   // we gather all votes from all polls. This is not ideal, but better than fetching in the child.
@@ -979,6 +982,37 @@ export default function AssemblyPage() {
       setAssembly(null);
     };
   }, [assembly, setAssembly]);
+
+  // --- Presence Logic ---
+  const presenceQuery = useMemoFirebase(() => {
+      if (!firestore || !assemblyId) return null;
+      return collection(firestore, 'assemblies', assemblyId, 'presence');
+  }, [firestore, assemblyId]);
+
+  const { data: presenceData } = useCollection<AssemblyPresence>(presenceQuery);
+  const attendeeIds = useMemo(() => presenceData?.map(p => p.id) ?? [], [presenceData]);
+  const { profiles: attendeeProfiles } = useUserProfiles(attendeeIds);
+
+  useEffect(() => {
+      if (!firestore || !user || !assemblyId) return;
+
+      const presenceRef = doc(firestore, 'assemblies', assemblyId, 'presence', user.uid);
+      setDocumentNonBlocking(presenceRef, { joinedAt: serverTimestamp() }, {});
+
+      return () => {
+          deleteDocumentNonBlocking(presenceRef);
+      };
+  }, [firestore, user, assemblyId]);
+
+  useEffect(() => {
+      if (attendeeProfiles) {
+          const profilesArray = Object.values(attendeeProfiles);
+          profilesArray.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          setAttendees(profilesArray);
+      }
+  }, [attendeeProfiles, setAttendees]);
+  // --- End Presence Logic ---
+
 
   const handleCreatePollFromText = (text: string) => {
     if (!text.trim()) {
@@ -1087,7 +1121,6 @@ export default function AssemblyPage() {
     notFound();
   }
   
-  const assemblyId = assembly.id;
   const assemblyDate = assembly.date.toDate();
 
   return (
@@ -1107,6 +1140,7 @@ export default function AssemblyPage() {
       onOpenChange={setIsChatOpen}
       assemblyId={assembly.id}
     />
+    <AttendeesSheet />
     <Sheet open={isQueueOpen} onOpenChange={setIsQueueOpen}>
         <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
           <SheetHeader className="p-6 pb-4">
@@ -1135,6 +1169,22 @@ export default function AssemblyPage() {
           <p className="text-muted-foreground mt-1">
             {format(assemblyDate, "eeee, dd 'de' MMMM, yyyy 'às' HH:mm", { locale: ptBR })}
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            {assembly.location && (
+              <div className="flex items-center gap-1.5">
+                <MapPin className="h-4 w-4" />
+                <span>{assembly.location.address}, {assembly.location.city}</span>
+              </div>
+            )}
+            {assembly.convocationNoticeUrl && (
+              <div className="flex items-center gap-1.5">
+                <FileText className="h-4 w-4" />
+                <a href={assembly.convocationNoticeUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">
+                  Edital de Convocação
+                </a>
+              </div>
+            )}
+        </div>
         </div>
 
         <div className="space-y-4">
@@ -1269,3 +1319,5 @@ export default function AssemblyPage() {
     </>
   );
 }
+
+    
