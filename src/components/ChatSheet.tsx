@@ -9,7 +9,7 @@ import { Loader2, Send, MoreVertical, ShieldBan } from 'lucide-react';
 import { useCollection, useFirestore, useUser, addDocumentNonBlocking, setDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, limit, doc } from 'firebase/firestore';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
-import { useBlockedUsers } from '@/hooks/use-blocked-users';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useToast } from '@/hooks/use-toast';
 import type { ChatMessage, UserProfile } from '@/lib/data';
 import { formatDistanceToNow } from 'date-fns';
