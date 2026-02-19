@@ -161,11 +161,8 @@ service cloud.firestore {
 
       match /presence/{userId} {
         allow read, list: if isSignedIn();
-        allow create, delete: if isOwner(userId);
-        allow update: if false;
+        allow write: if isOwner(userId);
       }
     }
   }
 }
-
-    
