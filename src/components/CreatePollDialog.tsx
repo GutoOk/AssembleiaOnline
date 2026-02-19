@@ -69,11 +69,9 @@ interface CreatePollDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assembly: Assembly;
-  initialQuestion?: string;
-  onSuccess?: () => void;
 }
 
-export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion, onSuccess }: CreatePollDialogProps) {
+export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [pollDataToConfirm, setPollDataToConfirm] = useState<z.infer<typeof pollSchema> | null>(null);
@@ -100,7 +98,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
   useEffect(() => {
     if (open) {
       form.reset({
-        question: initialQuestion || '',
+        question: '',
         duration: 5,
         type: 'proposal',
         options: [{ text: 'A favor' }, { text: 'Contra' }, { text: 'Abstenção' }],
@@ -108,7 +106,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
         totalActiveMembers: undefined
       });
     }
-  }, [open, initialQuestion, form]);
+  }, [open, form]);
   
   useEffect(() => {
     form.clearErrors();
@@ -183,7 +181,6 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
         title: 'Votação Criada!',
         description: 'A nova votação já está disponível para os participantes.',
       });
-      onSuccess?.();
       form.reset();
       onOpenChange(false); // Close main dialog
     } catch (error) {
@@ -376,12 +373,11 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
 
               <DialogFooter>
                  <DialogClose asChild>
-                  <Button type="button" variant="secondary" disabled={form.formState.isSubmitting}>
+                  <Button type="button" variant="secondary">
                       Cancelar
                   </Button>
                  </DialogClose>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                <Button type="submit">
                   Publicar Votação
                 </Button>
               </DialogFooter>

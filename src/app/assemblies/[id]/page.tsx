@@ -807,12 +807,10 @@ const ataSchema = z.object({
 function AdminActionCard({
   assembly,
   user,
-  onCreatePoll,
   form,
 }: {
   assembly: Assembly;
   user: any;
-  onCreatePoll: (text: string) => void;
   form: UseFormReturn<z.infer<typeof ataSchema>>;
 }) {
   const firestore = useFirestore();
@@ -834,16 +832,11 @@ function AdminActionCard({
     form.reset();
   };
 
-  const handleCreatePollClick = () => {
-    const text = form.getValues('text');
-    onCreatePoll(text);
-  };
-
   return (
     <Card>
       <CardHeader className="p-4">
-        <CardTitle className="flex items-center gap-1 text-lg"><PlusCircle className="h-5 w-5" /> Adicionar na Ata</CardTitle>
-        <CardDescription>Registre um fato ou use o texto para criar uma nova votação.</CardDescription>
+        <CardTitle className="flex items-center gap-1 text-lg"><BookText className="h-5 w-5" /> Adicionar na Ata</CardTitle>
+        <CardDescription>Registre um fato ou deliberação para que conste na ata da assembleia.</CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -861,18 +854,15 @@ function AdminActionCard({
               )}
             />
           </CardContent>
-          <CardFooter className="p-4 pt-0 flex justify-between items-center">
-            <Button type="submit" variant="secondary">
+          <CardFooter className="p-4 pt-0 flex justify-end">
+            <Button type="submit">
               Publicar Registro
-            </Button>
-            <Button type="button" onClick={handleCreatePollClick}>
-              <PlusCircle className="h-4 w-4" /> Criar Votação
             </Button>
           </CardFooter>
         </form>
       </Form>
     </Card>
-  )
+  );
 }
 
 function AtaCard({ ataItem, isAdmin, assemblyFinished, userProfiles }: { ataItem: AtaItem, isAdmin: boolean, assemblyFinished: boolean, userProfiles: Record<string, UserProfile> }) {
@@ -975,7 +965,6 @@ export default function AssemblyPage() {
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
   const { toast } = useToast();
   const [isCreatePollOpen, setCreatePollOpen] = useState(false);
-  const [pollQuestionFromAta, setPollQuestionFromAta] = useState('');
   const [isEditUrlOpen, setEditUrlOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
   const [newZoomUrl, setNewZoomUrl] = useState('');
@@ -1119,20 +1108,6 @@ export default function AssemblyPage() {
       }
   }, [attendeeProfiles, setAttendees]);
   // --- End Presence Logic ---
-
-
-  const handleCreatePollFromText = (text: string) => {
-    if (!text.trim()) {
-        toast({
-            variant: 'destructive',
-            title: 'A pergunta não pode estar vazia',
-            description: 'Digite um texto para usar como pergunta da votação.',
-        });
-        return;
-    }
-    setPollQuestionFromAta(text);
-    setCreatePollOpen(true);
-  };
 
 
   const handleJoinQueue = () => {
@@ -1387,20 +1362,30 @@ export default function AssemblyPage() {
             </Card>
 
             {isAdmin && !assemblyFinished && (
-              <AdminActionCard 
-                assembly={assembly} 
-                user={user} 
-                onCreatePoll={handleCreatePollFromText} 
-                form={ataForm}
-              />
+              <div className="grid md:grid-cols-2 gap-4 items-start">
+                <AdminActionCard 
+                  assembly={assembly} 
+                  user={user} 
+                  form={ataForm}
+                />
+                <Card>
+                  <CardHeader className="p-4">
+                    <CardTitle className="flex items-center gap-1 text-lg"><PlusCircle className="h-5 w-5" /> Criar Votação</CardTitle>
+                    <CardDescription>Inicie uma nova votação para os membros participantes.</CardDescription>
+                  </CardHeader>
+                  <CardFooter className="p-4 pt-0">
+                    <Button onClick={() => setCreatePollOpen(true)}>
+                        <PlusCircle className="h-4 w-4" /> Nova Votação
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </div>
             )}
             
             <CreatePollDialog
               open={isCreatePollOpen}
               onOpenChange={setCreatePollOpen}
               assembly={assembly}
-              initialQuestion={pollQuestionFromAta}
-              onSuccess={() => ataForm.reset()}
             />
 
             <div className="flex items-center gap-2 pt-4 pb-2">
