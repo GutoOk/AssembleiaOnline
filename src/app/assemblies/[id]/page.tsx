@@ -161,7 +161,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
   const optionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'options'), orderBy('text', 'asc'));
+    return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'options'), orderBy('createdAt', 'asc'));
   }, [firestore, assemblyId, poll.id, user]);
 
   const votesQuery = useMemoFirebase(() => {
@@ -183,29 +183,27 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const proxyGranteeProfile = userProxyGrant ? userProfiles[userProxyGrant.proxyId] : null;
 
   const pollResult = useMemo(() => {
-    if (!pollEnded || !options || !votes || poll.status === 'annulled') {
+    if (poll.type !== 'proposal' || !pollEnded || !options || !votes || poll.status === 'annulled') {
       return null;
     }
 
-    const simOption = options.find(o => o.text.trim().toLowerCase() === 'sim');
-    const naoOption = options.find(o => o.text.trim().toLowerCase() === 'não');
-    const abstencaoOption = options.find(o => o.text.trim().toLowerCase() === 'abstenção');
+    const favorOption = options.find(o => o.text.trim().toLowerCase() === 'a favor');
+    const contraOption = options.find(o => o.text.trim().toLowerCase() === 'contra');
 
-    // If it's not a simple Yes/No poll, we can't determine a winner.
-    if (!simOption || !naoOption) {
-      return { status: 'Não aplicável', message: 'Não é uma votação de aprovação simples (Sim/Não).' };
+    if (!favorOption || !contraOption) {
+      return { status: 'Indeterminado', message: 'Não é uma votação de proposta padrão (A favor/Contra).' };
     }
 
-    const simVotes = votes.filter(v => v.pollOptionId === simOption.id).length;
-    const naoVotes = votes.filter(v => v.pollOptionId === naoOption.id).length;
+    const favorVotes = votes.filter(v => v.pollOptionId === favorOption.id).length;
+    const contraVotes = votes.filter(v => v.pollOptionId === contraOption.id).length;
 
     let isApproved = false;
     let quorumMessage = '';
 
     switch (poll.quorumType) {
       case 'simple_majority':
-        isApproved = simVotes > naoVotes;
-        quorumMessage = `Maioria Simples: ${simVotes} (Sim) vs ${naoVotes} (Não).`;
+        isApproved = favorVotes > contraVotes;
+        quorumMessage = `Maioria Simples: ${favorVotes} (A favor) vs ${contraVotes} (Contra).`;
         break;
       
       case 'absolute_majority':
@@ -213,18 +211,18 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
           return { status: 'Indeterminado', message: 'Número total de membros ativos não definido para cálculo de maioria absoluta.' };
         }
         const requiredVotes = Math.floor(poll.totalActiveMembers / 2) + 1;
-        isApproved = simVotes >= requiredVotes;
-        quorumMessage = `Maioria Absoluta: ${simVotes} votos de ${requiredVotes} necessários (baseado em ${poll.totalActiveMembers} membros).`;
+        isApproved = favorVotes >= requiredVotes;
+        quorumMessage = `Maioria Absoluta: ${favorVotes} votos de ${requiredVotes} necessários (baseado em ${poll.totalActiveMembers} membros).`;
         break;
 
       case 'two_thirds_majority':
-        const totalValidVotes = simVotes + naoVotes;
+        const totalValidVotes = favorVotes + contraVotes;
         if (totalValidVotes === 0) {
-            isApproved = false; // No valid votes, can't be approved.
+            isApproved = false;
         } else {
-            isApproved = simVotes >= (2/3) * totalValidVotes;
+            isApproved = favorVotes >= (2/3) * totalValidVotes;
         }
-        quorumMessage = `Quórum de 2/3: ${simVotes} votos de um total de ${totalValidVotes} (Sim + Não).`;
+        quorumMessage = `Quórum de 2/3: ${favorVotes} votos a favor de um total de ${totalValidVotes} (A favor + Contra).`;
         break;
       
       default:
@@ -357,7 +355,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
   const isLoading = isLoadingOptions || isLoadingVotes;
   
-  const quorumTextMap: Record<Poll['quorumType'], string> = {
+  const quorumTextMap: Record<string, string> = {
     simple_majority: 'Maioria Simples',
     absolute_majority: 'Maioria Absoluta',
     two_thirds_majority: '2/3 dos Votantes',
@@ -365,7 +363,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
   const quorumText = poll.quorumType ? quorumTextMap[poll.quorumType] : '';
   let fullQuorumText = quorumText;
-  if (poll.quorumType === 'absolute_majority' && poll.totalActiveMembers) {
+  if (poll.type === 'proposal' && poll.quorumType === 'absolute_majority' && poll.totalActiveMembers) {
     fullQuorumText = `${quorumText} (${poll.totalActiveMembers} membros)`;
   }
   
@@ -412,7 +410,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                 <CardDescription className="flex items-center gap-1">
                     <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
                 </CardDescription>
-                {fullQuorumText && (
+                {poll.type === 'proposal' && fullQuorumText && (
                     <>
                         <Separator orientation="vertical" className="h-4" />
                         <CardDescription className="flex items-center gap-1">
@@ -494,7 +492,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                         </div>
                     </div>
                 )}
-                {pollEnded && pollResult && (
+                {poll.type === 'proposal' && pollEnded && pollResult && (
                   <div className={`mb-4 p-3 rounded-md text-sm border ${
                       pollResult.status === 'Aprovada'
                       ? 'bg-green-50 border-green-200 text-green-900 dark:bg-green-900/20 dark:border-green-500/30 dark:text-green-200'
@@ -1407,3 +1405,5 @@ export default function AssemblyPage() {
     </>
   );
 }
+
+    

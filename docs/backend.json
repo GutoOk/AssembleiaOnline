@@ -240,9 +240,17 @@
           "description": "Timestamp indicating when the poll was annulled.",
           "format": "date-time"
         },
+        "type": {
+          "type": "string",
+          "description": "The type of the poll, determining its rules. 'proposal' for formal voting with quorum, 'opinion' for informal queries.",
+          "enum": [
+            "proposal",
+            "opinion"
+          ]
+        },
         "quorumType": {
           "type": "string",
-          "description": "The quorum rule required for the poll's approval.",
+          "description": "The quorum rule required for the poll's approval. Required only for 'proposal' type polls.",
           "enum": [
             "simple_majority",
             "absolute_majority",
@@ -251,7 +259,7 @@
         },
         "totalActiveMembers": {
           "type": "number",
-          "description": "The total number of active members at the time of the poll, required for absolute majority calculations."
+          "description": "The total number of active members at the time of the poll, required for absolute majority calculations on 'proposal' type polls."
         }
       },
       "required": [
@@ -263,7 +271,7 @@
         "status",
         "assemblyStatus",
         "createdAt",
-        "quorumType"
+        "type"
       ]
     },
     "PollOption": {
@@ -282,7 +290,7 @@
         },
         "text": {
           "type": "string",
-          "description": "The text of the voting option (e.g., 'Sim', 'Não', 'Abstenção', or a custom answer)."
+          "description": "The text of the voting option (e.g., 'A favor', 'Contra', 'Abstenção', or a custom answer)."
         },
         "createdAt": {
           "type": "string",

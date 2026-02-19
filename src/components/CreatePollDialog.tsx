@@ -34,25 +34,34 @@ import type { Assembly } from '@/lib/data';
 import { Separator } from './ui/separator';
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 
 const pollSchema = z.object({
   question: z.string().min(10, 'A pergunta deve ter pelo menos 10 caracteres.'),
   duration: z.coerce.number().min(1, 'A duração deve ser de pelo menos 1 minuto.'),
+  type: z.enum(['proposal', 'opinion']),
   options: z.array(z.object({
     text: z.string().min(1, 'O texto da opção não pode estar vazio.'),
-  })).min(2, 'A votação deve ter pelo menos 2 opções.'),
-  quorumType: z.enum(['simple_majority', 'absolute_majority', 'two_thirds_majority'], {
-      required_error: "Selecione o quórum de aprovação."
-  }),
+  })).min(1, 'A votação deve ter pelo menos 1 opção.'),
+  quorumType: z.enum(['simple_majority', 'absolute_majority', 'two_thirds_majority']).optional(),
   totalActiveMembers: z.coerce.number().optional(),
-}).refine((data) => {
-    if (data.quorumType === 'absolute_majority') {
-        return data.totalActiveMembers !== undefined && data.totalActiveMembers > 0;
+}).superRefine((data, ctx) => {
+    if (data.type === 'proposal') {
+        if (!data.quorumType) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'Selecione o quórum de aprovação.',
+                path: ['quorumType'],
+            });
+        }
+        if (data.quorumType === 'absolute_majority' && (!data.totalActiveMembers || data.totalActiveMembers <= 0)) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'O número total de associados ativos é obrigatório para Maioria Absoluta.',
+                path: ['totalActiveMembers'],
+            });
+        }
     }
-    return true;
-}, {
-    message: 'O número total de associados ativos é obrigatório para Maioria Absoluta.',
-    path: ['totalActiveMembers'],
 });
 
 
@@ -75,12 +84,13 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
     defaultValues: {
       question: '',
       duration: 5,
-      options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
+      type: 'proposal',
+      options: [{ text: 'A favor' }, { text: 'Contra' }, { text: 'Abstenção' }],
       quorumType: 'simple_majority',
     },
   });
   
-  const watchedQuorumType = form.watch('quorumType');
+  const watchedPollType = form.watch('type');
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -92,12 +102,28 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
       form.reset({
         question: initialQuestion || '',
         duration: 5,
-        options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
+        type: 'proposal',
+        options: [{ text: 'A favor' }, { text: 'Contra' }, { text: 'Abstenção' }],
         quorumType: 'simple_majority',
         totalActiveMembers: undefined
       });
     }
   }, [open, initialQuestion, form]);
+  
+  useEffect(() => {
+    form.clearErrors();
+    if (watchedPollType === 'proposal') {
+      form.setValue('options', [{ text: 'A favor' }, { text: 'Contra' }, { text: 'Abstenção' }]);
+      if (!form.getValues('quorumType')) {
+        form.setValue('quorumType', 'simple_majority');
+      }
+    } else if (watchedPollType === 'opinion') {
+      form.setValue('options', [{ text: '' }]);
+      form.setValue('quorumType', undefined);
+      form.setValue('totalActiveMembers', undefined);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedPollType]);
 
 
   const onSubmit = (values: z.infer<typeof pollSchema>) => {
@@ -121,8 +147,9 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
         assemblyId: assembly.id,
         administratorId: assembly.administratorId,
         assemblyStatus: assembly.status,
-        quorumType: values.quorumType,
-        totalActiveMembers: values.quorumType === 'absolute_majority' ? values.totalActiveMembers : null,
+        type: values.type,
+        quorumType: values.type === 'proposal' ? values.quorumType : undefined,
+        totalActiveMembers: values.type === 'proposal' ? values.totalActiveMembers : undefined,
       };
       
       const pollDocRef = await addDocumentNonBlocking(pollsRef, pollData);
@@ -166,13 +193,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
   
   const handleDialogStateChange = (isOpen: boolean) => {
     if (!isOpen) {
-      form.reset({
-        question: '',
-        duration: 5,
-        options: [{ text: 'Sim' }, { text: 'Não' }, { text: 'Abstenção' }],
-        quorumType: 'simple_majority',
-        totalActiveMembers: undefined,
-      });
+      form.reset();
     }
     onOpenChange(isOpen);
   };
@@ -190,6 +211,41 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Tipo de Votação</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        className="flex space-x-4"
+                      >
+                        <FormItem className="flex items-center space-x-2">
+                          <FormControl>
+                            <RadioGroupItem value="proposal" id="proposal" />
+                          </FormControl>
+                          <FormLabel htmlFor="proposal" className="font-normal">
+                            Votação de Proposta
+                          </FormLabel>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-2">
+                          <FormControl>
+                            <RadioGroupItem value="opinion" id="opinion" />
+                          </FormControl>
+                          <FormLabel htmlFor="opinion" className="font-normal">
+                            Consulta de Opinião
+                          </FormLabel>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name="question"
@@ -217,45 +273,48 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
                 )}
               />
               
-              <FormField
-                control={form.control}
-                name="quorumType"
-                render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Quórum de Aprovação</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecione o quórum" />
-                                </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                <SelectItem value="simple_majority">Maioria Simples</SelectItem>
-                                <SelectItem value="absolute_majority">Maioria Absoluta</SelectItem>
-                                <SelectItem value="two_thirds_majority">2/3 dos Votantes</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                )}
-              />
-              {watchedQuorumType === 'absolute_majority' && (
-                  <FormField
-                      control={form.control}
-                      name="totalActiveMembers"
-                      render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Total de Associados Ativos</FormLabel>
-                              <FormControl>
-                                  <Input type="number" placeholder="Ex: 500" {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormDescription>Necessário para o cálculo de maioria absoluta.</FormDescription>
-                              <FormMessage />
-                          </FormItem>
-                      )}
+              {watchedPollType === 'proposal' && (
+                <>
+                 <FormField
+                    control={form.control}
+                    name="quorumType"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Quórum de Aprovação</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione o quórum" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="simple_majority">Maioria Simples</SelectItem>
+                                    <SelectItem value="absolute_majority">Maioria Absoluta</SelectItem>
+                                    <SelectItem value="two_thirds_majority">2/3 dos Votantes</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
                   />
+                  {form.watch('quorumType') === 'absolute_majority' && (
+                      <FormField
+                          control={form.control}
+                          name="totalActiveMembers"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Total de Associados Ativos</FormLabel>
+                                  <FormControl>
+                                      <Input type="number" placeholder="Ex: 500" {...field} value={field.value ?? ''} />
+                                  </FormControl>
+                                  <FormDescription>Necessário para o cálculo de maioria absoluta.</FormDescription>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                  )}
+                </>
               )}
-
 
               <Separator />
               
@@ -271,18 +330,20 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
                         <FormItem>
                           <div className="flex items-center gap-2">
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} readOnly={watchedPollType === 'proposal'} />
                             </FormControl>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => remove(index)}
-                              disabled={fields.length <= 2}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                              <span className="sr-only">Remover opção</span>
-                            </Button>
+                            {watchedPollType === 'opinion' && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => remove(index)}
+                                disabled={fields.length <= 1}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                                <span className="sr-only">Remover opção</span>
+                              </Button>
+                            )}
                           </div>
                           <FormMessage />
                         </FormItem>
@@ -290,17 +351,19 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
                     />
                   ))}
                 </div>
-                 <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => append({ text: '' })}
-                  >
-                    <PlusCircle className="h-4 w-4" />
-                    Adicionar Opção
+                {watchedPollType === 'opinion' && (
+                  <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => append({ text: '' })}
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                      Adicionar Opção
                   </Button>
-                  <FormMessage>{form.formState.errors.options?.root?.message}</FormMessage>
+                )}
+                  <FormMessage>{form.formState.errors.options?.root?.message || form.formState.errors.options?.message}</FormMessage>
               </div>
 
               <DialogFooter>
@@ -339,3 +402,5 @@ export function CreatePollDialog({ open, onOpenChange, assembly, initialQuestion
     </>
   );
 }
+
+    

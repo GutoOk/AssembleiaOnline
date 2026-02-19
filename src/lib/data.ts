@@ -35,6 +35,7 @@ export type Poll = {
   status: 'draft' | 'open' | 'closed' | 'annulled';
   createdAt: Timestamp;
   updatedAt?: Timestamp;
+  type: 'proposal' | 'opinion';
   // Denormalized fields for rules
   assemblyId: string;
   administratorId: string;
@@ -44,7 +45,7 @@ export type Poll = {
   annulledBy?: string; // UID of admin
   annulledAt?: Timestamp;
   // Quorum fields
-  quorumType: 'simple_majority' | 'absolute_majority' | 'two_thirds_majority';
+  quorumType?: 'simple_majority' | 'absolute_majority' | 'two_thirds_majority';
   totalActiveMembers?: number;
 };
 
