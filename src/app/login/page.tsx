@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth, useFirestore, useUser } from '@/firebase';
@@ -50,15 +50,45 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import ReactCrop, {
+  type Crop,
+  type PixelCrop,
+  centerCrop,
+  makeAspectCrop,
+} from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const registerSchema = z.object({
   name: z.string().min(3, 'O nome deve ter pelo menos 3 caracteres.'),
   password: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres.'),
 });
+
+// Helper function to create a default crop area
+function centerAspectCrop(
+  mediaWidth: number,
+  mediaHeight: number,
+  aspect: number
+) {
+  return centerCrop(
+    makeAspectCrop(
+      {
+        unit: '%',
+        width: 90,
+      },
+      aspect,
+      mediaWidth,
+      mediaHeight
+    ),
+    mediaWidth,
+    mediaHeight
+  );
+}
 
 function RegisterDialog({
   open,
@@ -73,6 +103,16 @@ function RegisterDialog({
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // State for image cropper
+  const [imgSrc, setImgSrc] = useState('');
+  const [crop, setCrop] = useState<Crop>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+  const [isCropperOpen, setCropperOpen] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -82,8 +122,79 @@ function RegisterDialog({
   useEffect(() => {
     if (open) {
       form.reset({ name: '', password: '' });
+      setAvatarPreview(null);
+      setImgSrc('');
     }
   }, [open, form]);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      if (file.size > 5 * 1024 * 1024) {
+        // 5MB limit
+        toast({
+          variant: 'destructive',
+          title: 'Imagem muito grande',
+          description: 'Por favor, selecione um arquivo com menos de 5MB.',
+        });
+        return;
+      }
+      setIsUploading(true);
+      setCrop(undefined); // Reset crop
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        setImgSrc(reader.result?.toString() || '');
+        setCropperOpen(true);
+        setIsUploading(false);
+      });
+      reader.readAsDataURL(file);
+      e.target.value = ''; // Reset file input
+    }
+  };
+
+  function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    imgRef.current = e.currentTarget;
+    const { width, height } = e.currentTarget;
+    setCrop(centerAspectCrop(width, height, 1 / 1));
+  }
+
+  const handleApplyCrop = async () => {
+    if (completedCrop && imgRef.current) {
+      const canvas = document.createElement('canvas');
+      const scaleX = imgRef.current.naturalWidth / imgRef.current.width;
+      const scaleY = imgRef.current.naturalHeight / imgRef.current.height;
+      canvas.width = completedCrop.width;
+      canvas.height = completedCrop.height;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro',
+          description: 'Não foi possível processar a imagem.',
+        });
+        return;
+      }
+
+      ctx.drawImage(
+        imgRef.current,
+        completedCrop.x * scaleX,
+        completedCrop.y * scaleY,
+        completedCrop.width * scaleX,
+        completedCrop.height * scaleY,
+        0,
+        0,
+        completedCrop.width,
+        completedCrop.height
+      );
+
+      // Compress to JPEG with 80% quality
+      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      setAvatarPreview(compressedDataUrl);
+      setCropperOpen(false);
+      setImgSrc('');
+    }
+  };
 
   const handleRegister = async (values: z.infer<typeof registerSchema>) => {
     if (!auth || !firestore) return;
@@ -101,11 +212,15 @@ function RegisterDialog({
         id: newUser.uid,
         name: values.name,
         email: email,
-        avatarDataUri: `https://avatar.vercel.sh/${newUser.uid}.svg`,
+        avatarDataUri:
+          avatarPreview || `https://avatar.vercel.sh/${newUser.uid}.svg`,
       };
 
       const userDocRef = doc(firestore, 'users', newUser.uid);
-      await setDoc(userDocRef, { ...userProfile, createdAt: serverTimestamp() });
+      await setDoc(userDocRef, {
+        ...userProfile,
+        createdAt: serverTimestamp(),
+      });
 
       if (newUser.email === 'admin@assembleia.dev') {
         const adminDocRef = doc(firestore, 'admins', newUser.uid);
@@ -141,74 +256,161 @@ function RegisterDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Realizar Cadastro</DialogTitle>
-          <DialogDescription>
-            Complete os campos abaixo para criar sua conta.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(handleRegister)}
-            className="space-y-4"
-          >
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" value={email} disabled />
-              </FormControl>
-            </FormItem>
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome Completo</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Seu nome completo" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Senha</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Mínimo 6 caracteres"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Realizar Cadastro</DialogTitle>
+            <DialogDescription>
+              Complete os campos abaixo para criar sua conta.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleRegister)}
+              className="space-y-4"
+            >
+              <div className="flex flex-col items-center space-y-2">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={avatarPreview ?? ''} />
+                  <AvatarFallback className="text-2xl">
+                    {(
+                      form.getValues('name')?.charAt(0) ||
+                      email.charAt(0) ||
+                      ''
+                    ).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                  accept="image/png, image/jpeg, image/webp"
+                  disabled={isLoading || isUploading}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading || isUploading}
+                >
+                  {isUploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
+                  Carregar Foto
+                </Button>
+                <FormDescription>
+                  Opcional. Você pode adicionar uma foto depois.
+                </FormDescription>
+              </div>
+
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" value={email} disabled />
+                </FormControl>
+              </FormItem>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome Completo</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Seu nome completo" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-                Cadastrar
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Senha</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Mínimo 6 caracteres"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onOpenChange(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Cadastrar
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCropperOpen} onOpenChange={setCropperOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+          <DialogHeader>
+            <DialogTitle>Recortar Imagem</DialogTitle>
+            <DialogDescription>
+              Ajuste a imagem para seu novo avatar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 flex justify-center">
+            {imgSrc && (
+              <ReactCrop
+                crop={crop}
+                onChange={(_, percentCrop) => setCrop(percentCrop)}
+                onComplete={(c) => setCompletedCrop(c)}
+                aspect={1}
+                minWidth={100}
+              >
+                <img
+                  ref={imgRef}
+                  alt="Crop me"
+                  src={imgSrc}
+                  onLoad={onImageLoad}
+                  style={{ maxHeight: '70vh' }}
+                />
+              </ReactCrop>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setCropperOpen(false);
+                setImgSrc('');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleApplyCrop}
+              disabled={!completedCrop}
+            >
+              Aplicar Recorte
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
