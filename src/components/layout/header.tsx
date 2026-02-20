@@ -194,7 +194,7 @@ export function Header() {
           </div>
           
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-2">
+          <nav className="hidden md:flex items-center gap-4">
             <UserNav />
 
             {pathname !== '/dashboard' && (
@@ -239,19 +239,12 @@ export function Header() {
            )}
 
             {showCreateAssemblyButton && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button asChild variant="ghost" size="icon" className="h-9 w-9">
-                    <Link href="/dashboard/assemblies/create">
-                      <PlusCircle className="h-5 w-5" />
-                      <span className="sr-only">Criar Assembleia</span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Criar Assembleia</p>
-                </TooltipContent>
-              </Tooltip>
+              <Button asChild>
+                <Link href="/dashboard/assemblies/create">
+                  <PlusCircle />
+                  Criar Assembleia
+                </Link>
+              </Button>
             )}
           </nav>
         </div>
