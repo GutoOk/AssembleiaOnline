@@ -115,7 +115,7 @@ export function Header() {
         )}
       >
         <Home className="h-5 w-5" />
-        {isAssemblyPage ? 'Sair' : 'Início'}
+        Início
       </Link>
       {isAdmin && pathname === '/dashboard' && (
         <Link
@@ -213,7 +213,7 @@ export function Header() {
               <Button asChild variant="ghost" className="text-muted-foreground hover:text-foreground">
                 <Link href="/dashboard">
                   <Home className="h-5 w-5" />
-                  Sair
+                  Início
                 </Link>
               </Button>
             )}
