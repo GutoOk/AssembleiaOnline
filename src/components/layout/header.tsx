@@ -129,6 +129,18 @@ export function Header() {
           Administradores
         </Link>
       )}
+      {showCreateAssemblyButton && (
+          <Link
+            href="/dashboard/assemblies/create"
+            className={cn(
+              "flex items-center gap-4 text-lg font-medium transition-colors hover:text-foreground",
+              "text-muted-foreground"
+            )}
+          >
+            <PlusCircle className="h-5 w-5" />
+            Criar Assembleia
+          </Link>
+      )}
        {showDownloadAtaButton && (
         <AtaDownloadDialog onConfirm={handleDownloadAta} disabled={isDownloadingAta}>
           <Button
@@ -149,7 +161,7 @@ export function Header() {
             <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
                 Fila de Inscrição
             </Button>
-            {isAdmin && (
+            {isAdmin && assemblyStatus === 'live' && (
               <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
                 <PlusCircle className="h-5 w-5" />
                 Criar Votação
@@ -229,7 +241,7 @@ export function Header() {
                       <Mic className="h-4 w-4" />
                       Fila de Inscrição
                   </Button>
-                  {isAdmin && (
+                  {isAdmin && assemblyStatus === 'live' && (
                     <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground">
                       <PlusCircle className="h-4 w-4" />
                       Criar Votação

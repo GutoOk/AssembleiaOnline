@@ -92,7 +92,7 @@ service cloud.firestore {
       match /polls/{pollId} {
         allow get: if isSignedIn();
         allow list: if isSignedIn();
-        allow create: if isAdmin() && request.resource.data.assemblyId == assemblyId;
+        allow create: if isAdmin() && request.resource.data.assemblyId == assemblyId && request.resource.data.assemblyStatus == 'live';
         allow update: if isAdminOfExistingDoc();
         allow delete: if isAdminOfExistingDoc();
       }
@@ -150,7 +150,7 @@ service cloud.firestore {
           allow create: if isAdmin() 
                         && request.resource.data.assemblyId == assemblyId
                         && request.resource.data.administratorId == request.auth.uid
-                        && request.resource.data.assemblyStatus != 'finished';
+                        && request.resource.data.assemblyStatus == 'live';
           allow update: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
           allow delete: if isAdminOfExistingDoc() && resource.data.assemblyStatus != 'finished';
       }

@@ -1364,7 +1364,7 @@ export default function AssemblyPage() {
               </CardContent>
             </Card>
 
-            {isAdmin && !assemblyFinished && (
+            {isAdmin && assembly.status === 'live' && (
               <AdminActionCard
                 assembly={assembly}
                 user={user}
