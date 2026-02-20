@@ -29,6 +29,7 @@ import {
   type User as FirebaseUser,
   sendEmailVerification,
   signOut,
+  fetchSignInMethodsForEmail,
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
@@ -351,24 +352,35 @@ export default function LoginPage() {
     }
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle redirect via the useEffect hook
-    } catch (signInError: any) {
-      if (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential') {
+      const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+
+      if (signInMethods.length === 0) {
         toast({
           variant: 'destructive',
-          title: 'Credenciais Inválidas',
-          description: 'Verifique seu e-mail e senha. Se não tiver uma conta, clique em "Criar novo usuário".',
+          title: 'Usuário não cadastrado',
+          description: "O e-mail informado não foi encontrado. Por favor, clique em 'Criar novo usuário' para se registrar.",
         });
       } else {
-        console.error('Sign-in error:', signInError);
+        // User exists, try to sign in
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+          // onAuthStateChanged will handle redirect
+        } catch (signInError: any) {
+          // If sign-in fails now, it's almost certainly a wrong password.
+          toast({
+            variant: 'destructive',
+            title: 'Senha incorreta',
+            description: 'A senha digitada está incorreta. Se necessário, utilize a opção "Esqueci minha senha".',
+          });
+        }
+      }
+    } catch (error) {
+        console.error('Login error:', error);
         toast({
           variant: 'destructive',
-          title: 'Erro Inesperado',
-          description:
-            'Ocorreu um erro durante o login. Verifique sua conexão e credenciais.',
+          title: 'Erro de Autenticação',
+          description: 'Ocorreu um erro ao verificar suas credenciais. Tente novamente.',
         });
-      }
     } finally {
       setIsLoadingEmail(false);
     }
@@ -395,11 +407,21 @@ export default function LoginPage() {
 
     setIsLoadingEmail(true);
     try {
-      await sendPasswordResetEmail(auth, email);
-      toast({
-        title: 'Email de Redefinição Enviado',
-        description: `Se uma conta com o email ${email} existir, um link para redefinir a senha foi enviado. Verifique sua caixa de entrada.`,
-      });
+      const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+
+      if (signInMethods.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Usuário não cadastrado',
+          description: "O e-mail informado não foi encontrado. Por favor, clique em 'Criar novo usuário' para se registrar.",
+        });
+      } else {
+        await sendPasswordResetEmail(auth, email);
+        toast({
+          title: 'Email de Redefinição Enviado',
+          description: `Um link para redefinir sua senha foi enviado para ${email}. Verifique sua caixa de entrada e spam.`,
+        });
+      }
     } catch (error: any) {
       console.error('Password reset error:', error);
       toast({
@@ -424,7 +446,7 @@ export default function LoginPage() {
     }
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
-      prompt: 'select_account', // Always prompt for account selection
+      prompt: 'select_account',
     });
 
     setIsLoadingGoogle(true);
