@@ -1247,34 +1247,11 @@ export default function AssemblyPage() {
       <div className="container mx-auto p-0 md:space-y-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{assembly.title}</h1>
-          <p className="text-muted-foreground mt-1">
-            {format(assemblyDate, "eeee, dd 'de' MMMM, yyyy 'às' HH:mm", { locale: ptBR })}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            {assembly.location && (
-              <div className="flex items-center gap-1.5">
-                <MapPin className="h-4 w-4" />
-                <span>{assembly.location.address}, {assembly.location.city}</span>
-              </div>
-            )}
-            {assembly.convocationNoticeUrl && (
-              <div className="flex items-center gap-1.5">
-                <FileText className="h-4 w-4" />
-                <a href={assembly.convocationNoticeUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">
-                  Edital de Convocação
-                </a>
-              </div>
-            )}
-        </div>
         </div>
 
         <div className="space-y-4">
           <Card>
-              <CardHeader className="flex flex-row items-center justify-between p-4">
-                <h2 className="text-xl tracking-tight flex items-center gap-2">
-                  <Video className="h-5 w-5 text-muted-foreground" />
-                  {assemblyFinished ? 'Gravação da Transmissão' : 'Transmissão ao Vivo'}
-                </h2>
+              <CardHeader className="flex flex-row items-center justify-end p-4">
                 <div className="flex items-center gap-1">
                   {isSpeaking && (
                       <Button onClick={handleEndParticipation} variant="destructive">
@@ -1402,3 +1379,5 @@ export default function AssemblyPage() {
     </>
   );
 }
+
+    

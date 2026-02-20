@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, MessageCircle, Users, Home, PlusCircle, PowerOff, Play, Download, Loader2, Mic } from 'lucide-react';
+import { Menu, MessageCircle, Users, Home, PlusCircle, PowerOff, Play, Download, Loader2, Mic, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -65,6 +65,12 @@ export function Header() {
       assemblyContext.setIsAttendeesSheetOpen(true);
     }
   }
+
+  const handleInfoClick = () => {
+    if (assemblyContext) {
+      assemblyContext.setIsInfoSheetOpen(true);
+    }
+  };
 
   const handleStartAssemblyClick = () => {
     if (assemblyContext) {
@@ -153,19 +159,24 @@ export function Header() {
           </Button>
         </AtaDownloadDialog>
       )}
-      {isAssemblyPage && isAssemblyActive && (
+      {isAssemblyPage && (
         <>
             <Separator className="my-2" />
-            <Button variant="ghost" onClick={handleAttendeesClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Online ({attendeesCount})</Button>
-            <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Chat</Button>
-            <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
-                Fila de Inscrição
-            </Button>
-            {isAdmin && assemblyStatus === 'live' && (
-              <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
-                <PlusCircle className="h-5 w-5" />
-                Criar Votação
-              </Button>
+            <Button variant="ghost" onClick={handleInfoClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Informações</Button>
+            {isAssemblyActive && (
+                <>
+                    <Button variant="ghost" onClick={handleAttendeesClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Online ({attendeesCount})</Button>
+                    <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">Chat</Button>
+                    <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
+                        Fila de Inscrição
+                    </Button>
+                    {isAdmin && assemblyStatus === 'live' && (
+                      <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
+                        <PlusCircle className="h-5 w-5" />
+                        Criar Votação
+                      </Button>
+                    )}
+                </>
             )}
         </>
       )}
@@ -227,25 +238,33 @@ export function Header() {
               </AtaDownloadDialog>
             )}
 
-            {isAssemblyPage && isAssemblyActive && (
+            {isAssemblyPage && (
               <div className="flex items-center gap-1">
-                  <Button variant="ghost" onClick={handleAttendeesClick} className="text-muted-foreground hover:text-foreground">
-                      <Users className="h-4 w-4" />
-                      Online ({attendeesCount})
+                  <Button variant="ghost" onClick={handleInfoClick} className="text-muted-foreground hover:text-foreground">
+                      <Info className="h-4 w-4" />
+                      Informações
                   </Button>
-                  <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground">
-                      <MessageCircle className="h-4 w-4" />
-                      Chat
-                  </Button>
-                  <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground">
-                      <Mic className="h-4 w-4" />
-                      Fila de Inscrição
-                  </Button>
-                  {isAdmin && assemblyStatus === 'live' && (
-                    <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground">
-                      <PlusCircle className="h-4 w-4" />
-                      Criar Votação
-                    </Button>
+                  {isAssemblyActive && (
+                    <>
+                        <Button variant="ghost" onClick={handleAttendeesClick} className="text-muted-foreground hover:text-foreground">
+                            <Users className="h-4 w-4" />
+                            Online ({attendeesCount})
+                        </Button>
+                        <Button variant="ghost" onClick={handleChatClick} className="text-muted-foreground hover:text-foreground">
+                            <MessageCircle className="h-4 w-4" />
+                            Chat
+                        </Button>
+                        <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground">
+                            <Mic className="h-4 w-4" />
+                            Fila de Inscrição
+                        </Button>
+                        {isAdmin && assemblyStatus === 'live' && (
+                          <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground">
+                            <PlusCircle className="h-4 w-4" />
+                            Criar Votação
+                          </Button>
+                        )}
+                    </>
                   )}
               </div>
            )}
@@ -299,3 +318,5 @@ export function Header() {
     </header>
   );
 }
+
+    

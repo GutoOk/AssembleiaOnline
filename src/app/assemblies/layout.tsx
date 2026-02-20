@@ -1,3 +1,5 @@
+'use client';
+import { AssemblyInformationSheet } from '@/components/AssemblyInformationSheet';
 import { Header } from '@/components/layout/header';
 import { AssemblyProvider } from '@/contexts/AssemblyContext';
 
@@ -13,7 +15,10 @@ export default function AssemblyLayout({
         <main className="flex flex-1 flex-col gap-4 bg-muted/40 p-4 md:gap-8 md:p-10">
           {children}
         </main>
+        <AssemblyInformationSheet />
       </div>
     </AssemblyProvider>
   );
 }
+
+    

@@ -21,6 +21,8 @@ interface AssemblyContextType {
   setTimelineItems: (items: (AtaItem | Poll)[]) => void;
   isCreatePollOpen: boolean;
   setIsCreatePollOpen: (isOpen: boolean) => void;
+  isInfoSheetOpen: boolean;
+  setIsInfoSheetOpen: (isOpen: boolean) => void;
 }
 
 const AssemblyContext = createContext<AssemblyContextType | undefined>(undefined);
@@ -35,6 +37,7 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
   const [isAttendeesSheetOpen, setIsAttendeesSheetOpen] = useState(false);
   const [timelineItems, setTimelineItems] = useState<(AtaItem | Poll)[]>([]);
   const [isCreatePollOpen, setIsCreatePollOpen] = useState(false);
+  const [isInfoSheetOpen, setIsInfoSheetOpen] = useState(false);
 
   return (
     <AssemblyContext.Provider value={{ 
@@ -46,7 +49,8 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
         attendees, setAttendees,
         isAttendeesSheetOpen, setIsAttendeesSheetOpen,
         timelineItems, setTimelineItems,
-        isCreatePollOpen, setIsCreatePollOpen
+        isCreatePollOpen, setIsCreatePollOpen,
+        isInfoSheetOpen, setIsInfoSheetOpen
       }}>
       {children}
     </AssemblyContext.Provider>
@@ -58,3 +62,5 @@ export function useAssemblyContext() {
   // Do not throw an error, so the header can use it optionally
   return context;
 }
+
+    

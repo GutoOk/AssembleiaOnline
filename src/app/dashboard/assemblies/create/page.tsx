@@ -41,7 +41,7 @@ const assemblySchema = z.object({
   zoomUrl: z.string().url("Por favor, insira um link de reunião válido.").optional().or(z.literal('')),
   allowProxyVoting: z.boolean().default(false),
   maxProxiesPerUser: z.coerce.number().int().min(0, "O valor deve ser positivo.").default(4),
-  convocationNoticeUrl: z.string().url("Por favor, insira um link válido para o edital.").optional().or(z.literal('')),
+  ordemDoDia: z.string().optional(),
   locationAddress: z.string().optional(),
   locationCity: z.string().optional(),
   locationState: z.string().optional(),
@@ -97,7 +97,7 @@ export default function CreateAssemblyPage() {
       zoomUrl: '',
       allowProxyVoting: false,
       maxProxiesPerUser: 4,
-      convocationNoticeUrl: '',
+      ordemDoDia: '',
       locationAddress: '',
       locationCity: '',
       locationState: '',
@@ -339,15 +339,15 @@ export default function CreateAssemblyPage() {
             />
             <FormField
               control={form.control}
-              name="convocationNoticeUrl"
+              name="ordemDoDia"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Edital de Convocação (URL)</FormLabel>
+                  <FormLabel>Ordem do Dia</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://..." {...field} />
+                    <Textarea placeholder="Liste os tópicos a serem discutidos..." {...field} rows={5} />
                   </FormControl>
                   <FormDescription>
-                    Link para o documento PDF do edital de convocação.
+                    Descreva a pauta da assembleia. Cada tópico pode ser separado por uma nova linha.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -514,3 +514,5 @@ export default function CreateAssemblyPage() {
     </>
   );
 }
+
+    

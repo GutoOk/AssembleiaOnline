@@ -95,7 +95,7 @@ export type Assembly = {
     zip: string;
     details?: string;
   };
-  convocationNoticeUrl?: string;
+  ordemDoDia?: string;
 };
 
 export type ChatMessage = {
@@ -132,3 +132,5 @@ export type AssemblyPresence = {
   id: string; // user UID
   joinedAt: Timestamp;
 };
+
+    
