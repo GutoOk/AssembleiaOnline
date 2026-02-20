@@ -497,99 +497,100 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
           </div>
         ) : (
           <div>
-            {userHasVotedForSelf && !pollEnded ? (
-              <div className="flex flex-col items-start gap-2">
+            {!!userProxyGrant && !userHasVotedForSelf && (
+                <div className="mb-4 p-3 flex items-start gap-3 rounded-md bg-blue-50 border-blue-200 text-blue-900 text-sm">
+                    <Info className="h-5 w-5 mt-0.5 text-blue-700 flex-shrink-0" />
+                    <div>
+                        <p className="font-semibold">Sua procuração foi concedida.</p>
+                        <p className="text-blue-800">
+                           Você concedeu seu direito de voto para <span className="font-bold">{proxyGranteeProfile?.name ?? 'outro membro'}</span>, que votará em seu nome nesta assembleia.
+                        </p>
+                    </div>
+                </div>
+            )}
+            
+            {poll.type === 'proposal' && pollEnded && pollResult && (
+              <div className={`mb-4 p-3 rounded-md text-sm border ${
+                  pollResult.status === 'Aprovada'
+                  ? 'bg-green-50 border-green-200 text-green-900 dark:bg-green-900/20 dark:border-green-500/30 dark:text-green-200'
+                  : pollResult.status === 'Reprovada'
+                  ? 'bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-200'
+                  : 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-500/30 dark:text-amber-200'
+              }`}>
+              <div className="flex items-center gap-2">
+                  {pollResult.status === 'Aprovada' && <CheckCircle2 className="h-5 w-5 text-green-700 dark:text-green-400" />}
+                  {pollResult.status === 'Reprovada' && <XCircle className="h-5 w-5 text-red-700 dark:text-red-400" />}
+                  {pollResult.status !== 'Aprovada' && pollResult.status !== 'Reprovada' && <Info className="h-5 w-5 text-amber-700 dark:text-amber-400" />}
+                  <p className="font-semibold">Proposta {pollResult.status}</p>
+              </div>
+              <p className={`mt-1 text-xs ${
+                  pollResult.status === 'Aprovada'
+                  ? 'text-green-800 dark:text-green-300'
+                  : pollResult.status === 'Reprovada'
+                  ? 'text-red-800 dark:text-red-300'
+                  : 'text-amber-800 dark:text-amber-300'
+              }`}>{pollResult.message}</p>
+              </div>
+            )}
+
+            <h3 className="mb-2 text-sm font-normal">Resultado {pollEnded ? 'Final' : 'Parcial'}:</h3>
+            <div className="h-40">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={voteData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" fontSize={12} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} />
+                  <Bar dataKey="votos" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            
+            {userHasVotedForSelf && !pollEnded && (
+              <div className="flex flex-col items-start gap-2 mt-4">
                   <p className="text-sm text-muted-foreground">Voto registrado com sucesso! Caso deseje alterá-lo enquanto a votação estiver aberta, basta remover sua seleção e votar novamente.</p>
                   <Button variant="outline" size="sm" onClick={() => setWithdrawConfirmOpen(true)}>
                     <Trash2 className="h-4 w-4" />
                     Retirar Voto
                   </Button>
               </div>
-            ) : (
-              <>
-                {!!userProxyGrant && (
-                    <div className="mb-4 p-3 flex items-start gap-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-sm">
-                        <Info className="h-5 w-5 mt-0.5 text-blue-700 flex-shrink-0" />
-                        <div>
-                            <p className="font-semibold">Sua procuração foi concedida.</p>
-                            <p className="text-blue-800">
-                               Você concedeu seu direito de voto para <span className="font-bold">{proxyGranteeProfile?.name ?? 'outro membro'}</span>, que votará em seu nome nesta assembleia.
-                            </p>
-                        </div>
-                    </div>
-                )}
-                {poll.type === 'proposal' && pollEnded && pollResult && (
-                  <div className={`mb-4 p-3 rounded-md text-sm border ${
-                      pollResult.status === 'Aprovada'
-                      ? 'bg-green-50 border-green-200 text-green-900 dark:bg-green-900/20 dark:border-green-500/30 dark:text-green-200'
-                      : pollResult.status === 'Reprovada'
-                      ? 'bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-200'
-                      : 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-500/30 dark:text-amber-200'
-                  }`}>
-                  <div className="flex items-center gap-2">
-                      {pollResult.status === 'Aprovada' && <CheckCircle2 className="h-5 w-5 text-green-700 dark:text-green-400" />}
-                      {pollResult.status === 'Reprovada' && <XCircle className="h-5 w-5 text-red-700 dark:text-red-400" />}
-                      {pollResult.status !== 'Aprovada' && pollResult.status !== 'Reprovada' && <Info className="h-5 w-5 text-amber-700 dark:text-amber-400" />}
-                      <p className="font-semibold">Proposta {pollResult.status}</p>
-                  </div>
-                  <p className={`mt-1 text-xs ${
-                      pollResult.status === 'Aprovada'
-                      ? 'text-green-800 dark:text-green-300'
-                      : pollResult.status === 'Reprovada'
-                      ? 'text-red-800 dark:text-red-300'
-                      : 'text-amber-800 dark:text-amber-300'
-                  }`}>{pollResult.message}</p>
-                  </div>
-                )}
-                <h3 className="mb-2 text-sm font-normal">Resultado:</h3>
-                <div className="h-40">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={voteData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" fontSize={12} />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} />
-                      <Bar dataKey="votos" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                {votes && votes.length > 0 && (
-                    <>
-                    <Separator className="my-2" />
-                    <h3 className="mb-2 text-sm font-normal">Votos individuais:</h3>
-                    <div className={cn("space-y-1", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
-                    {votesToShow.map(vote => {
-                        const voteBelongsToUser = userProfiles[vote.representedUserId ?? vote.userId];
-                        const option = options?.find(o => o.id === vote.pollOptionId);
-                        const castByUser = vote.representedUserId ? userProfiles[vote.userId] : undefined;
+            )}
 
-                        return (
-                        <div key={vote.id} className="flex items-start justify-between text-sm p-1.5 rounded-md bg-muted/50">
-                            <div className="flex flex-col">
-                                <div className="flex items-center gap-1.5">
-                                    <Avatar className="h-6 w-6">
-                                        <AvatarImage src={voteBelongsToUser?.avatarDataUri} />
-                                        <AvatarFallback>{voteBelongsToUser?.name?.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                    <span className="font-medium">{voteBelongsToUser?.name ?? 'Carregando...'}</span>
-                                </div>
-                                {castByUser && (
-                                    <p className="text-xs text-muted-foreground pl-8">
-                                        → por procuração a <span className="font-medium">{castByUser.name}</span>
-                                    </p>
-                                )}
+            {pollEnded && votes && votes.length > 0 && (
+                <>
+                <Separator className="my-2" />
+                <h3 className="mb-2 text-sm font-normal">Votos individuais:</h3>
+                <div className={cn("space-y-1", showAllVotes && "max-h-48 overflow-y-auto pr-2")}>
+                {votesToShow.map(vote => {
+                    const voteBelongsToUser = userProfiles[vote.representedUserId ?? vote.userId];
+                    const option = options?.find(o => o.id === vote.pollOptionId);
+                    const castByUser = vote.representedUserId ? userProfiles[vote.userId] : undefined;
+
+                    return (
+                    <div key={vote.id} className="flex items-start justify-between text-sm p-1.5 rounded-md bg-muted/50">
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5">
+                                <Avatar className="h-6 w-6">
+                                    <AvatarImage src={voteBelongsToUser?.avatarDataUri} />
+                                    <AvatarFallback>{voteBelongsToUser?.name?.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium">{voteBelongsToUser?.name ?? 'Carregando...'}</span>
                             </div>
-                            <span className="font-medium text-right self-center">{option?.text}</span>
+                            {castByUser && (
+                                <p className="text-xs text-muted-foreground pl-8">
+                                    → por procuração a <span className="font-medium">{castByUser.name}</span>
+                                </p>
+                            )}
                         </div>
-                        )
-                    })}
+                        <span className="font-medium text-right self-center">{option?.text}</span>
                     </div>
-                    {votes.length > 3 && (
-                        <Button variant="link" size="sm" className="p-0 h-auto mt-2 text-xs" onClick={() => setShowAllVotes(!showAllVotes)}>
-                            {showAllVotes ? 'Ver menos' : 'Ver mais...'}
-                        </Button>
-                    )}
-                  </>
+                    )
+                })}
+                </div>
+                {votes.length > 3 && (
+                    <Button variant="link" size="sm" className="p-0 h-auto mt-2 text-xs" onClick={() => setShowAllVotes(!showAllVotes)}>
+                        {showAllVotes ? 'Ver menos' : 'Ver mais...'}
+                    </Button>
                 )}
               </>
             )}
