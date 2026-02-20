@@ -560,37 +560,35 @@ export default function LoginPage() {
         toast({
           variant: 'destructive',
           title: 'Usuário não cadastrado',
-          description: "O e-mail informado não foi encontrado. Por favor, clique em 'Criar novo usuário' para se registrar.",
+          description:
+            "O e-mail informado não foi encontrado. Por favor, clique em 'Criar novo usuário' para se registrar.",
         });
-      } else if (signInMethods.includes('password')) {
-        // User has a password. Try to sign in.
-        try {
-          await signInWithEmailAndPassword(auth, email, password);
-          // onAuthStateChanged will handle redirect
-        } catch (signInError: any) {
-          // It's almost certainly a wrong password if it gets here.
-          toast({
-            variant: 'destructive',
-            title: 'Senha incorreta',
-            description: 'A senha digitada está incorreta. Se necessário, utilize a opção "Esqueci minha senha".',
-          });
-        }
-      } else {
-        // User exists but with a different provider (e.g., Google).
-        const providerName = signInMethods[0] === 'google.com' ? 'o Google' : `o provedor ${signInMethods[0]}`;
+        setIsLoadingEmail(false);
+        return;
+      }
+
+      // If user exists, try to sign in with email and password.
+      // This allows Firebase to handle unified accounts (e.g. social + password).
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged will handle the redirect.
+      } catch (error) {
+        // Since we know the user exists, this is most likely a wrong password.
         toast({
           variant: 'destructive',
-          title: 'Método de Login Incorreto',
-          description: `Este e-mail já está cadastrado via ${providerName}. Por favor, utilize o login social correspondente.`,
+          title: 'Senha incorreta',
+          description:
+            'A senha digitada está incorreta. Se necessário, utilize a opção "Esqueci minha senha".',
         });
       }
     } catch (error) {
-        console.error('Login error:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Erro de Autenticação',
-          description: 'Ocorreu um erro ao verificar suas credenciais. Tente novamente.',
-        });
+      console.error('Login error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de Autenticação',
+        description:
+          'Ocorreu um erro ao verificar suas credenciais. Tente novamente.',
+      });
     } finally {
       setIsLoadingEmail(false);
     }
@@ -625,20 +623,18 @@ export default function LoginPage() {
           title: 'Usuário não cadastrado',
           description: "O e-mail informado não foi encontrado. Por favor, clique em 'Criar novo usuário' para se registrar.",
         });
-      } else if (signInMethods.includes('password')) {
-        await sendPasswordResetEmail(auth, email);
-        toast({
-          title: 'Email de Redefinição Enviado',
-          description: `Um link para redefinir sua senha foi enviado para ${email}. Verifique sua caixa de entrada e spam.`,
-        });
-      } else {
-        const providerName = signInMethods[0] === 'google.com' ? 'o Google' : `o provedor ${signInMethods[0]}`;
-        toast({
-          variant: 'destructive',
-          title: 'Não é possível redefinir a senha',
-          description: `Esta conta foi criada usando ${providerName} e não possui uma senha.`,
-        });
+        setIsLoadingEmail(false);
+        return;
       }
+
+      // If user exists, always allow attempting a password reset.
+      // This enables adding a password to a social-only account.
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: 'Email de Redefinição Enviado',
+        description: `Um link para redefinir sua senha foi enviado para ${email}. Verifique sua caixa de entrada e spam.`,
+      });
+
     } catch (error: any) {
       console.error('Password reset error:', error);
       toast({
