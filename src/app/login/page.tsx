@@ -6,14 +6,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth, useFirestore, useUser } from '@/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult,
+  type User as FirebaseUser
+} from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
 import { Icons } from '@/components/icons';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 
 export default function LoginPage() {
@@ -25,8 +34,68 @@ export default function LoginPage() {
   const [userInput, setUserInput] = useState('');
   const [isLoadingMock, setIsLoadingMock] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
+  const isMobile = useIsMobile();
 
   const isLoading = isLoadingMock || isLoadingGoogle;
+  
+  const processGoogleUser = useCallback(async (user: FirebaseUser) => {
+    if (!firestore || !auth) return;
+
+    if (user.email && !user.email.endsWith('@mensa.org.br')) {
+      await auth.signOut();
+      toast({
+          variant: 'destructive',
+          title: 'Acesso Negado',
+          description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
+      });
+      return;
+    }
+
+    const userDocRef = doc(firestore, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (!userDoc.exists()) {
+        const name = user.displayName || user.email?.split('@')[0] || 'Novo Usuário';
+        const userProfile: UserProfile = {
+            id: user.uid,
+            name: name,
+            email: user.email!,
+            avatarDataUri: user.photoURL || `https://avatar.vercel.sh/${user.uid}.svg`,
+            createdAt: serverTimestamp() as any,
+        };
+        await setDoc(userDocRef, userProfile);
+    }
+  }, [auth, firestore, toast]);
+
+  // This effect handles the result from the redirect login flow
+  useEffect(() => {
+    if (!auth) return;
+
+    const handleRedirect = async () => {
+      try {
+        setIsLoadingGoogle(true);
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          await processGoogleUser(result.user);
+        }
+      } catch (error: any) {
+        // Ignore benign errors but log others
+        if (error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment') {
+          console.error("Google Sign-In redirect error:", error);
+          toast({
+            variant: 'destructive',
+            title: 'Erro no Login com Google',
+            description: 'Não foi possível fazer o login. Tente novamente.',
+          });
+        }
+      } finally {
+        // This might run even if there's no redirect result, which is fine
+        setIsLoadingGoogle(false);
+      }
+    };
+    
+    handleRedirect();
+  }, [auth, processGoogleUser, toast]);
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -128,45 +197,26 @@ export default function LoginPage() {
       'hd': 'mensa.org.br'
     });
 
-    try {
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
-
-        if (user.email && !user.email.endsWith('@mensa.org.br')) {
-            await auth.signOut();
+    if (isMobile) {
+      // signInWithRedirect will navigate away. The result is handled by the useEffect hook.
+      signInWithRedirect(auth, provider);
+    } else {
+      // Use popup for desktop for a better UX
+      try {
+          const result = await signInWithPopup(auth, provider);
+          await processGoogleUser(result.user);
+      } catch (error: any) {
+          if (error.code !== 'auth/popup-closed-by-user') {
+            console.error("Google Sign-In popup error:", error);
             toast({
                 variant: 'destructive',
-                title: 'Acesso Negado',
-                description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
+                title: 'Erro no Login com Google',
+                description: 'Não foi possível fazer o login. Tente novamente.',
             });
-            setIsLoadingGoogle(false);
-            return;
-        }
-
-        const userDocRef = doc(firestore, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-
-        if (!userDoc.exists()) {
-            const name = user.displayName || user.email?.split('@')[0] || 'Novo Usuário';
-            const userProfile: UserProfile = {
-                id: user.uid,
-                name: name,
-                email: user.email!,
-                avatarDataUri: user.photoURL || `https://avatar.vercel.sh/${user.uid}.svg`,
-                createdAt: serverTimestamp() as any,
-            };
-            await setDoc(userDocRef, userProfile);
-        }
-        
-    } catch (error: any) {
-        console.error("Google Sign-In error:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Erro no Login com Google',
-            description: 'Não foi possível fazer o login. Tente novamente.',
-        });
-    } finally {
-        setIsLoadingGoogle(false);
+          }
+      } finally {
+          setIsLoadingGoogle(false);
+      }
     }
   };
   
