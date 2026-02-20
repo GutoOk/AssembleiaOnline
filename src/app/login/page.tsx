@@ -1,7 +1,13 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
@@ -21,12 +27,190 @@ import {
   browserLocalPersistence,
   sendPasswordResetEmail,
   type User as FirebaseUser,
+  sendEmailVerification,
+  signOut,
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
 import { Icons } from '@/components/icons';
 import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
+const registerSchema = z.object({
+  name: z.string().min(3, 'O nome deve ter pelo menos 3 caracteres.'),
+  password: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres.'),
+});
+
+function RegisterDialog({
+  open,
+  onOpenChange,
+  email,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  email: string;
+}) {
+  const auth = useAuth();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const form = useForm<z.infer<typeof registerSchema>>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { name: '', password: '' },
+  });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({ name: '', password: '' });
+    }
+  }, [open, form]);
+
+  const handleRegister = async (values: z.infer<typeof registerSchema>) => {
+    if (!auth || !firestore) return;
+    setIsLoading(true);
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        values.password
+      );
+      const newUser = userCredential.user;
+
+      const userProfile: Omit<UserProfile, 'createdAt'> = {
+        id: newUser.uid,
+        name: values.name,
+        email: email,
+        avatarDataUri: `https://avatar.vercel.sh/${newUser.uid}.svg`,
+      };
+
+      const userDocRef = doc(firestore, 'users', newUser.uid);
+      await setDoc(userDocRef, { ...userProfile, createdAt: serverTimestamp() });
+
+      if (newUser.email === 'admin@assembleia.dev') {
+        const adminDocRef = doc(firestore, 'admins', newUser.uid);
+        await setDoc(adminDocRef, {});
+      }
+
+      await sendEmailVerification(newUser);
+
+      toast({
+        title: 'Cadastro Realizado!',
+        description:
+          'Um email de confirmação foi enviado. Por favor, verifique sua caixa de entrada e spam para ativar sua conta.',
+      });
+
+      await signOut(auth); // Sign out user to force email verification
+      onOpenChange(false);
+    } catch (error: any) {
+      let description = 'Não foi possível criar a conta.';
+      if (error.code === 'auth/weak-password') {
+        description =
+          'A senha é muito fraca. Deve ter pelo menos 6 caracteres.';
+      } else if (error.code === 'auth/email-already-in-use') {
+        description = 'Este email já está em uso por outra conta.';
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Falha no Cadastro',
+        description,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Realizar Cadastro</DialogTitle>
+          <DialogDescription>
+            Não encontramos uma conta com este email. Por favor, complete seu
+            cadastro.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(handleRegister)}
+            className="space-y-4"
+          >
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input type="email" value={email} disabled />
+              </FormControl>
+            </FormItem>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome Completo</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Seu nome completo" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Senha</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      placeholder="Mínimo 6 caracteres"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Cadastrar
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,6 +223,7 @@ export default function LoginPage() {
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+  const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
   const isMobile = useIsMobile();
 
   // This effect runs once to set persistence for the session.
@@ -49,75 +234,87 @@ export default function LoginPage() {
     }
   }, [auth]);
 
-  const processGoogleUser = useCallback(async (firebaseUser: FirebaseUser): Promise<boolean> => {
-    if (!firestore || !auth) return false;
-    try {
-        if (firebaseUser.email && !firebaseUser.email.endsWith('@mensa.org.br')) {
-            // This is a valid user, but not for this app. Sign them out.
-            await auth.signOut();
-            toast({
-                variant: 'destructive',
-                title: 'Acesso Negado',
-                description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
-            });
-            return false;
+  const processGoogleUser = useCallback(
+    async (firebaseUser: FirebaseUser): Promise<boolean> => {
+      if (!firestore || !auth) return false;
+      try {
+        if (
+          firebaseUser.email &&
+          !firebaseUser.email.endsWith('@mensa.org.br')
+        ) {
+          // This is a valid user, but not for this app. Sign them out.
+          await auth.signOut();
+          toast({
+            variant: 'destructive',
+            title: 'Acesso Negado',
+            description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
+          });
+          return false;
         }
 
         const userDocRef = doc(firestore, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
 
         if (!userDoc.exists()) {
-            const name = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Novo Usuário';
-            const userProfile: UserProfile = {
-                id: firebaseUser.uid,
-                name: name,
-                email: firebaseUser.email!,
-                avatarDataUri: firebaseUser.photoURL || `https://avatar.vercel.sh/${firebaseUser.uid}.svg`,
-                createdAt: serverTimestamp() as any,
-            };
-            await setDoc(userDocRef, userProfile);
+          const name =
+            firebaseUser.displayName ||
+            firebaseUser.email?.split('@')[0] ||
+            'Novo Usuário';
+          const userProfile: UserProfile = {
+            id: firebaseUser.uid,
+            name: name,
+            email: firebaseUser.email!,
+            avatarDataUri:
+              firebaseUser.photoURL ||
+              `https://avatar.vercel.sh/${firebaseUser.uid}.svg`,
+            createdAt: serverTimestamp() as any,
+          };
+          await setDoc(userDocRef, userProfile);
         }
         return true;
-    } catch (error: any) {
-        console.error("Error processing Google user:", error);
+      } catch (error: any) {
+        console.error('Error processing Google user:', error);
         toast({
-            variant: 'destructive',
-            title: 'Erro de Processamento',
-            description: error.message || 'Não foi possível configurar o perfil do usuário.',
+          variant: 'destructive',
+          title: 'Erro de Processamento',
+          description:
+            error.message || 'Não foi possível configurar o perfil do usuário.',
         });
         if (auth.currentUser) {
-            await auth.signOut();
+          await auth.signOut();
         }
         return false;
-    }
-  }, [auth, firestore, toast]);
+      }
+    },
+    [auth, firestore, toast]
+  );
 
   // This effect handles the result from the redirect login flow
   useEffect(() => {
     if (auth) {
-        setIsProcessingRedirect(true);
-        getRedirectResult(auth)
-            .then(async (result) => {
-                if (result?.user) {
-                    const loginSuccessful = await processGoogleUser(result.user);
-                    if (loginSuccessful) {
-                       router.replace('/dashboard');
-                    }
-                }
-            })
-            .catch((error) => {
-                console.error("Google Sign-In redirect error:", error);
-                toast({
-                    variant: 'destructive',
-                    title: 'Erro no Login com Google',
-                    description: `Ocorreu um erro: ${error.code} - ${error.message}. Tente novamente. Se o problema persistir, verifique as permissões de cookies e pop-ups no seu navegador.`,
-                });
-            })
-            .finally(() => {
-                setIsProcessingRedirect(false);
-            });
+      setIsProcessingRedirect(true);
+      getRedirectResult(auth)
+        .then(async (result) => {
+          if (result?.user) {
+            const loginSuccessful = await processGoogleUser(result.user);
+            if (loginSuccessful) {
+              router.replace('/dashboard');
+            }
+          }
+        })
+        .catch((error) => {
+          console.error('Google Sign-In redirect error:', error);
+          toast({
+            variant: 'destructive',
+            title: 'Erro no Login com Google',
+            description: `Ocorreu um erro: ${error.code} - ${error.message}. Tente novamente. Se o problema persistir, verifique as permissões de cookies e pop-ups no seu navegador.`,
+          });
+        })
+        .finally(() => {
+          setIsProcessingRedirect(false);
+        });
     } else {
-        setIsProcessingRedirect(false);
+      setIsProcessingRedirect(false);
     }
   }, [auth, processGoogleUser, toast, router]);
 
@@ -130,20 +327,28 @@ export default function LoginPage() {
 
   const handleEmailPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore || !auth) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível conectar ao banco de dados.' });
-        return;
+    if (!auth) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Serviço de autenticação indisponível.',
+      });
+      return;
     }
     setIsLoadingEmail(true);
 
-    if (!email.endsWith('@mensa.org.br') && !email.endsWith('@assembleia.dev')) {
-        toast({
-            variant: 'destructive',
-            title: 'Acesso Negado',
-            description: 'Apenas emails do domínio @mensa.org.br ou de teste são permitidos.',
-        });
-        setIsLoadingEmail(false);
-        return;
+    if (
+      !email.endsWith('@mensa.org.br') &&
+      !email.endsWith('@assembleia.dev')
+    ) {
+      toast({
+        variant: 'destructive',
+        title: 'Acesso Negado',
+        description:
+          'Apenas emails do domínio @mensa.org.br ou de teste são permitidos.',
+      });
+      setIsLoadingEmail(false);
+      return;
     }
 
     try {
@@ -151,53 +356,20 @@ export default function LoginPage() {
       // onAuthStateChanged will handle redirect via the useEffect hook
     } catch (signInError: any) {
       if (signInError.code === 'auth/user-not-found') {
-        try {
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          const newUser = userCredential.user;
-          if (newUser) {
-              const userDocRef = doc(firestore, 'users', newUser.uid);
-              const name = newUser.email?.split('@')[0] ?? 'Novo Usuário';
-              const userProfile: UserProfile = {
-                  id: newUser.uid,
-                  name: name.charAt(0).toUpperCase() + name.slice(1),
-                  email: newUser.email!,
-                  avatarDataUri: `https://avatar.vercel.sh/${newUser.uid}.svg`,
-                  createdAt: serverTimestamp() as any,
-              };
-              await setDoc(userDocRef, userProfile);
-              
-              if (newUser.email === 'admin@assembleia.dev') {
-                const adminDocRef = doc(firestore, 'admins', newUser.uid);
-                await setDoc(adminDocRef, {}); 
-              }
-               toast({
-                title: 'Conta criada!',
-                description: `A sua conta para ${email} foi criada com sucesso.`,
-              });
-          }
-        } catch (signUpError: any) {
-            let description = 'Não foi possível criar a conta.';
-            if (signUpError.code === 'auth/weak-password') {
-                description = "A senha é muito fraca. Deve ter pelo menos 6 caracteres."
-            }
-            toast({
-                variant: 'destructive',
-                title: 'Falha no Cadastro',
-                description,
-            });
-        }
-      } else if(signInError.code === 'auth/invalid-credential') {
-          toast({
-            variant: 'destructive',
-            title: 'Senha Incorreta',
-            description: 'Verifique seu e-mail e senha e tente novamente.',
-          });
+        setIsRegisterDialogOpen(true);
+      } else if (signInError.code === 'auth/invalid-credential') {
+        toast({
+          variant: 'destructive',
+          title: 'Credenciais Inválidas',
+          description: 'Verifique seu e-mail e senha e tente novamente.',
+        });
       } else {
         console.error('Sign-in error:', signInError);
         toast({
           variant: 'destructive',
           title: 'Erro Inesperado',
-          description: 'Ocorreu um erro durante o login. Verifique sua conexão e credenciais.',
+          description:
+            'Ocorreu um erro durante o login. Verifique sua conexão e credenciais.',
         });
       }
     } finally {
@@ -207,11 +379,20 @@ export default function LoginPage() {
 
   const handlePasswordReset = async () => {
     if (!auth) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Serviço de autenticação indisponível.' });
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Serviço de autenticação indisponível.',
+      });
       return;
     }
     if (!email) {
-      toast({ variant: 'destructive', title: 'Email Obrigatório', description: 'Por favor, insira seu email no campo acima para redefinir a senha.' });
+      toast({
+        variant: 'destructive',
+        title: 'Email Obrigatório',
+        description:
+          'Por favor, insira seu email no campo acima para redefinir a senha.',
+      });
       return;
     }
 
@@ -223,11 +404,12 @@ export default function LoginPage() {
         description: `Se uma conta com o email ${email} existir, um link para redefinir a senha foi enviado. Verifique sua caixa de entrada.`,
       });
     } catch (error: any) {
-      console.error("Password reset error:", error);
+      console.error('Password reset error:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao Enviar Email',
-        description: 'Não foi possível enviar o email de redefinição. Tente novamente mais tarde.',
+        description:
+          'Não foi possível enviar o email de redefinição. Tente novamente mais tarde.',
       });
     } finally {
       setIsLoadingEmail(false);
@@ -236,12 +418,16 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     if (!auth || !firestore) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'Serviços Firebase indisponíveis.' });
-        return;
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Serviços Firebase indisponíveis.',
+      });
+      return;
     }
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
-      'prompt': 'select_account' // Always prompt for account selection
+      prompt: 'select_account', // Always prompt for account selection
     });
 
     setIsLoadingGoogle(true);
@@ -249,26 +435,26 @@ export default function LoginPage() {
       signInWithRedirect(auth, provider); // Use redirect for mobile
     } else {
       try {
-          const result = await signInWithPopup(auth, provider);
-          const loginSuccessful = await processGoogleUser(result.user);
-          if (loginSuccessful) {
-            router.replace('/dashboard');
-          }
+        const result = await signInWithPopup(auth, provider);
+        const loginSuccessful = await processGoogleUser(result.user);
+        if (loginSuccessful) {
+          router.replace('/dashboard');
+        }
       } catch (error: any) {
-          if (error.code !== 'auth/popup-closed-by-user') {
-            console.error("Google Sign-In popup error:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Erro no Login com Google',
-                description: `Ocorreu um erro: ${error.code} - ${error.message}.`,
-            });
-          }
+        if (error.code !== 'auth/popup-closed-by-user') {
+          console.error('Google Sign-In popup error:', error);
+          toast({
+            variant: 'destructive',
+            title: 'Erro no Login com Google',
+            description: `Ocorreu um erro: ${error.code} - ${error.message}.`,
+          });
+        }
       } finally {
-          setIsLoadingGoogle(false);
+        setIsLoadingGoogle(false);
       }
     }
   };
-  
+
   const isLoading = isLoadingEmail || isLoadingGoogle || isMobile === undefined;
 
   if (isProcessingRedirect || (isUserLoading && !user)) {
@@ -281,77 +467,98 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={48} height={48} />
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <Image
+              src="https://mensa.org.br/images/Mensa-logo.png"
+              alt="Mensa Brasil Logo"
+              width={48}
+              height={48}
+            />
+          </div>
+          <CardTitle className="text-2xl">Assembleia Mensa Brasil</CardTitle>
+          <CardDescription>Acesso ao sistema</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleEmailPasswordLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu.email@mensa.org.br"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+              />
             </div>
-            <CardTitle className="text-2xl">Assembleia Mensa Brasil</CardTitle>
-            <CardDescription>Acesso ao sistema</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-             <form onSubmit={handleEmailPasswordLogin} className="space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu.email@mensa.org.br"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={isLoading}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="password">Senha</Label>
-                        <Button
-                            type="button"
-                            variant="link"
-                            className="p-0 h-auto text-xs"
-                            onClick={handlePasswordReset}
-                            disabled={isLoading}
-                        >
-                            Esqueci minha senha
-                        </Button>
-                    </div>
-                    <Input
-                    id="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                    />
-                </div>
-                 <CardDescription className="text-center text-xs">
-                    Se a conta não existir, será criada. Senhas devem ter no mínimo 6 caracteres.
-                </CardDescription>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoadingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar / Cadastrar"}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Senha</Label>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="p-0 h-auto text-xs"
+                  onClick={handlePasswordReset}
+                  disabled={isLoading}
+                >
+                  Esqueci minha senha
                 </Button>
-            </form>
-            {!isMobile && (
-              <>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Ou
-                    </span>
-                  </div>
+              </div>
+              <Input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoadingEmail ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Entrar'
+              )}
+            </Button>
+          </form>
+          {!isMobile && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
                 </div>
-                <Button variant="outline" className="w-full" type="button" disabled={isLoading} onClick={handleGoogleLogin}>
-                    {isLoadingGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icons.google className="h-4 w-4" />}
-                    Entrar com Google
-                  </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Ou
+                  </span>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                type="button"
+                disabled={isLoading}
+                onClick={handleGoogleLogin}
+              >
+                {isLoadingGoogle ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Icons.google className="h-4 w-4" />
+                )}
+                Entrar com Google
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      <RegisterDialog
+        open={isRegisterDialogOpen}
+        onOpenChange={setIsRegisterDialogOpen}
+        email={email}
+      />
     </div>
   );
 }
