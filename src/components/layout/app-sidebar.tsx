@@ -47,7 +47,7 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          {isAdmin && (
+          {isAdmin && pathname === '/dashboard' && (
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild

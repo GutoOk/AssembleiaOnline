@@ -117,7 +117,7 @@ export function Header() {
         <Home className="h-5 w-5" />
         {isAssemblyPage ? 'Sair' : 'Início'}
       </Link>
-      {isAdmin && (
+      {isAdmin && pathname === '/dashboard' && (
         <Link
           href="/dashboard/users"
           className={cn(
