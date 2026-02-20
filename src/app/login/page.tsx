@@ -145,8 +145,7 @@ function RegisterDialog({
         <DialogHeader>
           <DialogTitle>Realizar Cadastro</DialogTitle>
           <DialogDescription>
-            Não encontramos uma conta com este email. Por favor, complete seu
-            cadastro.
+            Complete os campos abaixo para criar sua conta.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -355,13 +354,11 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       // onAuthStateChanged will handle redirect via the useEffect hook
     } catch (signInError: any) {
-      if (signInError.code === 'auth/user-not-found') {
-        setIsRegisterDialogOpen(true);
-      } else if (signInError.code === 'auth/invalid-credential') {
+      if (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential') {
         toast({
           variant: 'destructive',
           title: 'Credenciais Inválidas',
-          description: 'Verifique seu e-mail e senha e tente novamente.',
+          description: 'Verifique seu e-mail e senha. Se não tiver uma conta, clique em "Criar novo usuário".',
         });
       } else {
         console.error('Sign-in error:', signInError);
@@ -455,6 +452,30 @@ export default function LoginPage() {
     }
   };
 
+  const handleOpenRegisterDialog = () => {
+    if (!email) {
+      toast({
+        variant: 'destructive',
+        title: 'Email Obrigatório',
+        description: 'Por favor, insira seu email no campo de email para iniciar o cadastro.',
+      });
+      return;
+    }
+    if (
+      !email.endsWith('@mensa.org.br') &&
+      !email.endsWith('@assembleia.dev')
+    ) {
+      toast({
+        variant: 'destructive',
+        title: 'Acesso Negado',
+        description:
+          'Apenas emails do domínio @mensa.org.br ou de teste são permitidos para cadastro.',
+      });
+      return;
+    }
+    setIsRegisterDialogOpen(true);
+  };
+
   const isLoading = isLoadingEmail || isLoadingGoogle || isMobile === undefined;
 
   if (isProcessingRedirect || (isUserLoading && !user)) {
@@ -524,6 +545,17 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
+          
+          <Button
+            variant="outline"
+            className="w-full"
+            type="button"
+            disabled={isLoading}
+            onClick={handleOpenRegisterDialog}
+          >
+            Criar novo usuário
+          </Button>
+
           {!isMobile && (
             <>
               <div className="relative">
