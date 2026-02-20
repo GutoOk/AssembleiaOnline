@@ -969,9 +969,6 @@ export default function AssemblyPage() {
   const firestore = useFirestore();
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
   const { toast } = useToast();
-  const [isEditUrlOpen, setEditUrlOpen] = useState(false);
-  const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
-  const [newZoomUrl, setNewZoomUrl] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
 
@@ -1166,26 +1163,6 @@ export default function AssemblyPage() {
     return `${assembly.zoomUrl}${joiner}uname=${userNameBase64}`;
   }, [assembly?.zoomUrl, user?.displayName]);
 
-
-  useEffect(() => {
-    if (assembly) {
-      setNewYoutubeUrl(assembly.youtubeUrl);
-      setNewZoomUrl(assembly.zoomUrl || '');
-    }
-  }, [assembly]);
-
-  const handleUpdateUrl = () => {
-    if (!assembly || !firestore) return;
-    const assemblyDocRef = doc(firestore, 'assemblies', assembly.id);
-    
-    updateDocumentNonBlocking(assemblyDocRef, { 
-      youtubeUrl: newYoutubeUrl,
-      zoomUrl: newZoomUrl,
-    });
-    toast({ title: 'Links atualizados!', description: 'Os links da transmissão foram atualizados com sucesso.' });
-    setEditUrlOpen(false);
-  };
-
   const isLoading = isAdminLoading || isAssemblyLoading;
   const isQueueComponentLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
   const assemblyFinished = assembly?.status === 'finished';
@@ -1245,10 +1222,6 @@ export default function AssemblyPage() {
         </SheetContent>
       </Sheet>
       <div className="container mx-auto p-0 md:space-y-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{assembly.title}</h1>
-        </div>
-
         <div className="space-y-4">
           <Card>
               <CardHeader className="flex flex-row items-center justify-end p-4">
@@ -1258,50 +1231,6 @@ export default function AssemblyPage() {
                           <LogOut className="h-4 w-4" />
                           Encerrar Participação
                       </Button>
-                  )}
-                  {isAdmin && !assemblyFinished && (
-                    <Dialog open={isEditUrlOpen} onOpenChange={setEditUrlOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Editar links de transmissão</span>
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[625px]">
-                        <DialogHeader>
-                            <DialogTitle>Editar Links de Transmissão</DialogTitle>
-                            <DialogDescription>
-                              Cole os novos links abaixo. O do YouTube é para membros, e o do Zoom para a tela do administrador.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="py-4 space-y-4">
-                          <div>
-                            <Label htmlFor="youtubeUrl" className="text-sm font-medium">Link do YouTube</Label>
-                            <Input
-                                id="youtubeUrl"
-                                value={newYoutubeUrl}
-                                onChange={(e) => setNewYoutubeUrl(e.target.value)}
-                                placeholder="https://www.youtube.com/watch?v=..."
-                                className="mt-1"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="zoomUrl" className="text-sm font-medium">Link da Reunião do Zoom</Label>
-                            <Input
-                                id="zoomUrl"
-                                value={newZoomUrl}
-                                onChange={(e) => setNewZoomUrl(e.target.value)}
-                                placeholder="https://zoom.us/j/..."
-                                className="mt-1"
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button type="button" variant="outline" onClick={() => setEditUrlOpen(false)}>Cancelar</Button>
-                          <Button type="button" onClick={handleUpdateUrl}>Salvar Alterações</Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
                   )}
                 </div>
               </CardHeader>
@@ -1379,5 +1308,3 @@ export default function AssemblyPage() {
     </>
   );
 }
-
-    
