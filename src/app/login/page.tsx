@@ -19,6 +19,7 @@ import {
   getRedirectResult,
   setPersistence,
   browserLocalPersistence,
+  sendPasswordResetEmail,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -98,7 +99,10 @@ export default function LoginPage() {
         getRedirectResult(auth)
             .then(async (result) => {
                 if (result?.user) {
-                    await processGoogleUser(result.user);
+                    const loginSuccessful = await processGoogleUser(result.user);
+                    if (loginSuccessful) {
+                       router.replace('/dashboard');
+                    }
                 }
             })
             .catch((error) => {
@@ -115,7 +119,7 @@ export default function LoginPage() {
     } else {
         setIsProcessingRedirect(false);
     }
-  }, [auth, processGoogleUser, toast]);
+  }, [auth, processGoogleUser, toast, router]);
 
   // This effect handles navigation *after* the user state is confirmed and any redirect is processed.
   useEffect(() => {
@@ -146,13 +150,11 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       // onAuthStateChanged will handle redirect via the useEffect hook
     } catch (signInError: any) {
-      if (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential') {
+      if (signInError.code === 'auth/user-not-found') {
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, email, password);
           const newUser = userCredential.user;
           if (newUser) {
-              await newUser.getIdToken(true);
-              
               const userDocRef = doc(firestore, 'users', newUser.uid);
               const name = newUser.email?.split('@')[0] ?? 'Novo Usuário';
               const userProfile: UserProfile = {
@@ -174,18 +176,22 @@ export default function LoginPage() {
               });
           }
         } catch (signUpError: any) {
-          let description = 'Não foi possível fazer o login ou criar a conta.';
-          if (signUpError.code === 'auth/email-already-in-use' || signInError.code === 'auth/invalid-credential') {
-            description = "O email já existe, mas a senha está incorreta.";
-          } else if (signUpError.code === 'auth/weak-password') {
-            description = "A senha é muito fraca. Deve ter pelo menos 6 caracteres."
-          }
+            let description = 'Não foi possível criar a conta.';
+            if (signUpError.code === 'auth/weak-password') {
+                description = "A senha é muito fraca. Deve ter pelo menos 6 caracteres."
+            }
+            toast({
+                variant: 'destructive',
+                title: 'Falha no Cadastro',
+                description,
+            });
+        }
+      } else if(signInError.code === 'auth/invalid-credential') {
           toast({
             variant: 'destructive',
-            title: 'Falha no Login',
-            description,
+            title: 'Senha Incorreta',
+            description: 'Verifique seu e-mail e senha e tente novamente.',
           });
-        }
       } else {
         console.error('Sign-in error:', signInError);
         toast({
@@ -194,6 +200,35 @@ export default function LoginPage() {
           description: 'Ocorreu um erro durante o login. Verifique sua conexão e credenciais.',
         });
       }
+    } finally {
+      setIsLoadingEmail(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!auth) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Serviço de autenticação indisponível.' });
+      return;
+    }
+    if (!email) {
+      toast({ variant: 'destructive', title: 'Email Obrigatório', description: 'Por favor, insira seu email no campo acima para redefinir a senha.' });
+      return;
+    }
+
+    setIsLoadingEmail(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: 'Email de Redefinição Enviado',
+        description: `Se uma conta com o email ${email} existir, um link para redefinir a senha foi enviado. Verifique sua caixa de entrada.`,
+      });
+    } catch (error: any) {
+      console.error("Password reset error:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao Enviar Email',
+        description: 'Não foi possível enviar o email de redefinição. Tente novamente mais tarde.',
+      });
     } finally {
       setIsLoadingEmail(false);
     }
@@ -216,14 +251,17 @@ export default function LoginPage() {
     } else {
       try {
           const result = await signInWithPopup(auth, provider);
-          await processGoogleUser(result.user);
+          const loginSuccessful = await processGoogleUser(result.user);
+          if (loginSuccessful) {
+            router.replace('/dashboard');
+          }
       } catch (error: any) {
           if (error.code !== 'auth/popup-closed-by-user') {
             console.error("Google Sign-In popup error:", error);
             toast({
                 variant: 'destructive',
                 title: 'Erro no Login com Google',
-                description: `Ocorreu um erro: ${error.code}. Tente novamente.`,
+                description: `Ocorreu um erro: ${error.code} - ${error.message}.`,
             });
           }
       } finally {
@@ -267,7 +305,18 @@ export default function LoginPage() {
                     />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="password">Senha</Label>
+                        <Button
+                            type="button"
+                            variant="link"
+                            className="p-0 h-auto text-xs"
+                            onClick={handlePasswordReset}
+                            disabled={isLoading}
+                        >
+                            Esqueci minha senha
+                        </Button>
+                    </div>
                     <Input
                     id="password"
                     type="password"
