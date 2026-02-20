@@ -70,7 +70,7 @@
         },
         "youtubeUrl": {
           "type": "string",
-          "description": "URL for the YouTube live stream embedding the assembly.",
+          "description": "URL for the YouTube live stream embedding the assembly. (Optional)",
           "format": "uri"
         },
         "zoomUrl": {
@@ -162,7 +162,6 @@
         "title",
         "description",
         "date",
-        "youtubeUrl",
         "imageUrl",
         "administratorId",
         "status",

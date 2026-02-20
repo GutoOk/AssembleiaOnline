@@ -37,7 +37,7 @@ const assemblySchema = z.object({
   date: z.string().refine((val) => !isNaN(Date.parse(val)), {
     message: 'Data inválida.',
   }),
-  youtubeUrl: z.string().min(11, 'URL ou ID do YouTube inválido.'),
+  youtubeUrl: z.string().optional().or(z.literal('')),
   zoomUrl: z.string().url("Por favor, insira um link de reunião válido.").optional().or(z.literal('')),
   allowProxyVoting: z.boolean().default(false),
   maxProxiesPerUser: z.coerce.number().int().min(0, "O valor deve ser positivo.").default(4),
@@ -310,12 +310,12 @@ export default function CreateAssemblyPage() {
               name="youtubeUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Link ou ID do Vídeo do YouTube</FormLabel>
+                  <FormLabel>Link ou ID do Vídeo do YouTube (Opcional)</FormLabel>
                   <FormControl>
                     <Input placeholder="https://www.youtube.com/watch?v=..." {...field} />
                   </FormControl>
                    <FormDescription>
-                    Cole qualquer link do YouTube (de vídeo, ao vivo ou de incorporação) ou apenas o ID do vídeo.
+                    Cole o link ou ID do vídeo do YouTube para a transmissão.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -514,5 +514,3 @@ export default function CreateAssemblyPage() {
     </>
   );
 }
-
-    

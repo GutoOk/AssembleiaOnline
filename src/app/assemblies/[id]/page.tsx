@@ -1346,7 +1346,7 @@ export default function AssemblyPage() {
                       title="Zoom Meeting"
                       allow="fullscreen; microphone; camera; display-capture"
                     ></iframe>
-                  ) : (
+                  ) : displayEmbedUrl ? (
                     <iframe
                       width="100%"
                       height="100%"
@@ -1355,6 +1355,10 @@ export default function AssemblyPage() {
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowFullScreen
                     ></iframe>
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-muted">
+                        <p className="text-muted-foreground">A transmissão ainda não foi configurada.</p>
+                    </div>
                   )}
                 </div>
               </CardContent>
