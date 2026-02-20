@@ -9,7 +9,7 @@ import { Loader2, Send, MoreVertical, ShieldBan } from 'lucide-react';
 import { useCollection, useFirestore, useUser, addDocumentNonBlocking, setDocumentNonBlocking, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, limit, doc } from 'firebase/firestore';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
-import { useBlockedUsers } from '@/hooks/use-blocked-users';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useToast } from '@/hooks/use-toast';
 import type { ChatMessage, UserProfile, Reaction } from '@/lib/data';
 import { formatDistanceToNow } from 'date-fns';
@@ -115,7 +115,7 @@ function ChatMessageItem({ message, sender, onBlockUser, onShowReactions }: { me
             {!isCurrentUser && (
                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100">
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 md:opacity-100">
                             <MoreVertical className="h-4 w-4" />
                         </Button>
                     </DropdownMenuTrigger>
@@ -231,7 +231,7 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
-                <SheetHeader className="p-4 pb-0">
+                <SheetHeader className="p-4 pb-2">
                     <SheetTitle>Bate-papo informal</SheetTitle>
                     <SheetDescription className="text-xs !text-destructive !mt-1">
                         Este chat não é um canal oficial! Para se pronunciar na Assembleia, utilize a Fila de Inscrição. Mantenha o respeito e o bom senso. Caso necessário, você pode bloquear usuários para ocultar mensagens indesejadas.
