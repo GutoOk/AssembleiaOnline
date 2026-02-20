@@ -1265,7 +1265,7 @@ export default function AssemblyPage() {
                     ></iframe>
                   ) : (
                     <div className="flex h-full items-center justify-center bg-muted">
-                        <p className="text-muted-foreground">A transmissão ainda não começou</p>
+                        <p className="text-muted-foreground">A transmissão ainda não está disponível</p>
                     </div>
                   )}
                 </div>
