@@ -34,9 +34,10 @@ export default function LoginPage() {
   const [userInput, setUserInput] = useState('');
   const [isLoadingMock, setIsLoadingMock] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
+  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
   const isMobile = useIsMobile();
 
-  const isLoading = isLoadingMock || isLoadingGoogle;
+  const isLoading = isLoadingMock || isLoadingGoogle || isMobile === undefined;
   
   const processGoogleUser = useCallback(async (user: FirebaseUser) => {
     if (!firestore || !auth) return;
@@ -69,17 +70,22 @@ export default function LoginPage() {
 
   // This effect handles the result from the redirect login flow
   useEffect(() => {
-    if (!auth) return;
+    if (!auth) {
+      setIsProcessingRedirect(false);
+      return;
+    }
 
-    const handleRedirect = async () => {
-      try {
-        setIsLoadingGoogle(true);
-        const result = await getRedirectResult(auth);
+    getRedirectResult(auth)
+      .then(async (result) => {
         if (result?.user) {
+          // A user was successfully signed in via redirect.
+          // Now we process their data. The onAuthStateChanged listener
+          // will handle the actual application login state change.
           await processGoogleUser(result.user);
         }
-      } catch (error: any) {
-        // Ignore benign errors but log others
+      })
+      .catch((error: any) => {
+        // Handle specific errors or show a generic message.
         if (error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment') {
           console.error("Google Sign-In redirect error:", error);
           toast({
@@ -88,13 +94,12 @@ export default function LoginPage() {
             description: 'Não foi possível fazer o login. Tente novamente.',
           });
         }
-      } finally {
-        // This might run even if there's no redirect result, which is fine
-        setIsLoadingGoogle(false);
-      }
-    };
-    
-    handleRedirect();
+      })
+      .finally(() => {
+        // This runs whether a redirect was processed or not.
+        // It's safe to allow the rest of the app to render now.
+        setIsProcessingRedirect(false);
+      });
   }, [auth, processGoogleUser, toast]);
 
   useEffect(() => {
@@ -138,7 +143,6 @@ export default function LoginPage() {
           const userCredential = await createUserWithEmailAndPassword(auth, email, password);
           const newUser = userCredential.user;
           if (newUser) {
-              // Force refresh the token to ensure all claims are available to security rules
               await newUser.getIdToken(true);
               
               const userDocRef = doc(firestore, 'users', newUser.uid);
@@ -154,7 +158,6 @@ export default function LoginPage() {
               
               if (newUser.email === 'admin@assembleia.dev') {
                 const adminDocRef = doc(firestore, 'admins', newUser.uid);
-                // Create an empty doc to signify admin status, no need for content
                 await setDoc(adminDocRef, {}); 
               }
           }
@@ -191,17 +194,17 @@ export default function LoginPage() {
         toast({ variant: 'destructive', title: 'Erro', description: 'Serviços Firebase indisponíveis.' });
         return;
     }
-    setIsLoadingGoogle(true);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
       'hd': 'mensa.org.br'
     });
 
     if (isMobile) {
-      // signInWithRedirect will navigate away. The result is handled by the useEffect hook.
+      // On mobile, use redirect. The page will navigate away. The result is handled by the useEffect hook.
       signInWithRedirect(auth, provider);
     } else {
-      // Use popup for desktop for a better UX
+      // On desktop, use popup for a better UX.
+      setIsLoadingGoogle(true);
       try {
           const result = await signInWithPopup(auth, provider);
           await processGoogleUser(result.user);
@@ -220,7 +223,7 @@ export default function LoginPage() {
     }
   };
   
-  if (isUserLoading || user) {
+  if (isUserLoading || user || isProcessingRedirect) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
