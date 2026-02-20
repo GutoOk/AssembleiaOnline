@@ -52,11 +52,11 @@ export function AppSidebar() {
               <SidebarMenuButton
                 asChild
                 isActive={pathname.startsWith('/dashboard/users')}
-                tooltip="Usuários"
+                tooltip="Gerenciar Administradores"
               >
                 <Link href="/dashboard/users">
                   <Users className="h-5 w-5" />
-                  <span>Usuários</span>
+                  <span>Administradores</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

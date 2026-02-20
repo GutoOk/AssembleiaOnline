@@ -81,11 +81,6 @@ export function UserNav() {
           <DropdownMenuItem onClick={() => router.push('/dashboard/proxy')}>
             Procuração
           </DropdownMenuItem>
-          {isAdmin && (
-            <DropdownMenuItem onClick={() => router.push('/dashboard/users')}>
-              Gerenciar Usuários
-            </DropdownMenuItem>
-          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>

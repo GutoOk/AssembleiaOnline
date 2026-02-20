@@ -126,7 +126,7 @@ export function Header() {
           )}
         >
           <Users className="h-5 w-5" />
-          Gerenciar Usuários
+          Administradores
         </Link>
       )}
        {showDownloadAtaButton && (
