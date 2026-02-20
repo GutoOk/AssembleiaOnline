@@ -241,7 +241,6 @@ export default function LoginPage() {
     }
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
-      'hd': 'mensa.org.br',
       'prompt': 'select_account' // Always prompt for account selection
     });
 
