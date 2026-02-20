@@ -79,10 +79,7 @@ export default function LoginPage() {
     getRedirectResult(auth)
       .then(async (result) => {
         if (result?.user) {
-          const isSuccess = await processGoogleUser(result.user);
-          if (isSuccess) {
-            router.replace('/dashboard');
-          }
+          await processGoogleUser(result.user);
         }
       })
       .catch((error: any) => {
@@ -99,13 +96,14 @@ export default function LoginPage() {
       .finally(() => {
         setIsProcessingRedirect(false);
       });
-  }, [auth, processGoogleUser, toast, router]);
+  }, [auth, processGoogleUser, toast]);
 
+  // This effect handles navigation AFTER the user state is confirmed and any redirect is processed.
   useEffect(() => {
-    if (!isUserLoading && user) {
+    if (!isProcessingRedirect && !isUserLoading && user) {
       router.replace('/dashboard');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, isProcessingRedirect, router]);
 
   const handleMockLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,7 +193,8 @@ export default function LoginPage() {
     }
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
-      'hd': 'mensa.org.br'
+      'hd': 'mensa.org.br',
+      'prompt': 'select_account' // Force account chooser every time.
     });
 
     if (isMobile) {
@@ -223,7 +222,9 @@ export default function LoginPage() {
     }
   };
   
-  if (isUserLoading || user) {
+  if ((isUserLoading && !isProcessingRedirect) || (!isUserLoading && !isProcessingRedirect && user)) {
+     // If we have a user and we are not processing a redirect, we should be navigating.
+     // Show a loader while the navigation useEffect kicks in.
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
