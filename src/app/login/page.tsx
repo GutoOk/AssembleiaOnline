@@ -562,19 +562,27 @@ export default function LoginPage() {
           title: 'Usuário não cadastrado',
           description: "O e-mail informado não foi encontrado. Por favor, clique em 'Criar novo usuário' para se registrar.",
         });
-      } else {
-        // User exists, try to sign in
+      } else if (signInMethods.includes('password')) {
+        // User has a password. Try to sign in.
         try {
           await signInWithEmailAndPassword(auth, email, password);
           // onAuthStateChanged will handle redirect
         } catch (signInError: any) {
-          // If sign-in fails now, it's almost certainly a wrong password.
+          // It's almost certainly a wrong password if it gets here.
           toast({
             variant: 'destructive',
             title: 'Senha incorreta',
             description: 'A senha digitada está incorreta. Se necessário, utilize a opção "Esqueci minha senha".',
           });
         }
+      } else {
+        // User exists but with a different provider (e.g., Google).
+        const providerName = signInMethods[0] === 'google.com' ? 'o Google' : `o provedor ${signInMethods[0]}`;
+        toast({
+          variant: 'destructive',
+          title: 'Método de Login Incorreto',
+          description: `Este e-mail já está cadastrado via ${providerName}. Por favor, utilize o login social correspondente.`,
+        });
       }
     } catch (error) {
         console.error('Login error:', error);
@@ -617,11 +625,18 @@ export default function LoginPage() {
           title: 'Usuário não cadastrado',
           description: "O e-mail informado não foi encontrado. Por favor, clique em 'Criar novo usuário' para se registrar.",
         });
-      } else {
+      } else if (signInMethods.includes('password')) {
         await sendPasswordResetEmail(auth, email);
         toast({
           title: 'Email de Redefinição Enviado',
           description: `Um link para redefinir sua senha foi enviado para ${email}. Verifique sua caixa de entrada e spam.`,
+        });
+      } else {
+        const providerName = signInMethods[0] === 'google.com' ? 'o Google' : `o provedor ${signInMethods[0]}`;
+        toast({
+          variant: 'destructive',
+          title: 'Não é possível redefinir a senha',
+          description: `Esta conta foi criada usando ${providerName} e não possui uma senha.`,
         });
       }
     } catch (error: any) {
