@@ -37,65 +37,71 @@ export default function LoginPage() {
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
   const isMobile = useIsMobile();
 
-  const isLoading = isLoadingMock || isLoadingGoogle || isMobile === undefined || isProcessingRedirect;
-  
-  const processGoogleUser = useCallback(async (user: FirebaseUser): Promise<boolean> => {
+  const processGoogleUser = useCallback(async (firebaseUser: FirebaseUser): Promise<boolean> => {
     if (!firestore || !auth) return false;
+    try {
+        if (firebaseUser.email && !firebaseUser.email.endsWith('@mensa.org.br')) {
+            await auth.signOut();
+            toast({
+                variant: 'destructive',
+                title: 'Acesso Negado',
+                description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
+            });
+            return false;
+        }
 
-    if (user.email && !user.email.endsWith('@mensa.org.br')) {
-      await auth.signOut();
-      toast({
-          variant: 'destructive',
-          title: 'Acesso Negado',
-          description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
-      });
-      return false;
+        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists()) {
+            const name = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Novo Usuário';
+            const userProfile: UserProfile = {
+                id: firebaseUser.uid,
+                name: name,
+                email: firebaseUser.email!,
+                avatarDataUri: firebaseUser.photoURL || `https://avatar.vercel.sh/${firebaseUser.uid}.svg`,
+                createdAt: serverTimestamp() as any,
+            };
+            await setDoc(userDocRef, userProfile);
+        }
+        return true;
+    } catch (error: any) {
+        console.error("Error processing Google user:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro de Processamento',
+            description: error.message || 'Não foi possível configurar o perfil do usuário.',
+        });
+        if (auth.currentUser) {
+            await auth.signOut();
+        }
+        return false;
     }
-
-    const userDocRef = doc(firestore, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
-
-    if (!userDoc.exists()) {
-        const name = user.displayName || user.email?.split('@')[0] || 'Novo Usuário';
-        const userProfile: UserProfile = {
-            id: user.uid,
-            name: name,
-            email: user.email!,
-            avatarDataUri: user.photoURL || `https://avatar.vercel.sh/${user.uid}.svg`,
-            createdAt: serverTimestamp() as any,
-        };
-        await setDoc(userDocRef, userProfile);
-    }
-    return true;
   }, [auth, firestore, toast]);
 
   // This effect handles the result from the redirect login flow
   useEffect(() => {
-    if (!auth) {
-      setIsProcessingRedirect(false);
-      return;
-    }
-
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (result?.user) {
-          await processGoogleUser(result.user);
-        }
-      })
-      .catch((error: any) => {
-        // Handle specific errors or show a generic message.
-        if (error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment') {
-          console.error("Google Sign-In redirect error:", error);
-          toast({
-            variant: 'destructive',
-            title: 'Erro no Login com Google',
-            description: 'Não foi possível fazer o login. Tente novamente.',
-          });
-        }
-      })
-      .finally(() => {
+    if (auth) {
+        getRedirectResult(auth)
+            .then(async (result) => {
+                if (result?.user) {
+                    await processGoogleUser(result.user);
+                }
+            })
+            .catch((error) => {
+                console.error("Google Sign-In redirect error:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Erro no Login com Google',
+                    description: error.message || 'Não foi possível completar o login. Tente novamente.',
+                });
+            })
+            .finally(() => {
+                setIsProcessingRedirect(false);
+            });
+    } else {
         setIsProcessingRedirect(false);
-      });
+    }
   }, [auth, processGoogleUser, toast]);
 
   // This effect handles navigation AFTER the user state is confirmed and any redirect is processed.
@@ -194,7 +200,7 @@ export default function LoginPage() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
       'hd': 'mensa.org.br',
-      'prompt': 'select_account' // Force account chooser every time.
+      'prompt': 'select_account'
     });
 
     if (isMobile) {
@@ -203,17 +209,14 @@ export default function LoginPage() {
       setIsLoadingGoogle(true);
       try {
           const result = await signInWithPopup(auth, provider);
-          const isSuccess = await processGoogleUser(result.user);
-          if (isSuccess) {
-            router.replace('/dashboard');
-          }
+          await processGoogleUser(result.user);
       } catch (error: any) {
           if (error.code !== 'auth/popup-closed-by-user') {
             console.error("Google Sign-In popup error:", error);
             toast({
                 variant: 'destructive',
                 title: 'Erro no Login com Google',
-                description: 'Não foi possível fazer o login. Tente novamente.',
+                description: error.message || 'Não foi possível fazer o login. Tente novamente.',
             });
           }
       } finally {
@@ -222,9 +225,9 @@ export default function LoginPage() {
     }
   };
   
-  if ((isUserLoading && !isProcessingRedirect) || (!isUserLoading && !isProcessingRedirect && user)) {
-     // If we have a user and we are not processing a redirect, we should be navigating.
-     // Show a loader while the navigation useEffect kicks in.
+  const isLoading = isLoadingMock || isLoadingGoogle || isMobile === undefined;
+
+  if (isProcessingRedirect || isUserLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -234,9 +237,6 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-       {isProcessingRedirect ? (
-         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-       ) : (
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
@@ -286,7 +286,6 @@ export default function LoginPage() {
             </form>
           </CardContent>
         </Card>
-      )}
     </div>
   );
 }
