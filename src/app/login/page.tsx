@@ -33,8 +33,9 @@ export default function LoginPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
-  const [userInput, setUserInput] = useState('');
-  const [isLoadingMock, setIsLoadingMock] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
   const isMobile = useIsMobile();
@@ -93,33 +94,27 @@ export default function LoginPage() {
   // This effect handles the result from the redirect login flow
   useEffect(() => {
     if (auth) {
+        setIsProcessingRedirect(true);
         getRedirectResult(auth)
             .then(async (result) => {
                 if (result?.user) {
-                    // The user is signed in. Process their profile.
-                    // The onAuthStateChanged listener will handle the navigation.
                     await processGoogleUser(result.user);
                 }
             })
             .catch((error) => {
-                // Handle errors during the redirect flow
                 console.error("Google Sign-In redirect error:", error);
                 toast({
                     variant: 'destructive',
                     title: 'Erro no Login com Google',
-                    description: `Não foi possível completar o login. ${error.message}`,
+                    description: `Ocorreu um erro: ${error.code} - ${error.message}. Tente novamente. Se o problema persistir, verifique as permissões de cookies e pop-ups no seu navegador.`,
                 });
             })
             .finally(() => {
-                // Once the redirect result is processed (or if there was none),
-                // we can stop blocking the UI and let the regular auth flow take over.
                 setIsProcessingRedirect(false);
             });
     } else {
-        // If auth is not ready, we are not processing a redirect.
         setIsProcessingRedirect(false);
     }
-    // processGoogleUser and toast are stable due to useCallback/useToast
   }, [auth, processGoogleUser, toast]);
 
   // This effect handles navigation *after* the user state is confirmed and any redirect is processed.
@@ -129,37 +124,29 @@ export default function LoginPage() {
     }
   }, [user, isUserLoading, isProcessingRedirect, router]);
 
-  const handleMockLogin = async (e: React.FormEvent) => {
+  const handleEmailPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firestore || !auth) {
         toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível conectar ao banco de dados.' });
         return;
     }
-    setIsLoadingMock(true);
+    setIsLoadingEmail(true);
 
-    const value = userInput.toLowerCase().trim();
-    let email, password;
-
-    if (value === 'admin') {
-      email = 'admin@assembleia.dev';
-      password = 'password123';
-    } else if (value === 'associado') {
-      email = 'member@assembleia.dev';
-      password = 'password123';
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Acesso Negado',
-        description: "Usuário inválido. Digite 'admin' ou 'associado' para entrar.",
-      });
-      setIsLoadingMock(false);
-      return;
+    if (!email.endsWith('@mensa.org.br') && !email.endsWith('@assembleia.dev')) {
+        toast({
+            variant: 'destructive',
+            title: 'Acesso Negado',
+            description: 'Apenas emails do domínio @mensa.org.br ou de teste são permitidos.',
+        });
+        setIsLoadingEmail(false);
+        return;
     }
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged will handle redirect via the useEffect hook
     } catch (signInError: any) {
-      if (signInError.code === 'auth/invalid-credential' || signInError.code === 'auth/user-not-found') {
+      if (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential') {
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, email, password);
           const newUser = userCredential.user;
@@ -181,15 +168,17 @@ export default function LoginPage() {
                 const adminDocRef = doc(firestore, 'admins', newUser.uid);
                 await setDoc(adminDocRef, {}); 
               }
+               toast({
+                title: 'Conta criada!',
+                description: `A sua conta para ${email} foi criada com sucesso.`,
+              });
           }
-          toast({
-            title: 'Conta de teste criada!',
-            description: `A conta para '${value}' foi criada com sucesso.`,
-          });
         } catch (signUpError: any) {
-          let description = 'Não foi possível fazer o login ou criar a conta de teste.';
-          if (signUpError.code === 'auth/email-already-in-use') {
-            description = "O usuário de teste já existe, mas a senha está incorreta. A senha deve ser 'password123'.";
+          let description = 'Não foi possível fazer o login ou criar a conta.';
+          if (signUpError.code === 'auth/email-already-in-use' || signInError.code === 'auth/invalid-credential') {
+            description = "O email já existe, mas a senha está incorreta.";
+          } else if (signUpError.code === 'auth/weak-password') {
+            description = "A senha é muito fraca. Deve ter pelo menos 6 caracteres."
           }
           toast({
             variant: 'destructive',
@@ -202,11 +191,11 @@ export default function LoginPage() {
         toast({
           variant: 'destructive',
           title: 'Erro Inesperado',
-          description: 'Ocorreu um erro durante o login. Verifique sua conexão.',
+          description: 'Ocorreu um erro durante o login. Verifique sua conexão e credenciais.',
         });
       }
     } finally {
-      setIsLoadingMock(false);
+      setIsLoadingEmail(false);
     }
   };
 
@@ -221,10 +210,10 @@ export default function LoginPage() {
       'prompt': 'select_account' // Always prompt for account selection
     });
 
+    setIsLoadingGoogle(true);
     if (isMobile) {
       signInWithRedirect(auth, provider); // Use redirect for mobile
     } else {
-      setIsLoadingGoogle(true);
       try {
           const result = await signInWithPopup(auth, provider);
           await processGoogleUser(result.user);
@@ -234,7 +223,7 @@ export default function LoginPage() {
             toast({
                 variant: 'destructive',
                 title: 'Erro no Login com Google',
-                description: error.message || 'Não foi possível fazer o login. Tente novamente.',
+                description: `Ocorreu um erro: ${error.code}. Tente novamente.`,
             });
           }
       } finally {
@@ -243,10 +232,9 @@ export default function LoginPage() {
     }
   };
   
-  const isLoading = isLoadingMock || isLoadingGoogle || isMobile === undefined;
+  const isLoading = isLoadingEmail || isLoadingGoogle || isMobile === undefined;
 
-  // Show a loader while processing redirect or if the user state is still loading
-  if (isProcessingRedirect || isUserLoading) {
+  if (isProcessingRedirect || (isUserLoading && !user)) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -265,44 +253,51 @@ export default function LoginPage() {
             <CardDescription>Acesso ao sistema</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button variant="outline" className="w-full" type="button" disabled={isLoading} onClick={handleGoogleLogin}>
-                {isLoadingGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icons.google className="h-4 w-4" />}
-                Entrar com Google
-              </Button>
+             <form onSubmit={handleEmailPasswordLogin} className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                    id="email"
+                    type="email"
+                    placeholder="seu.email@mensa.org.br"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="password">Senha</Label>
+                    <Input
+                    id="password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    />
+                </div>
+                 <CardDescription className="text-center text-xs">
+                    Se a conta não existir, será criada. Senhas devem ter no mínimo 6 caracteres.
+                </CardDescription>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoadingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar / Cadastrar"}
+                </Button>
+            </form>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
                   <span className="bg-background px-2 text-muted-foreground">
-                    Ou para teste
+                    Ou
                   </span>
                 </div>
               </div>
-            <form onSubmit={handleMockLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="user-type">Usuário de Teste</Label>
-                <Input
-                  id="user-type"
-                  type="text"
-                  placeholder="Digite 'admin' ou 'associado'"
-                  required
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  disabled={isLoading}
-                />
-              </div>
-              <CardDescription className="text-center text-xs">
-                Se a conta não existir, será criada com a senha 'password123'.
-              </CardDescription>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoadingMock ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Entrar com conta de teste"
-                )}
+            <Button variant="outline" className="w-full" type="button" disabled={isLoading} onClick={handleGoogleLogin}>
+                {isLoadingGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icons.google className="h-4 w-4" />}
+                Entrar com Google
               </Button>
-            </form>
           </CardContent>
         </Card>
     </div>
