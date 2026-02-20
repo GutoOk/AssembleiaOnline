@@ -10,14 +10,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth, useFirestore, useUser } from '@/firebase';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signInWithRedirect, 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
   getRedirectResult,
-  type User as FirebaseUser
+  setPersistence,
+  browserLocalPersistence,
+  type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
@@ -37,10 +39,19 @@ export default function LoginPage() {
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
   const isMobile = useIsMobile();
 
+  // This effect runs once to set persistence for the session.
+  useEffect(() => {
+    if (auth) {
+      // Use local persistence to keep the user signed in across browser sessions.
+      setPersistence(auth, browserLocalPersistence);
+    }
+  }, [auth]);
+
   const processGoogleUser = useCallback(async (firebaseUser: FirebaseUser): Promise<boolean> => {
     if (!firestore || !auth) return false;
     try {
         if (firebaseUser.email && !firebaseUser.email.endsWith('@mensa.org.br')) {
+            // This is a valid user, but not for this app. Sign them out.
             await auth.signOut();
             toast({
                 variant: 'destructive',
@@ -85,26 +96,33 @@ export default function LoginPage() {
         getRedirectResult(auth)
             .then(async (result) => {
                 if (result?.user) {
+                    // The user is signed in. Process their profile.
+                    // The onAuthStateChanged listener will handle the navigation.
                     await processGoogleUser(result.user);
                 }
             })
             .catch((error) => {
+                // Handle errors during the redirect flow
                 console.error("Google Sign-In redirect error:", error);
                 toast({
                     variant: 'destructive',
                     title: 'Erro no Login com Google',
-                    description: error.message || 'Não foi possível completar o login. Tente novamente.',
+                    description: `Não foi possível completar o login. ${error.message}`,
                 });
             })
             .finally(() => {
+                // Once the redirect result is processed (or if there was none),
+                // we can stop blocking the UI and let the regular auth flow take over.
                 setIsProcessingRedirect(false);
             });
     } else {
+        // If auth is not ready, we are not processing a redirect.
         setIsProcessingRedirect(false);
     }
+    // processGoogleUser and toast are stable due to useCallback/useToast
   }, [auth, processGoogleUser, toast]);
 
-  // This effect handles navigation AFTER the user state is confirmed and any redirect is processed.
+  // This effect handles navigation *after* the user state is confirmed and any redirect is processed.
   useEffect(() => {
     if (!isProcessingRedirect && !isUserLoading && user) {
       router.replace('/dashboard');
@@ -200,11 +218,11 @@ export default function LoginPage() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
       'hd': 'mensa.org.br',
-      'prompt': 'select_account'
+      'prompt': 'select_account' // Always prompt for account selection
     });
 
     if (isMobile) {
-      signInWithRedirect(auth, provider);
+      signInWithRedirect(auth, provider); // Use redirect for mobile
     } else {
       setIsLoadingGoogle(true);
       try {
@@ -227,6 +245,7 @@ export default function LoginPage() {
   
   const isLoading = isLoadingMock || isLoadingGoogle || isMobile === undefined;
 
+  // Show a loader while processing redirect or if the user state is still loading
   if (isProcessingRedirect || isUserLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
