@@ -37,10 +37,10 @@ export default function LoginPage() {
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
   const isMobile = useIsMobile();
 
-  const isLoading = isLoadingMock || isLoadingGoogle || isMobile === undefined;
+  const isLoading = isLoadingMock || isLoadingGoogle || isMobile === undefined || isProcessingRedirect;
   
-  const processGoogleUser = useCallback(async (user: FirebaseUser) => {
-    if (!firestore || !auth) return;
+  const processGoogleUser = useCallback(async (user: FirebaseUser): Promise<boolean> => {
+    if (!firestore || !auth) return false;
 
     if (user.email && !user.email.endsWith('@mensa.org.br')) {
       await auth.signOut();
@@ -49,7 +49,7 @@ export default function LoginPage() {
           title: 'Acesso Negado',
           description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
       });
-      return;
+      return false;
     }
 
     const userDocRef = doc(firestore, 'users', user.uid);
@@ -66,6 +66,7 @@ export default function LoginPage() {
         };
         await setDoc(userDocRef, userProfile);
     }
+    return true;
   }, [auth, firestore, toast]);
 
   // This effect handles the result from the redirect login flow
@@ -78,10 +79,10 @@ export default function LoginPage() {
     getRedirectResult(auth)
       .then(async (result) => {
         if (result?.user) {
-          // A user was successfully signed in via redirect.
-          // Now we process their data. The onAuthStateChanged listener
-          // will handle the actual application login state change.
-          await processGoogleUser(result.user);
+          const isSuccess = await processGoogleUser(result.user);
+          if (isSuccess) {
+            router.replace('/dashboard');
+          }
         }
       })
       .catch((error: any) => {
@@ -96,11 +97,9 @@ export default function LoginPage() {
         }
       })
       .finally(() => {
-        // This runs whether a redirect was processed or not.
-        // It's safe to allow the rest of the app to render now.
         setIsProcessingRedirect(false);
       });
-  }, [auth, processGoogleUser, toast]);
+  }, [auth, processGoogleUser, toast, router]);
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -200,14 +199,15 @@ export default function LoginPage() {
     });
 
     if (isMobile) {
-      // On mobile, use redirect. The page will navigate away. The result is handled by the useEffect hook.
       signInWithRedirect(auth, provider);
     } else {
-      // On desktop, use popup for a better UX.
       setIsLoadingGoogle(true);
       try {
           const result = await signInWithPopup(auth, provider);
-          await processGoogleUser(result.user);
+          const isSuccess = await processGoogleUser(result.user);
+          if (isSuccess) {
+            router.replace('/dashboard');
+          }
       } catch (error: any) {
           if (error.code !== 'auth/popup-closed-by-user') {
             console.error("Google Sign-In popup error:", error);
@@ -223,7 +223,7 @@ export default function LoginPage() {
     }
   };
   
-  if (isUserLoading || user || isProcessingRedirect) {
+  if (isUserLoading || user) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -233,55 +233,59 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-             <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={48} height={48} />
-          </div>
-          <CardTitle className="text-2xl">Assembleia Mensa Brasil</CardTitle>
-          <CardDescription>Acesso ao sistema</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-           <Button variant="outline" className="w-full" type="button" disabled={isLoading} onClick={handleGoogleLogin}>
-              {isLoadingGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icons.google className="h-4 w-4" />}
-              Entrar com Google
-            </Button>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Ou para teste
-                </span>
-              </div>
+       {isProcessingRedirect ? (
+         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+       ) : (
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Image src="https://mensa.org.br/images/Mensa-logo.png" alt="Mensa Brasil Logo" width={48} height={48} />
             </div>
-          <form onSubmit={handleMockLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="user-type">Usuário de Teste</Label>
-              <Input
-                id="user-type"
-                type="text"
-                placeholder="Digite 'admin' ou 'associado'"
-                required
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-             <CardDescription className="text-center text-xs">
-              Se a conta não existir, será criada com a senha 'password123'.
-            </CardDescription>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoadingMock ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Entrar com conta de teste"
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            <CardTitle className="text-2xl">Assembleia Mensa Brasil</CardTitle>
+            <CardDescription>Acesso ao sistema</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button variant="outline" className="w-full" type="button" disabled={isLoading} onClick={handleGoogleLogin}>
+                {isLoadingGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icons.google className="h-4 w-4" />}
+                Entrar com Google
+              </Button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Ou para teste
+                  </span>
+                </div>
+              </div>
+            <form onSubmit={handleMockLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="user-type">Usuário de Teste</Label>
+                <Input
+                  id="user-type"
+                  type="text"
+                  placeholder="Digite 'admin' ou 'associado'"
+                  required
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              <CardDescription className="text-center text-xs">
+                Se a conta não existir, será criada com a senha 'password123'.
+              </CardDescription>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoadingMock ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Entrar com conta de teste"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
