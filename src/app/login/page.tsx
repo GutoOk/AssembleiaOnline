@@ -554,41 +554,39 @@ export default function LoginPage() {
     }
 
     try {
-      const signInMethods = await fetchSignInMethodsForEmail(auth, email);
-
-      if (signInMethods.length === 0) {
-        toast({
-          variant: 'destructive',
-          title: 'Usuário não cadastrado',
-          description:
-            "O e-mail informado não foi encontrado. Por favor, clique em 'Criar novo usuário' para se registrar.",
-        });
-        setIsLoadingEmail(false);
-        return;
-      }
-
-      // If user exists, try to sign in with email and password.
-      // This allows Firebase to handle unified accounts (e.g. social + password).
+      await signInWithEmailAndPassword(auth, email, password);
+      // Success, onAuthStateChanged will handle the redirect.
+    } catch (error: any) {
+      // Login failed, now we diagnose the error.
       try {
-        await signInWithEmailAndPassword(auth, email, password);
-        // onAuthStateChanged will handle the redirect.
-      } catch (error) {
-        // Since we know the user exists, this is most likely a wrong password.
+        const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+
+        if (signInMethods.length === 0) {
+          // If signIn fails and there are no methods, user truly doesn't exist.
+          toast({
+            variant: 'destructive',
+            title: 'Usuário não cadastrado',
+            description: "O e-mail informado não foi encontrado. Por favor, clique em 'Criar novo usuário' para se registrar.",
+          });
+        } else {
+          // If signIn fails but the user *does* exist, it's a wrong password
+          // or the user has no password set (e.g. social only).
+          toast({
+            variant: 'destructive',
+            title: 'Senha incorreta',
+            description:
+              'A senha digitada está incorreta. Se necessário, utilize a opção "Esqueci minha senha".',
+          });
+        }
+      } catch (fetchError) {
+        // If checking methods also fails, show a generic login error.
+        console.error('Login diagnostic error:', fetchError);
         toast({
           variant: 'destructive',
-          title: 'Senha incorreta',
-          description:
-            'A senha digitada está incorreta. Se necessário, utilize a opção "Esqueci minha senha".',
+          title: 'Erro de Autenticação',
+          description: 'Ocorreu um erro ao verificar suas credenciais. Tente novamente.',
         });
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro de Autenticação',
-        description:
-          'Ocorreu um erro ao verificar suas credenciais. Tente novamente.',
-      });
     } finally {
       setIsLoadingEmail(false);
     }
