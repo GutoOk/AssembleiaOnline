@@ -1357,7 +1357,7 @@ export default function AssemblyPage() {
                     ></iframe>
                   ) : (
                     <div className="flex h-full items-center justify-center bg-muted">
-                        <p className="text-muted-foreground">A transmissão ainda não foi configurada.</p>
+                        <p className="text-muted-foreground">A transmissão ainda não começou</p>
                     </div>
                   )}
                 </div>
@@ -1371,11 +1371,13 @@ export default function AssemblyPage() {
               />
             )}
             
-            <CreatePollDialog
-              open={isCreatePollOpen}
-              onOpenChange={setIsCreatePollOpen}
-              assembly={assembly}
-            />
+            {isAdmin && assembly.status === 'live' && (
+              <CreatePollDialog
+                open={isCreatePollOpen}
+                onOpenChange={setIsCreatePollOpen}
+                assembly={assembly}
+              />
+            )}
 
             <div className="flex items-center gap-2 pt-4 pb-2">
                 <BookText className="h-5 w-5 text-muted-foreground" />
