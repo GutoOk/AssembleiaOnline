@@ -9,7 +9,7 @@ import { Loader2, Send, MoreVertical, ShieldBan } from 'lucide-react';
 import { useCollection, useFirestore, useUser, addDocumentNonBlocking, setDocumentNonBlocking, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, limit, doc } from 'firebase/firestore';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
-import { useBlockedUsers } from '@/hooks/useBlockedUsers';
+import { useBlockedUsers } from '@/hooks/use-blocked-users';
 import { useToast } from '@/hooks/use-toast';
 import type { ChatMessage, UserProfile, Reaction } from '@/lib/data';
 import { formatDistanceToNow } from 'date-fns';
@@ -115,7 +115,7 @@ function ChatMessageItem({ message, sender, onBlockUser, onShowReactions }: { me
             {!isCurrentUser && (
                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 md:opacity-100">
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100">
                             <MoreVertical className="h-4 w-4" />
                         </Button>
                     </DropdownMenuTrigger>
@@ -260,7 +260,7 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
                             <Loader2 className="h-6 w-6 animate-spin text-primary" />
                         </div>
                     ) : filteredMessages.length > 0 ? (
-                        [...filteredMessages].reverse().map(msg => (
+                        filteredMessages.map(msg => (
                             <ChatMessageItem 
                                 key={msg.id} 
                                 message={msg} 
