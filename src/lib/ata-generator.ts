@@ -12,6 +12,8 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import type { UserOptions } from 'jspdf-autotable';
 import {
   Assembly,
   AtaItem,
@@ -35,6 +37,12 @@ import {
 const DISCLAIMER_TEXT =
   'Este documento é uma cópia preliminar gerada pelo sistema para simples conferência e não possui valor legal. Os registros apresentados são informativos e refletem dados brutos, não substituindo a ata oficial, que será publicada na pasta de documentos do Google Drive para conferência e eventuais pedidos de retificação. A ata definitiva somente estará consolidada após a aprovação do texto oficial na próxima assembleia.';
 
+interface jsPDFWithAutoTable extends jsPDF {
+  autoTable: (options: UserOptions) => jsPDFWithAutoTable;
+  previousAutoTable: {
+      finalY: number;
+  };
+}
 
 // This function will fetch all necessary data
 export async function downloadAta(
@@ -192,49 +200,41 @@ async function generatePdf(
   allOptions: Record<string, PollOption[]>,
   userProfiles: Record<string, UserProfile>
 ) {
-  const doc = new jsPDF('p', 'pt', 'a4');
+  const doc = new jsPDF('p', 'pt', 'a4') as jsPDFWithAutoTable;
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
   const contentWidth = pageWidth - margin * 2;
   let y = margin;
-  
-  const FONT = 'Helvetica'; // closest to Arial in jsPDF
+
+  const FONT = 'Helvetica';
   doc.setFont(FONT);
 
-  const checkPageBreak = (neededHeight = 20) => {
-    if (y + neededHeight > pageHeight - margin) {
-      doc.addPage();
-      y = margin;
-    }
-  };
-  
-  const printWrappedText = (text: string, x: number, currentY: number, maxWidth: number, options: { fontSize?: number, fontStyle?: string } = {}) => {
-      const fontSize = options.fontSize || 10;
-      const fontStyle = options.fontStyle || 'normal';
-      doc.setFontSize(fontSize);
-      doc.setFont(FONT, fontStyle);
-      const lines = doc.splitTextToSize(text, maxWidth);
-      
-      checkPageBreak(lines.length * fontSize * 1.2);
+  const addText = (text: string, options: { size?: number; style?: 'normal' | 'bold' | 'italic'; spaceAfter?: number; isTitle?: boolean }) => {
+    doc.setFontSize(options.size || 10);
+    doc.setFont(FONT, options.style || 'normal');
+    
+    const textDimensions = doc.getTextDimensions(text, { maxWidth: contentWidth });
+    const textHeight = textDimensions.h;
 
-      doc.text(lines, x, currentY);
-      return currentY + lines.length * (doc.getLineHeight() / doc.internal.scaleFactor) * 0.8;
+    if (y + textHeight > pageHeight - margin && !options.isTitle) {
+        doc.addPage();
+        y = margin;
+    }
+
+    doc.text(text, margin, y, { maxWidth: contentWidth });
+    y += textHeight + (options.spaceAfter || 0);
   };
   
   const formatDateTime = (date: Date) => format(date, "dd 'de' MMMM de yyyy, 'às' HH:mm'h'", { locale: ptBR });
   
   // --- Header ---
-  y = printWrappedText(assembly.title.toUpperCase(), margin, y, contentWidth, { fontSize: 14, fontStyle: 'bold' });
-  y += 5;
+  addText(assembly.title.toUpperCase(), { size: 14, style: 'bold', spaceAfter: 5, isTitle: true });
   if(assembly.startedAt) {
-    y = printWrappedText(`Iniciada em: ${formatDateTime(assembly.startedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
+    addText(`Iniciada em: ${formatDateTime(assembly.startedAt.toDate())}`, { size: 10, spaceAfter: 15 });
   }
-  y += 15;
-  y = printWrappedText('Minuta de Ata', margin, y, contentWidth, { fontSize: 12, fontStyle: 'bold' });
-  y += 5;
-  y = printWrappedText(DISCLAIMER_TEXT, margin, y, contentWidth, { fontSize: 8 });
-  y += 20;
+  addText('Minuta de Ata', { size: 12, style: 'bold', spaceAfter: 5 });
+  addText(DISCLAIMER_TEXT, { size: 8, style: 'italic', spaceAfter: 20 });
 
   // --- Timeline Items ---
   const sortedTimeline = [...timelineItems].sort((a, b) => {
@@ -244,116 +244,87 @@ async function generatePdf(
   });
 
   for (const item of sortedTimeline) {
-      checkPageBreak(40);
-      doc.setDrawColor(220); // Lighter gray line
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 15;
+    if (y > margin) {
+        if (y + 30 > pageHeight - margin) {
+            doc.addPage();
+            y = margin;
+        } else {
+            y += 10;
+            doc.setDrawColor(220);
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 15;
+        }
+    }
 
-      if ('question' in item) {
-          const poll = item as Poll;
-          const votes = allVotes[poll.id] || [];
-          const options = allOptions[poll.id] || [];
-          const optionMap = new Map(options.map((o) => [o.id, o.text]));
-          const pollResult = getPollResult(poll, options, votes);
-          
-          y = printWrappedText(`VOTAÇÃO: ${poll.question}`, margin, y, contentWidth, { fontSize: 11, fontStyle: 'bold' });
-          y += 5;
-          const typeText = poll.type === 'proposal' ? 'Votação de Proposta' : 'Consulta de Opinião';
-          y = printWrappedText(`Tipo: ${typeText}`, margin, y, contentWidth, { fontSize: 9 });
-          y += 5;
-          y = printWrappedText(`Período: ${formatDateTime(poll.createdAt.toDate())} a ${formatDateTime(poll.endDate.toDate())}`, margin, y, contentWidth, { fontSize: 9 });
+    if ('question' in item) {
+        const poll = item as Poll;
+        const votes = allVotes[poll.id] || [];
+        const options = allOptions[poll.id] || [];
+        const optionMap = new Map(options.map((o) => [o.id, o.text]));
+        const pollResult = getPollResult(poll, options, votes);
+        
+        addText(`VOTAÇÃO: ${poll.question}`, { size: 11, style: 'bold', spaceAfter: 5 });
+        const typeText = poll.type === 'proposal' ? 'Votação de Proposta' : 'Consulta de Opinião';
+        addText(`Tipo: ${typeText}`, { size: 9, spaceAfter: 5 });
+        addText(`Período: ${formatDateTime(poll.createdAt.toDate())} a ${formatDateTime(poll.endDate.toDate())}`, { size: 9, spaceAfter: 10 });
 
-          if (pollResult) {
-            y+= 5;
-            y = printWrappedText(`Resultado: ${pollResult.status}`, margin, y, contentWidth, { fontSize: 9, fontStyle: 'bold'});
-            y = printWrappedText(`Detalhes: ${pollResult.message}`, margin, y, contentWidth, { fontSize: 9 });
-          }
+        if (pollResult) {
+            addText(`Resultado: ${pollResult.status}`, { size: 9, style: 'bold'});
+            addText(`Detalhes: ${pollResult.message}`, { size: 9, spaceAfter: 15 });
+        }
+        
+        const head = [['NOME', 'EMAIL', 'VOTO', 'POR PROCURAÇÃO A']];
+        const body = votes.map((vote) => {
+          const personRepresented = userProfiles[vote.representedUserId || ''];
+          const voter = userProfiles[vote.userId];
+          const optionText = optionMap.get(vote.pollOptionId) || 'Voto inválido';
+          return [
+            personRepresented?.name || voter?.name || 'Usuário não encontrado',
+            personRepresented?.email || voter?.email || 'Email não encontrado',
+            optionText,
+            vote.representedUserId ? (voter?.name || '') : '',
+          ];
+        }).sort((a, b) => (a[0] || '').localeCompare(b[0] || ''));
 
-          y += 15;
-          
-          const head = [['NOME', 'EMAIL', 'VOTO', 'POR PROCURAÇÃO A']];
-          const body = votes.map((vote) => {
-            const personRepresented = userProfiles[vote.representedUserId || ''];
-            const voter = userProfiles[vote.userId];
-            const optionText = optionMap.get(vote.pollOptionId) || 'Voto inválido';
-            return [
-              personRepresented?.name || voter?.name || 'Usuário não encontrado',
-              personRepresented?.email || voter?.email || 'Email não encontrado',
-              optionText,
-              vote.representedUserId ? (voter?.name || '') : '',
-            ];
-          }).sort((a, b) => (a[0] || '').localeCompare(b[0] || ''));
+        doc.autoTable({
+            head: head,
+            body: body,
+            startY: y,
+            theme: 'striped',
+            headStyles: { fillColor: [0, 100, 40], fontSize: 8 },
+            styles: { fontSize: 8, cellPadding: 4, font: FONT },
+            didDrawPage: (data) => {
+              y = data.cursor?.y || margin;
+            },
+        });
 
-          const tableColumnWidths = [150, 160, 70, 150];
-          const tableCellPadding = 5;
-          const lineHeight = 12;
+        y = doc.previousAutoTable.finalY + 10;
 
-          // Header
-          doc.setFontSize(9);
-          doc.setFont(FONT, 'bold');
-          checkPageBreak(lineHeight + tableCellPadding * 2);
-          let currentX = margin;
-          head[0].forEach((cell, i) => {
-              doc.text(cell, currentX + tableCellPadding, y + lineHeight);
-              currentX += tableColumnWidths[i];
-          });
-          y += lineHeight + tableCellPadding;
-          doc.setDrawColor(200);
-          doc.line(margin, y, pageWidth - margin, y);
-          y += tableCellPadding;
-
-          // Body
-          doc.setFontSize(8);
-          doc.setFont(FONT, 'normal');
-          body.forEach(row => {
-              let maxLines = 0;
-              const rowLines: string[][] = [];
-
-              row.forEach((cell, i) => {
-                  const lines = doc.splitTextToSize(cell, tableColumnWidths[i] - tableCellPadding * 2);
-                  rowLines.push(lines);
-                  if (lines.length > maxLines) {
-                      maxLines = lines.length;
-                  }
-              });
-              
-              const rowHeight = maxLines * (lineHeight * 0.8) + tableCellPadding * 2;
-              checkPageBreak(rowHeight);
-
-              const startY = y;
-              currentX = margin;
-              rowLines.forEach((lines, i) => {
-                  doc.text(lines, currentX + tableCellPadding, startY + lineHeight * 0.8);
-                  currentX += tableColumnWidths[i];
-              });
-
-              y += rowHeight;
-              doc.setDrawColor(230);
-              doc.line(margin, y - tableCellPadding, pageWidth - margin, y - tableCellPadding);
-          });
-          y += 10;
-      } else {
-          const ata = item as AtaItem;
-          y = printWrappedText(ata.text, margin, y, contentWidth, { fontSize: 10 });
-      }
+    } else {
+        const ata = item as AtaItem;
+        addText(ata.text, { size: 10, spaceAfter: 10 });
+    }
   }
 
   // --- Footer ---
-  checkPageBreak(80);
+  if (y + 80 > pageHeight - margin) {
+    doc.addPage();
+    y = margin;
+  }
+  y += 10;
   doc.setDrawColor(220);
   doc.line(margin, y, pageWidth - margin, y);
   y += 15;
-  if (assembly.endedAt) {
-    y = printWrappedText(`Encerramento: ${formatDateTime(assembly.endedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
-  }
-  y += 30;
 
-  y = printWrappedText(DISCLAIMER_TEXT, margin, y, contentWidth, { fontSize: 8 });
+  if (assembly.endedAt) {
+    addText(`Encerramento: ${formatDateTime(assembly.endedAt.toDate())}`, { size: 10, spaceAfter: 30 });
+  }
+
+  addText(DISCLAIMER_TEXT, { size: 8, style: 'italic', spaceAfter: 15 });
 
   if (assembly.status === 'live') {
-    y += 15;
     const partialNotice = `AVISO: A assembleia ainda não foi encerrada. Os registros aqui presentes são parciais e refletem o estado da assembleia no momento da emissão deste documento (${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}).`;
-    printWrappedText(partialNotice, margin, y, contentWidth, { fontSize: 8, fontStyle: 'bold' });
+    addText(partialNotice, { size: 8, style: 'bold' });
   }
 
   doc.save(`Ata - ${assembly.title}.pdf`);
@@ -472,15 +443,15 @@ async function generateDocx(
 
       // Votes Table
       const voterList = votes
-        .map((vote) => {
-          const personRepresented = userProfiles[vote.representedUserId || ''];
-          const voter = userProfiles[vote.userId];
-          const optionText = optionMap.get(vote.pollOptionId) || 'Voto inválido';
+        .map((voter) => {
+          const personRepresented = userProfiles[voter.representedUserId || ''];
+          const proxyVoter = userProfiles[voter.userId];
+          const optionText = optionMap.get(voter.pollOptionId) || 'Voto inválido';
           return {
-            name: personRepresented?.name || voter?.name || 'Usuário não encontrado',
-            email: personRepresented?.email || voter?.email || 'Email não encontrado',
+            name: personRepresented?.name || proxyVoter?.name || 'Usuário não encontrado',
+            email: personRepresented?.email || proxyVoter?.email || 'Email não encontrado',
             vote: optionText,
-            proxy: vote.representedUserId ? voter?.name : undefined,
+            proxy: voter.representedUserId ? proxyVoter?.name : undefined,
           };
         })
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
