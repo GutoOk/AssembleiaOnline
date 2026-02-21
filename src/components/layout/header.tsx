@@ -109,7 +109,7 @@ export function Header() {
 
   const isAssemblyPage = pathname.startsWith('/assemblies/');
   const showCreateAssemblyButton = isAdmin && pathname === '/dashboard';
-  const showDownloadAtaButton = isAssemblyPage && assemblyStatus === 'finished';
+  const showDownloadAtaButton = isAssemblyPage && (assemblyStatus === 'live' || assemblyStatus === 'finished');
 
   const mobileNavLinks = (
     <>
@@ -318,5 +318,3 @@ export function Header() {
     </header>
   );
 }
-
-    

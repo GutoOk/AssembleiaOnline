@@ -344,11 +344,17 @@ async function generatePdf(
   doc.line(margin, y, pageWidth - margin, y);
   y += 15;
   if (assembly.endedAt) {
-      y = printWrappedText(`Encerramento: ${formatDateTime(assembly.endedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
+    y = printWrappedText(`Encerramento: ${formatDateTime(assembly.endedAt.toDate())}`, margin, y, contentWidth, { fontSize: 10 });
   }
   y += 30;
 
   y = printWrappedText(DISCLAIMER_TEXT, margin, y, contentWidth, { fontSize: 8 });
+
+  if (assembly.status === 'live') {
+    y += 15;
+    const partialNotice = `AVISO: A assembleia ainda não foi encerrada. Os registros aqui presentes são parciais e refletem o estado da assembleia no momento da emissão deste documento (${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}).`;
+    printWrappedText(partialNotice, margin, y, contentWidth, { fontSize: 8, fontStyle: 'bold' });
+  }
 
   doc.save(`Ata - ${assembly.title}.pdf`);
 }
@@ -536,6 +542,15 @@ async function generateDocx(
       children: [new TextRun({ text: DISCLAIMER_TEXT, font: FONT, size: 16, italics: true })],
       alignment: AlignmentType.LEFT,
   }));
+  
+  if (assembly.status === 'live') {
+    children.push(new Paragraph({})); // Spacer
+    const partialNotice = `AVISO: A assembleia ainda não foi encerrada. Os registros aqui presentes são parciais e refletem o estado da assembleia no momento da emissão deste documento (${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}).`;
+    children.push(new Paragraph({
+        children: [new TextRun({ text: partialNotice, font: FONT, size: 16, bold: true, italics: true })],
+        alignment: AlignmentType.LEFT,
+    }));
+  }
 
   const doc = new Document({
     styles: {
