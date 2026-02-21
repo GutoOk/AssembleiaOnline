@@ -1077,32 +1077,55 @@ export default function AssemblyPage() {
     }
   }, [timelineItems, setTimelineItems]);
 
-  // --- Presence Logic ---
+  // --- Presence Logic (Heartbeat) ---
+  useEffect(() => {
+    if (!firestore || !user || !assemblyId) return;
+
+    const presenceRef = doc(firestore, 'assemblies', assemblyId, 'presence', user.uid);
+
+    // Initial write to mark presence and set first heartbeat
+    setDocumentNonBlocking(presenceRef, { 
+        joinedAt: serverTimestamp(), 
+        lastSeen: serverTimestamp() 
+    }, { merge: true });
+
+    // Set up a heartbeat interval to update the 'lastSeen' timestamp
+    const interval = setInterval(() => {
+        updateDocumentNonBlocking(presenceRef, { lastSeen: serverTimestamp() });
+    }, 15000); // Update every 15 seconds
+
+    // Cleanup function for when the component unmounts (e.g., navigating away)
+    return () => {
+        clearInterval(interval); // Stop the heartbeat
+        deleteDocumentNonBlocking(presenceRef); // Proactively delete presence doc
+    };
+  }, [firestore, user, assemblyId]);
+
   const presenceQuery = useMemoFirebase(() => {
       if (!firestore || !assemblyId) return null;
       return collection(firestore, 'assemblies', assemblyId, 'presence');
   }, [firestore, assemblyId]);
 
-  const { data: presenceData } = useCollection<AssemblyPresence>(presenceQuery);
-  const attendeeIds = useMemo(() => presenceData?.map(p => p.id) ?? [], [presenceData]);
+  const { data: allPresenceData } = useCollection<AssemblyPresence>(presenceQuery);
+
+  // Filter for active users based on heartbeat
+  const activePresenceData = useMemo(() => {
+      if (!allPresenceData) return [];
+      const now = Date.now();
+      const thirtySecondsAgo = now - 30000;
+      return allPresenceData.filter(p => p.lastSeen && p.lastSeen.toDate().getTime() > thirtySecondsAgo);
+  }, [allPresenceData]);
+
+  const attendeeIds = useMemo(() => activePresenceData?.map(p => p.id) ?? [], [activePresenceData]);
   const { profiles: attendeeProfiles } = useUserProfiles(attendeeIds);
-
-  useEffect(() => {
-      if (!firestore || !user || !assemblyId) return;
-
-      const presenceRef = doc(firestore, 'assemblies', assemblyId, 'presence', user.uid);
-      setDocumentNonBlocking(presenceRef, { joinedAt: serverTimestamp() }, { merge: true });
-
-      return () => {
-          deleteDocumentNonBlocking(presenceRef);
-      };
-  }, [firestore, user, assemblyId]);
 
   useEffect(() => {
       if (attendeeProfiles) {
           const profilesArray = Object.values(attendeeProfiles);
           profilesArray.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
           setAttendees(profilesArray);
+      } else {
+        setAttendees([]);
       }
   }, [attendeeProfiles, setAttendees]);
   // --- End Presence Logic ---

@@ -131,6 +131,5 @@ export type ProxyAssignment = {
 export type AssemblyPresence = {
   id: string; // user UID
   joinedAt: Timestamp;
+  lastSeen: Timestamp;
 };
-
-    
