@@ -11,16 +11,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Button } from './ui/button';
 import { AlertTriangle } from 'lucide-react';
 import React from 'react';
 
 interface AtaDownloadDialogProps {
-  onConfirm: () => void;
+  onConfirmDocx: () => void;
+  onConfirmPdf: () => void;
   children: React.ReactNode;
   disabled?: boolean;
+  isAdmin: boolean;
 }
 
-export function AtaDownloadDialog({ onConfirm, children, disabled }: AtaDownloadDialogProps) {
+export function AtaDownloadDialog({ onConfirmDocx, onConfirmPdf, children, disabled, isAdmin }: AtaDownloadDialogProps) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild disabled={disabled}>
@@ -40,9 +43,24 @@ export function AtaDownloadDialog({ onConfirm, children, disabled }: AtaDownload
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>
-            Baixar Minuta
-          </AlertDialogAction>
+          {isAdmin ? (
+            <>
+              <AlertDialogAction asChild>
+                <Button variant="outline" onClick={onConfirmPdf}>
+                  Baixar PDF (Versão do Usuário)
+                </Button>
+              </AlertDialogAction>
+              <AlertDialogAction asChild>
+                <Button onClick={onConfirmDocx}>
+                  Baixar DOCX (Editável)
+                </Button>
+              </AlertDialogAction>
+            </>
+          ) : (
+            <AlertDialogAction onClick={onConfirmPdf}>
+              Baixar Minuta
+            </AlertDialogAction>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

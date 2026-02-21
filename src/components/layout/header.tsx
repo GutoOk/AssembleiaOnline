@@ -90,11 +90,11 @@ export function Header() {
     }
   };
 
-  const handleDownloadAta = async () => {
+  const handleDownloadAta = async (format: 'docx' | 'pdf') => {
     if (!firestore || !assemblyContext?.assembly || !assemblyContext?.timelineItems) return;
     setIsDownloadingAta(true);
     try {
-        await downloadAta(firestore, assemblyContext.assembly, assemblyContext.timelineItems, isAdmin);
+        await downloadAta(firestore, assemblyContext.assembly, assemblyContext.timelineItems, format);
     } catch (e) {
         console.error("Failed to generate ATA document", e);
         toast({
@@ -148,7 +148,12 @@ export function Header() {
           </Link>
       )}
        {showDownloadAtaButton && (
-        <AtaDownloadDialog onConfirm={handleDownloadAta} disabled={isDownloadingAta}>
+        <AtaDownloadDialog 
+          onConfirmDocx={() => handleDownloadAta('docx')}
+          onConfirmPdf={() => handleDownloadAta('pdf')}
+          disabled={isDownloadingAta} 
+          isAdmin={isAdmin}
+        >
           <Button
             variant="ghost"
             disabled={isDownloadingAta}
@@ -230,7 +235,12 @@ export function Header() {
             )}
             
             {showDownloadAtaButton && (
-              <AtaDownloadDialog onConfirm={handleDownloadAta} disabled={isDownloadingAta}>
+              <AtaDownloadDialog 
+                onConfirmDocx={() => handleDownloadAta('docx')}
+                onConfirmPdf={() => handleDownloadAta('pdf')}
+                disabled={isDownloadingAta} 
+                isAdmin={isAdmin}
+              >
                 <Button disabled={isDownloadingAta} variant="ghost" className="text-muted-foreground hover:text-foreground">
                   {isDownloadingAta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   Baixar Ata

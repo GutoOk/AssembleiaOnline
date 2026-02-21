@@ -41,7 +41,7 @@ export async function downloadAta(
   firestore: Firestore,
   assembly: Assembly,
   timelineItems: (AtaItem | Poll)[],
-  isAdmin: boolean
+  format: 'docx' | 'pdf'
 ) {
   // 1. Fetch all votes and options for all polls
   const allVotes: Record<string, Vote[]> = {};
@@ -110,7 +110,7 @@ export async function downloadAta(
   }
 
   // 3. Generate and download the document based on user role
-  if (isAdmin) {
+  if (format === 'docx') {
     await generateDocx(assembly, timelineItems, allVotes, allOptions, userProfiles);
   } else {
     await generatePdf(assembly, timelineItems, allVotes, allOptions, userProfiles);
