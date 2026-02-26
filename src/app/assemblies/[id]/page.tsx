@@ -1050,6 +1050,10 @@ export default function AssemblyPage() {
 
     return combined;
   }, [polls, ataItems]);
+
+  const hasOpenPolls = useMemo(() => {
+    return polls?.some(p => p.status === 'open' && !isPast(p.endDate.toDate())) ?? false;
+  }, [polls]);
   
   useEffect(() => {
     if (assembly) {
@@ -1245,6 +1249,9 @@ export default function AssemblyPage() {
                 Para participar com **voz e vídeo**, você deve solicitar a palavra na **Fila de Inscrição** e aguardar a autorização do administrador.
               </p>
               <p>
+                Leia também a **minuta da ata**, que é atualizada em tempo real por nossa equipe, e fique atento às **votações** que aparecerão nos registros da ata durante o evento.
+              </p>
+              <p>
                 Utilize o **Chat** interno do sistema para interagir informalmente com outros membros, pedir ajuda ou informar qualquer instabilidade técnica.
               </p>
             </DialogDescription>
@@ -1392,6 +1399,11 @@ export default function AssemblyPage() {
             <div className="flex items-center gap-2 pt-4 pb-2">
                 <BookText className="h-5 w-5 text-muted-foreground" />
                 <h2 className="text-xl font-semibold tracking-tight">Ata da Assembleia</h2>
+                {hasOpenPolls && (
+                  <Badge variant="destructive" className="animate-pulse ml-2">
+                    VOTAÇÃO EM ANDAMENTO
+                  </Badge>
+                )}
             </div>
 
             <div className="space-y-4">
