@@ -12,8 +12,8 @@ export function convertToEmbedUrl(url: string): string {
         return url;
     }
     
-    // Regular expression to find YouTube video ID from various URL formats
-    const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/;
+    // Improved regex to find YouTube video ID from various formats including /live/ and /shorts/
+    const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|live\/|shorts\/)|youtu\.be\/)([\w-]{11})/;
     const match = url.match(youtubeRegex);
 
     if (match && match[1]) {

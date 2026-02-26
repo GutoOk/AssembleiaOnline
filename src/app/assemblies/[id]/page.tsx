@@ -514,7 +514,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                   pollResult.status === 'Aprovada'
                   ? 'bg-green-50 border-green-200 text-green-900 dark:bg-green-900/20 dark:border-green-500/30 dark:text-green-200'
                   : pollResult.status === 'Reprovada'
-                  ? 'bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-200'
+                  ? 'bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-500/30 dark:text-green-200'
                   : 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-500/30 dark:text-amber-200'
               }`}>
               <div className="flex items-center gap-2">
@@ -630,7 +630,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
           <Textarea
             placeholder="Escreva o motivo aqui..."
             value={annulReason}
-            onChange={(e) => setAnnulReason(e.target.value)}
+            onChange={(e) => setAdminVideoSource('youtube')}
             rows={4}
           />
         </div>
@@ -973,6 +973,7 @@ export default function AssemblyPage() {
   const { toast } = useToast();
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
+  const [adminVideoSource, setAdminVideoSource] = useState<'youtube' | 'zoom'>('zoom');
 
   const assemblyContext = useAssemblyContext();
   const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems, isCreatePollOpen, setIsCreatePollOpen } = assemblyContext!;
@@ -1155,7 +1156,7 @@ export default function AssemblyPage() {
 
   const handleEnterSpeakerMode = (zoomLink: string, queueItem: SpeakerQueueItem) => {
       if(!zoomLink) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'O administrador ainda não forneceu um link do Zoom.' });
+        toast({ variant: 'destructive', title: 'Erro', description: 'O administrador ainda não fornecez um link do Zoom.' });
         return;
       }
       const itemRef = doc(firestore, 'assemblies', queueItem.assemblyId, 'speakerQueue', queueItem.id);
@@ -1260,31 +1261,90 @@ export default function AssemblyPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                <div className="aspect-video w-full overflow-hidden rounded-lg border">
-                  {isSpeaking && speakerZoomLink ? (
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg border">
+                  {/* Admin Video Toggle */}
+                  {isAdmin && assembly.status === 'live' && (
+                    <div className="absolute top-2 right-2 z-20 flex gap-1 bg-black/20 p-1 rounded-md backdrop-blur-sm">
+                      <Button 
+                        size="sm" 
+                        variant={adminVideoSource === 'zoom' ? 'default' : 'secondary'}
+                        onClick={() => setAdminVideoSource('zoom')}
+                        className="h-7 px-3 text-xs"
+                      >
+                        <Video className="h-3 w-3 mr-1" /> Zoom
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant={adminVideoSource === 'youtube' ? 'default' : 'secondary'}
+                        onClick={() => setAdminVideoSource('youtube')}
+                        className="h-7 px-3 text-xs"
+                      >
+                        <Play className="h-3 w-3 mr-1" fill="currentColor" /> YouTube
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Video Player Selection Logic */}
+                  {assembly.status === 'finished' ? (
+                    displayEmbedUrl ? (
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        src={displayEmbedUrl}
+                        title="Gravação da Assembleia"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="border-0"
+                      ></iframe>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center bg-muted gap-2">
+                        <Play className="h-12 w-12 text-muted-foreground/50" />
+                        <p className="text-muted-foreground">A gravação desta assembleia não está disponível</p>
+                      </div>
+                    )
+                  ) : isAdmin && assembly.status === 'live' ? (
+                    adminVideoSource === 'zoom' && assembly.zoomUrl ? (
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        src={convertToZoomEmbedUrl(zoomEmbedUrlWithUser)}
+                        title="Zoom Meeting"
+                        allow="fullscreen; microphone; camera; display-capture"
+                        className="border-0"
+                      ></iframe>
+                    ) : displayEmbedUrl ? (
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        src={displayEmbedUrl}
+                        title="YouTube Stream Preview"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="border-0"
+                      ></iframe>
+                    ) : (
+                      <div className="flex h-full items-center justify-center bg-muted">
+                        <p className="text-muted-foreground">Vídeo indisponível</p>
+                      </div>
+                    )
+                  ) : isSpeaking && speakerZoomLink ? (
                     <iframe
                       width="100%"
                       height="100%"
                       src={convertToZoomEmbedUrl(speakerZoomLink)}
                       title="Zoom Meeting"
                       allow="fullscreen; microphone; camera; display-capture"
-                    ></iframe>
-                  ) : isAdmin && assembly.zoomUrl ? (
-                    <iframe
-                      width="100%"
-                      height="100%"
-                      src={zoomEmbedUrlWithUser}
-                      title="Zoom Meeting"
-                      allow="fullscreen; microphone; camera; display-capture"
+                      className="border-0"
                     ></iframe>
                   ) : displayEmbedUrl ? (
                     <iframe
                       width="100%"
                       height="100%"
                       src={displayEmbedUrl}
-                      title="YouTube video player"
+                      title="YouTube Live Stream"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowFullScreen
+                      className="border-0"
                     ></iframe>
                   ) : (
                     <div className="flex h-full items-center justify-center bg-muted">
