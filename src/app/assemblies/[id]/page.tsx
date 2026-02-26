@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText, XCircle, MoreVertical, ShieldBan } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText, XCircle, MoreVertical, ShieldBan, Play, AlertTriangle } from 'lucide-react';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -57,6 +57,7 @@ import { ChatSheet } from '@/components/ChatSheet';
 import { AttendeesSheet } from '@/components/AttendeesSheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { WhoReactedSheet } from '@/components/WhoReactedSheet';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
@@ -491,7 +492,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
             </Button>
              {representedAssignments && representedAssignments.length > 0 && (
                 <p className="text-xs text-muted-foreground pt-1">
-                    Seu voto também será computado para seus {representedAssignments.length} representados.
+                    Seu vivo também será computado para seus {representedAssignments.length} representados.
                 </p>
             )}
           </div>
@@ -630,7 +631,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
           <Textarea
             placeholder="Escreva o motivo aqui..."
             value={annulReason}
-            onChange={(e) => setAdminVideoSource('youtube')}
+            onChange={(e) => setAnnulReason(e.target.value)}
             rows={4}
           />
         </div>
@@ -1020,17 +1021,6 @@ export default function AssemblyPage() {
   const { data: userProxyGrant } = useDoc<ProxyAssignment>(userProxyGrantQuery);
 
 
-  // This is a complex dependency. To avoid re-fetching profiles unnecessarily,
-  // we gather all votes from all polls. This is not ideal, but better than fetching in the child.
-  // A better solution would involve a more sophisticated state management.
-  const allVotesQueries = useMemo(() => {
-    if (!polls) return [];
-    return polls.map(p => query(collection(firestore, 'assemblies', params.id, 'polls', p.id, 'votes')));
-  }, [polls, firestore, params.id]);
-
-  // We can't easily use useCollection for an array of queries. This part remains a challenge.
-  // For now, user profiles will be fetched inside PollCard which causes multiple hooks.
-
   const userIdsInQueue = useMemo(() => queue?.map(s => s.userId) ?? [], [queue]);
   const userIdsInAta = useMemo(() => ataItems?.map(a => a.administratorId) ?? [], [ataItems]);
   const proxyGranteeId = userProxyGrant?.proxyId;
@@ -1038,7 +1028,6 @@ export default function AssemblyPage() {
   const allUserIdsToFetch = useMemo(() => {
       const ids = new Set([...userIdsInQueue, ...userIdsInAta]);
       if (proxyGranteeId) ids.add(proxyGranteeId);
-      // Poll-related user IDs are fetched inside PollCard for now.
       return Array.from(ids);
   }, [userIdsInQueue, userIdsInAta, proxyGranteeId]);
 
@@ -1084,21 +1073,18 @@ export default function AssemblyPage() {
 
     const presenceRef = doc(firestore, 'assemblies', assemblyId, 'presence', user.uid);
 
-    // Initial write to mark presence and set first heartbeat
     setDocumentNonBlocking(presenceRef, { 
         joinedAt: serverTimestamp(), 
         lastSeen: serverTimestamp() 
     }, { merge: true });
 
-    // Set up a heartbeat interval to update the 'lastSeen' timestamp
     const interval = setInterval(() => {
         updateDocumentNonBlocking(presenceRef, { lastSeen: serverTimestamp() });
-    }, 15000); // Update every 15 seconds
+    }, 15000);
 
-    // Cleanup function for when the component unmounts (e.g., navigating away)
     return () => {
-        clearInterval(interval); // Stop the heartbeat
-        deleteDocumentNonBlocking(presenceRef); // Proactively delete presence doc
+        clearInterval(interval);
+        deleteDocumentNonBlocking(presenceRef);
     };
   }, [firestore, user, assemblyId]);
 
@@ -1109,7 +1095,6 @@ export default function AssemblyPage() {
 
   const { data: allPresenceData } = useCollection<AssemblyPresence>(presenceQuery);
 
-  // Filter for active users based on heartbeat
   const activePresenceData = useMemo(() => {
       if (!allPresenceData) return [];
       const now = Date.now();
@@ -1129,7 +1114,6 @@ export default function AssemblyPage() {
         setAttendees([]);
       }
   }, [attendeeProfiles, setAttendees]);
-  // --- End Presence Logic ---
 
 
   const handleJoinQueue = () => {
@@ -1156,7 +1140,7 @@ export default function AssemblyPage() {
 
   const handleEnterSpeakerMode = (zoomLink: string, queueItem: SpeakerQueueItem) => {
       if(!zoomLink) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'O administrador ainda não fornecez um link do Zoom.' });
+        toast({ variant: 'destructive', title: 'Erro', description: 'O administrador ainda não forneceu um link do Zoom.' });
         return;
       }
       const itemRef = doc(firestore, 'assemblies', queueItem.assemblyId, 'speakerQueue', queueItem.id);
@@ -1179,16 +1163,6 @@ export default function AssemblyPage() {
     return assembly ? convertToEmbedUrl(assembly.youtubeUrl) : '';
   }, [assembly]);
 
-  const zoomEmbedUrlWithUser = useMemo(() => {
-    if (!assembly?.zoomUrl || !user?.displayName) {
-      return assembly?.zoomUrl || '';
-    }
-    // `btoa` can't handle non-latin1 characters. The common workaround is to use `unescape` and `encodeURIComponent`.
-    const userNameBase64 = btoa(unescape(encodeURIComponent(user.displayName)));
-    const joiner = assembly.zoomUrl.includes('?') ? '&' : '?';
-    return `${assembly.zoomUrl}${joiner}uname=${userNameBase64}`;
-  }, [assembly?.zoomUrl, user?.displayName]);
-
   const isLoading = isAdminLoading || isAssemblyLoading;
   const isQueueComponentLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
   const assemblyFinished = assembly?.status === 'finished';
@@ -1205,8 +1179,6 @@ export default function AssemblyPage() {
     notFound();
   }
   
-  const assemblyDate = assembly.date.toDate();
-
   return (
     <>
     <StartAssemblyDialog
@@ -1250,10 +1222,21 @@ export default function AssemblyPage() {
       <div className="container mx-auto p-0 md:space-y-4">
         <div className="space-y-4">
           <Card>
-              <CardHeader className="flex flex-row items-center justify-end p-4">
-                <div className="flex items-center gap-1">
+              <CardHeader className="flex flex-row items-center justify-between p-4">
+                <div className="flex-1">
+                   {isSpeaking && (
+                      <Alert variant="default" className="bg-blue-50 border-blue-200">
+                        <AlertTriangle className="h-4 w-4 text-blue-600" />
+                        <AlertTitle className="text-blue-800 text-sm font-semibold">Modo de Fala Ativado</AlertTitle>
+                        <AlertDescription className="text-blue-700 text-xs">
+                          Você está prestes a entrar na sala do Zoom. Por favor, **permita o acesso à sua câmera e microfone** no aviso que aparecerá no seu navegador. O sistema não armazena essas permissões permanentemente.
+                        </AlertDescription>
+                      </Alert>
+                   )}
+                </div>
+                <div className="flex items-center gap-1 ml-4">
                   {isSpeaking && (
-                      <Button onClick={handleEndParticipation} variant="destructive">
+                      <Button onClick={handleEndParticipation} variant="destructive" size="sm">
                           <LogOut className="h-4 w-4" />
                           Encerrar Participação
                       </Button>
@@ -1262,7 +1245,6 @@ export default function AssemblyPage() {
               </CardHeader>
               <CardContent className="p-4 pt-0">
                 <div className="relative aspect-video w-full overflow-hidden rounded-lg border">
-                  {/* Admin Video Toggle */}
                   {isAdmin && assembly.status === 'live' && (
                     <div className="absolute top-2 right-2 z-20 flex gap-1 bg-black/20 p-1 rounded-md backdrop-blur-sm">
                       <Button 
@@ -1284,7 +1266,6 @@ export default function AssemblyPage() {
                     </div>
                   )}
 
-                  {/* Video Player Selection Logic */}
                   {assembly.status === 'finished' ? (
                     displayEmbedUrl ? (
                       <iframe
@@ -1307,9 +1288,9 @@ export default function AssemblyPage() {
                       <iframe
                         width="100%"
                         height="100%"
-                        src={convertToZoomEmbedUrl(zoomEmbedUrlWithUser)}
+                        src={convertToZoomEmbedUrl(assembly.zoomUrl)}
                         title="Zoom Meeting"
-                        allow="fullscreen; microphone; camera; display-capture"
+                        allow="fullscreen; microphone; camera; display-capture; autoplay"
                         className="border-0"
                       ></iframe>
                     ) : displayEmbedUrl ? (
@@ -1333,7 +1314,7 @@ export default function AssemblyPage() {
                       height="100%"
                       src={convertToZoomEmbedUrl(speakerZoomLink)}
                       title="Zoom Meeting"
-                      allow="fullscreen; microphone; camera; display-capture"
+                      allow="fullscreen; microphone; camera; display-capture; autoplay"
                       className="border-0"
                     ></iframe>
                   ) : displayEmbedUrl ? (
