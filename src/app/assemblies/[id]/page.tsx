@@ -1,3 +1,4 @@
+
 'use client';
 
 import { notFound, useParams } from 'next/navigation';
@@ -975,6 +976,7 @@ export default function AssemblyPage() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
   const [adminVideoSource, setAdminVideoSource] = useState<'youtube' | 'zoom'>('zoom');
+  const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
 
   const assemblyContext = useAssemblyContext();
   const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems, isCreatePollOpen, setIsCreatePollOpen } = assemblyContext!;
@@ -1066,6 +1068,17 @@ export default function AssemblyPage() {
         setTimelineItems([]);
     }
   }, [timelineItems, setTimelineItems]);
+
+  // Show welcome dialog when member enters a live assembly
+  useEffect(() => {
+    if (assembly?.status === 'live' && !isAdmin && !isAdminLoading) {
+      const welcomeKey = `welcome-shown-${assembly.id}`;
+      if (!sessionStorage.getItem(welcomeKey)) {
+        setShowWelcomeDialog(true);
+        sessionStorage.setItem(welcomeKey, 'true');
+      }
+    }
+  }, [assembly?.status, assembly?.id, isAdmin, isAdminLoading]);
 
   // --- Presence Logic (Heartbeat) ---
   useEffect(() => {
@@ -1219,6 +1232,31 @@ export default function AssemblyPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={showWelcomeDialog} onOpenChange={setShowWelcomeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assembleia em Andamento</DialogTitle>
+            <DialogDescription className="space-y-3 pt-2">
+              <p>
+                Seja bem-vindo! Você está visualizando a transmissão ao vivo da assembleia.
+              </p>
+              <p>
+                Para participar com **voz e vídeo**, você deve solicitar a palavra na **Fila de Inscrição** e aguardar a autorização do administrador.
+              </p>
+              <p>
+                Utilize o **Chat** interno do sistema para interagir informalmente com outros membros, pedir ajuda ou informar qualquer instabilidade técnica.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowWelcomeDialog(false)} className="w-full">
+              Entendi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="container mx-auto p-0 md:space-y-4">
         <div className="space-y-4">
           <Card>
