@@ -1,27 +1,60 @@
 'use client';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+
+import { useEffect, useState } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { useUser, useFirestore } from '@/firebase';
 
 export function useAdmin() {
   const { user, isUserLoading: isAuthLoading } = useUser();
   const firestore = useFirestore();
 
-  // Create the doc ref only when we are certain auth is done and we have a user.
-  const adminDocRef = useMemoFirebase(() => {
-    if (isAuthLoading || !user || !firestore) {
-      return null;
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdminDocLoading, setIsAdminDocLoading] = useState(true);
+
+  useEffect(() => {
+    if (isAuthLoading) {
+      // If auth is still loading, we can't know the admin status yet.
+      // Set loading to true and wait.
+      setIsAdmin(false);
+      setIsAdminDocLoading(true);
+      return;
     }
-    return doc(firestore, 'admins', user.uid);
-  }, [isAuthLoading, user, firestore]);
 
-  const { data: adminDoc, isLoading: isAdminDocLoading } = useDoc(adminDocRef);
+    if (!user || !firestore) {
+      // If auth is done but there's no user or firestore, they can't be an admin.
+      // Loading is complete.
+      setIsAdmin(false);
+      setIsAdminDocLoading(false);
+      return;
+    }
 
-  const isAdmin = !!adminDoc;
+    // Auth is done, we have a user, start checking the admin document.
+    setIsAdminDocLoading(true);
 
-  // If auth is loading, we are definitely loading.
-  // If auth is done but we don't have a user, we are not loading and not an admin.
-  // If auth is done and we have a user, then isLoading depends on the doc query.
-  const isLoading = isAuthLoading || (!!user && isAdminDocLoading);
+    const adminDocRef = doc(firestore, 'admins', user.uid);
+
+    const unsubscribe = onSnapshot(
+      adminDocRef,
+      (snapshot) => {
+        // Firestore has responded. The user is admin if the doc exists.
+        setIsAdmin(snapshot.exists());
+        // The admin check is now complete.
+        setIsAdminDocLoading(false);
+      },
+      (error) => {
+        // An error occurred (e.g., permissions). Treat as non-admin.
+        console.error('Erro ao verificar admin:', error);
+        setIsAdmin(false);
+        setIsAdminDocLoading(false);
+      }
+    );
+
+    // Clean up the listener when the component unmounts or dependencies change.
+    return () => unsubscribe();
+  }, [user, firestore, isAuthLoading]);
+
+  // The overall loading state is true if either auth is loading or the admin doc check is loading.
+  const isLoading = isAuthLoading || isAdminDocLoading;
 
   return { user, isAdmin, isLoading };
 }

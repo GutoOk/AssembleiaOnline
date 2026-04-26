@@ -263,12 +263,16 @@ export default function EditAssemblyPage() {
 
   const isLoading = isAdminLoading || isAssemblyLoading;
 
-  if (isLoading || !isAdmin) {
+  if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+  
+  if (!isAdmin) {
+    return null;
   }
 
   if (!assembly) {
