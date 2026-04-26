@@ -227,17 +227,12 @@ export default function CreateAssemblyPage() {
     router.push('/dashboard');
   };
 
-  if (isAdminLoading) {
+  if (isAdminLoading || !isAdmin) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
-  }
-
-  if (!isAdmin) {
-    // This will be handled by the useEffect for redirection, but we return null to prevent flicker.
-    return null;
   }
 
   return (

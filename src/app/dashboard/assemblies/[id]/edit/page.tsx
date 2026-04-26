@@ -261,25 +261,17 @@ export default function EditAssemblyPage() {
     router.push('/dashboard');
   };
 
-  const isLoading = isAdminLoading || (isAssemblyLoading && !assembly);
+  const isLoading = isAdminLoading || isAssemblyLoading;
 
-  if (isLoading) {
+  if (isLoading || !isAdmin) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
-  
-  if (!isAdmin) {
-      // Even if not admin, wait for loading to be sure.
-      if (!isAdminLoading) {
-         notFound();
-      }
-      return null;
-  }
 
-  if (!assembly && !isAssemblyLoading) {
+  if (!assembly) {
       return notFound();
   }
 
@@ -573,5 +565,3 @@ export default function EditAssemblyPage() {
     </>
   );
 }
-
-    
