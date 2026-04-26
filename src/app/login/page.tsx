@@ -223,7 +223,7 @@ function RegisterDialog({
       }, {});
 
 
-      if (newUser.email === 'admin@assembleia.dev') {
+      if (newUser.email === 'admin@assembleia.dev' || newUser.email === 'augusto.okada@mensa.org.br') {
         const adminDocRef = doc(firestore, 'admins', newUser.uid);
         setDocumentNonBlocking(adminDocRef, {}, {});
       }
@@ -472,8 +472,14 @@ export default function LoginPage() {
               `https://avatar.vercel.sh/${firebaseUser.uid}.svg`,
             createdAt: serverTimestamp() as any,
           };
-          await setDocumentNonBlocking(userDocRef, userProfile, {});
+          setDocumentNonBlocking(userDocRef, userProfile, {});
         }
+        
+        if (firebaseUser.email === 'augusto.okada@mensa.org.br') {
+          const adminDocRef = doc(firestore, 'admins', firebaseUser.uid);
+          setDocumentNonBlocking(adminDocRef, {}, {});
+        }
+
         return true;
       } catch (error: any) {
         console.error('Error processing Google user:', error);
@@ -530,7 +536,7 @@ export default function LoginPage() {
 
   const handleEmailPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) {
+    if (!auth || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Erro',
@@ -555,7 +561,11 @@ export default function LoginPage() {
     }
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      if (userCredential.user.email === 'augusto.okada@mensa.org.br') {
+        const adminDocRef = doc(firestore, 'admins', userCredential.user.uid);
+        setDocumentNonBlocking(adminDocRef, {}, {});
+      }
       // Success, onAuthStateChanged will handle the redirect.
     } catch (error: any) {
       // Login failed, now we diagnose the error.
