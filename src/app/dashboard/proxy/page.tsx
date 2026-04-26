@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useUser, useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, getDocs, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, getDocs, doc, serverTimestamp, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Trash2 } from 'lucide-react';
@@ -137,7 +137,7 @@ export default function ProxyPage() {
 
   const proxyUserIds = useMemo(() => {
       if (!grantedProxies) return [];
-      return grantedProxies.map(p => p.proxyId);
+      return grantedProxies.filter((p) => p.status === 'active').map(p => p.proxyId);
   }, [grantedProxies]);
   
   const { profiles: proxyUserProfiles, isLoading: areProfilesLoading } = useUserProfiles(proxyUserIds);
@@ -189,15 +189,15 @@ export default function ProxyPage() {
 
         const proxyRef = doc(firestore, 'assemblies', values.assemblyId, 'proxies', user.uid);
         
-        const data: Omit<ProxyAssignment, 'id'> = {
+        const data: Omit<ProxyAssignment, 'id' | 'createdAt'> & { createdAt: any } = {
             assemblyId: values.assemblyId,
             grantorId: user.uid,
             proxyId: proxyId,
             status: 'active',
-            createdAt: serverTimestamp() as any,
+            createdAt: serverTimestamp(),
         };
         
-        setDocumentNonBlocking(proxyRef, data, { merge: true });
+        await setDoc(proxyRef, data);
 
         toast({ title: 'Procuração Concedida!', description: `Você concedeu procuração para ${proxyUser.data().name}.` });
         form.reset();
@@ -208,15 +208,36 @@ export default function ProxyPage() {
     }
   };
 
-  const handleRevokeProxy = (assignment: ProxyAssignment) => {
-      if (!firestore || !user) return;
-      const proxyRef = doc(firestore, 'assemblies', assignment.assemblyId, 'proxies', assignment.grantorId);
-      updateDocumentNonBlocking(proxyRef, {
-          status: 'revoked',
-          revokedAt: serverTimestamp(),
-          revokedBy: user.uid,
+  const handleRevokeProxy = async (assignment: ProxyAssignment) => {
+    if (!firestore || !user) return;
+  
+    try {
+      const proxyRef = doc(
+        firestore,
+        'assemblies',
+        assignment.assemblyId,
+        'proxies',
+        assignment.id
+      );
+  
+      await updateDoc(proxyRef, {
+        status: 'revoked',
+        revokedAt: serverTimestamp(),
+        revokedBy: user.uid,
       });
-      toast({ title: 'Procuração Revogada', description: 'A procuração foi revogada com sucesso.' });
+  
+      toast({
+        title: 'Procuração Revogada',
+        description: 'A procuração foi revogada com sucesso.',
+      });
+    } catch (error) {
+      console.error('Erro ao revogar procuração:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao revogar procuração',
+        description: 'A revogação não foi confirmada pelo servidor.',
+      });
+    }
   };
 
 
@@ -293,7 +314,7 @@ export default function ProxyPage() {
                 </div>
             ) : grantedProxies && grantedProxies.length > 0 ? (
                 <div className="space-y-4">
-                    {grantedProxies.map(proxy => {
+                    {grantedProxies.filter((proxy) => proxy.status === 'active').map(proxy => {
                         const assembly = assembliesForProxy?.find(a => a.id === proxy.assemblyId);
                         const proxyUser = proxyUserProfiles[proxy.proxyId];
                         if (!assembly || !proxyUser) return null;
