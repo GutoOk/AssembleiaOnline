@@ -39,7 +39,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
+import { doc, collection, query, orderBy, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
 import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence, Reaction } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
@@ -161,7 +161,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const [annulReason, setAnnulReason] = useState('');
   const [isEditingAnnulment, setIsEditingAnnulment] = useState(false);
   const [editTextAnnulment, setEditTextAnnulment] = useState(poll.annulmentReason || '');
-  const [isWithdrawConfirmOpen, setWithdrawConfirmOpen] = useState(false);
+  const [isVoting, setIsVoting] = useState(false);
 
   const pollEndDate = poll.endDate.toDate();
   const [isTimeUp, setIsTimeUp] = useState(() => isPast(pollEndDate));
@@ -260,72 +260,88 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
     }
   }, [poll, options, votes, pollEnded]);
 
-  const handleVote = () => {
+  const handleVote = async () => {
     if (!selectedOption || !user || !firestore) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'Selecione uma opção para votar.' });
-        return;
-    };
-    
-    const votesColPath = `assemblies/${assemblyId}/polls/${poll.id}/votes`;
-
-    // 1. The user's own vote
-    const userVoteRef = doc(firestore, votesColPath, user.uid);
-    const userVoteData: Omit<Vote, 'id'> = {
-        effectiveVoterId: user.uid,
-        userId: user.uid,
-        pollId: poll.id,
-        assemblyId: assemblyId,
-        pollOptionId: selectedOption,
-        assemblyStatus: assemblyStatus,
-        timestamp: serverTimestamp() as any,
-    };
-    setDocumentNonBlocking(userVoteRef, userVoteData, {});
-
-    // 2. Votes for represented users (proxies)
-    if (representedAssignments) {
-        representedAssignments.forEach(assignment => {
-            const grantorVoteRef = doc(firestore, votesColPath, assignment.grantorId);
-            const grantorVoteData: Omit<Vote, 'id'> = {
-                effectiveVoterId: assignment.grantorId,
-                userId: user.uid,
-                representedUserId: assignment.grantorId,
-                pollId: poll.id,
-                assemblyId: assemblyId,
-                pollOptionId: selectedOption,
-                assemblyStatus: assemblyStatus,
-                timestamp: serverTimestamp() as any,
-            };
-            setDocumentNonBlocking(grantorVoteRef, grantorVoteData, {});
-        });
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Selecione uma opção para votar.',
+      });
+      return;
     }
-    
-    const totalVotes = 1 + (representedAssignments?.length ?? 0);
-    const toastDescription = totalVotes > 1
-        ? `Seu voto e de seus ${totalVotes - 1} representados foram computados.`
-        : 'Seu voto foi computado com sucesso.';
-
-    toast({ title: 'Voto Registrado!', description: toastDescription });
-  };
   
-  const handleWithdrawVote = () => {
-    if (!user || !firestore || !votes) return;
-
-    // Find all votes cast by the current user for this poll
-    const userVotesToDelete = votes.filter(v => v.userId === user.uid);
-
-    if (userVotesToDelete.length === 0) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'Nenhum voto seu encontrado para retirar.' });
-        return;
+    if (poll.status !== 'open' || pollEnded || pollAnnulled) {
+      toast({
+        variant: 'destructive',
+        title: 'Votação indisponível',
+        description: 'Esta votação não está aberta para novos votos.',
+      });
+      return;
     }
-
-    // Delete all found votes
-    userVotesToDelete.forEach(vote => {
-        const voteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', vote.id);
-        deleteDocumentNonBlocking(voteRef);
-    });
-
-    toast({ title: 'Voto Retirado', description: 'Seu voto (e os votos de seus representados) foram removidos. Você pode votar novamente.' });
-    setWithdrawConfirmOpen(false);
+  
+    try {
+      setIsVoting(true);
+  
+      const batch = writeBatch(firestore);
+  
+      const createVote = (effectiveVoterId: string, representedUserId?: string) => {
+        const voteRef = doc(
+          firestore,
+          'assemblies',
+          assemblyId,
+          'polls',
+          poll.id,
+          'votes',
+          effectiveVoterId
+        );
+  
+        const voteData: Omit<Vote, 'id' | 'timestamp'> & { timestamp: any } = {
+          effectiveVoterId,
+          userId: user.uid,
+          representedUserId,
+          pollId: poll.id,
+          assemblyId,
+          pollOptionId: selectedOption,
+          assemblyStatus,
+          timestamp: serverTimestamp(),
+        };
+  
+        batch.set(voteRef, voteData);
+      };
+  
+      createVote(user.uid);
+  
+      representedAssignments
+        ?.filter((assignment) => assignment.status === 'active')
+        .forEach((assignment) => {
+          createVote(assignment.grantorId, assignment.grantorId);
+        });
+  
+      await batch.commit();
+  
+      const totalVotes =
+        1 + (representedAssignments?.filter((a) => a.status === 'active').length ?? 0);
+  
+      const toastDescription =
+        totalVotes > 1
+          ? `Seu voto e de seus ${totalVotes - 1} representados foram computados.`
+          : 'Seu voto foi computado com sucesso.';
+  
+      toast({
+        title: 'Voto Registrado!',
+        description: toastDescription,
+      });
+    } catch (error) {
+      console.error('Erro ao registrar voto:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao registrar voto',
+        description:
+          'O voto não foi confirmado. Verifique se você já votou ou se a votação ainda está aberta.',
+      });
+    } finally {
+      setIsVoting(false);
+    }
   };
 
   const handleAnnulConfirm = () => {
@@ -492,8 +508,8 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                 </div>
               ))}
             </RadioGroup>
-            <Button onClick={handleVote} disabled={!selectedOption || isLoadingVotes} size="sm">
-              {isLoadingVotes && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Button onClick={handleVote} disabled={!selectedOption || isLoadingVotes || isVoting} size="sm">
+              {(isLoadingVotes || isVoting) && <Loader2 className="h-4 w-4 animate-spin" />}
               <Send className="h-4 w-4" />
               Votar
             </Button>
@@ -556,11 +572,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
             
             {userHasVotedForSelf && !pollEnded && (
               <div className="flex flex-col items-start gap-2 mt-4">
-                  <p className="text-sm text-muted-foreground">Voto registrado com sucesso! Caso deseje alterá-lo enquanto a votação estiver aberta, basta remover sua seleção e votar novamente.</p>
-                  <Button variant="outline" size="sm" onClick={() => setWithdrawConfirmOpen(true)}>
-                    <Trash2 className="h-4 w-4" />
-                    Retirar Voto
-                  </Button>
+                  <p className="text-sm text-muted-foreground">Voto registrado com sucesso! Caso deseje alterá-lo, basta votar novamente na nova opção.</p>
               </div>
             )}
 
@@ -663,23 +675,6 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction onClick={handleAnnulConfirm} asChild>
                   <Button variant="destructive">Confirmar Anulação</Button>
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
-
-    <AlertDialog open={isWithdrawConfirmOpen} onOpenChange={setWithdrawConfirmOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitleComponent>Retirar Voto?</AlertDialogTitleComponent>
-                <AlertDialogDescriptionComponent>
-                    Tem certeza que deseja retirar seu voto? Se você representa outros membros por procuração, os votos deles também serão retirados. Você poderá votar novamente enquanto a votação estiver aberta.
-                </AlertDialogDescriptionComponent>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleWithdrawVote} asChild>
-                  <Button variant="destructive">Confirmar Retirada</Button>
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
