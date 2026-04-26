@@ -15,7 +15,7 @@ import Image from 'next/image';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useAuth, useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -31,7 +31,7 @@ import {
   signOut,
   fetchSignInMethodsForEmail,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
 import { Icons } from '@/components/icons';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -217,14 +217,15 @@ function RegisterDialog({
       };
 
       const userDocRef = doc(firestore, 'users', newUser.uid);
-      await setDoc(userDocRef, {
+      setDocumentNonBlocking(userDocRef, {
         ...userProfile,
         createdAt: serverTimestamp(),
-      });
+      }, {});
+
 
       if (newUser.email === 'admin@assembleia.dev') {
         const adminDocRef = doc(firestore, 'admins', newUser.uid);
-        await setDoc(adminDocRef, {});
+        setDocumentNonBlocking(adminDocRef, {}, {});
       }
 
       await sendEmailVerification(newUser);
@@ -471,7 +472,7 @@ export default function LoginPage() {
               `https://avatar.vercel.sh/${firebaseUser.uid}.svg`,
             createdAt: serverTimestamp() as any,
           };
-          await setDoc(userDocRef, userProfile);
+          await setDocumentNonBlocking(userDocRef, userProfile, {});
         }
         return true;
       } catch (error: any) {
