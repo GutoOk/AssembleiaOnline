@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useUser, useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, getDocs, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
@@ -20,6 +20,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 
 
 const proxySchema = z.object({
@@ -70,7 +71,7 @@ function useGrantedProxies(assemblies: Assembly[] | null) {
                     setProxies(currentProxies => {
                         const newProxies = { ...currentProxies };
                         if (snapshot.exists()) {
-                            newProxies[assemblyId] = snapshot.data() as ProxyAssignment;
+                            newProxies[assemblyId] = { id: snapshot.id, ...snapshot.data() } as ProxyAssignment;
                         } else {
                             delete newProxies[assemblyId];
                         }
@@ -172,7 +173,8 @@ export default function ProxyPage() {
         const maxProxies = assembly.maxProxiesPerUser ?? 4;
         const existingProxiesQuery = query(
             collection(firestore, 'assemblies', values.assemblyId, 'proxies'),
-            where('proxyId', '==', proxyId)
+            where('proxyId', '==', proxyId),
+            where('status', '==', 'active')
         );
         const existingProxiesSnapshot = await getDocs(existingProxiesQuery);
         
@@ -187,15 +189,15 @@ export default function ProxyPage() {
 
         const proxyRef = doc(firestore, 'assemblies', values.assemblyId, 'proxies', user.uid);
         
-        const data: Omit<ProxyAssignment, 'id'> & { id: string } = {
-            id: user.uid,
+        const data: Omit<ProxyAssignment, 'id'> = {
             assemblyId: values.assemblyId,
             grantorId: user.uid,
             proxyId: proxyId,
+            status: 'active',
             createdAt: serverTimestamp() as any,
         };
         
-        setDocumentNonBlocking(proxyRef, data, {});
+        setDocumentNonBlocking(proxyRef, data, { merge: true });
 
         toast({ title: 'Procuração Concedida!', description: `Você concedeu procuração para ${proxyUser.data().name}.` });
         form.reset();
@@ -207,9 +209,13 @@ export default function ProxyPage() {
   };
 
   const handleRevokeProxy = (assignment: ProxyAssignment) => {
-      if (!firestore) return;
-      const proxyRef = doc(firestore, 'assemblies', assignment.assemblyId, 'proxies', assignment.id);
-      deleteDocumentNonBlocking(proxyRef);
+      if (!firestore || !user) return;
+      const proxyRef = doc(firestore, 'assemblies', assignment.assemblyId, 'proxies', assignment.grantorId);
+      updateDocumentNonBlocking(proxyRef, {
+          status: 'revoked',
+          revokedAt: serverTimestamp(),
+          revokedBy: user.uid,
+      });
       toast({ title: 'Procuração Revogada', description: 'A procuração foi revogada com sucesso.' });
   };
 
@@ -291,38 +297,42 @@ export default function ProxyPage() {
                         const assembly = assembliesForProxy?.find(a => a.id === proxy.assemblyId);
                         const proxyUser = proxyUserProfiles[proxy.proxyId];
                         if (!assembly || !proxyUser) return null;
+                        const isRevoked = proxy.status === 'revoked';
 
                         return (
-                            <div key={proxy.id} className="flex items-center justify-between rounded-lg border p-4">
+                            <div key={proxy.id} className={`flex items-center justify-between rounded-lg border p-4 ${isRevoked ? 'opacity-60' : ''}`}>
                                 <div>
                                     <p className="font-semibold">{assembly.title}</p>
                                     <p className="text-sm text-muted-foreground">
                                         Representado por: <span className="font-medium text-foreground">{proxyUser.name}</span>
+                                        {isRevoked && <Badge variant="destructive" className="ml-2">Revogada</Badge>}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
                                         Data da Assembleia: {format(assembly.date.toDate(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                                     </p>
                                 </div>
 
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="outline" size="icon" disabled={assembly.status !== 'scheduled'}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Revogar Procuração?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Tem certeza que deseja revogar esta procuração? Esta ação não pode ser desfeita.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => handleRevokeProxy(proxy)}>Revogar</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                {!isRevoked && (
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="outline" size="icon" disabled={assembly.status !== 'scheduled'}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Revogar Procuração?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Tem certeza que deseja revogar esta procuração? Esta ação não pode ser desfeita.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleRevokeProxy(proxy)}>Revogar</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                )}
                             </div>
                         )
                     })}

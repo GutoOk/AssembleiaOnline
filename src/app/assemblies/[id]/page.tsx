@@ -1,4 +1,3 @@
-
 'use client';
 
 import { notFound, useParams } from 'next/navigation';
@@ -194,13 +193,14 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
   const userHasVotedForSelf = useMemo(() => votes?.some(v => v.userId === user?.uid && !v.representedUserId), [votes, user]);
   
+  const hasActiveProxyGrant = userProxyGrant?.status === 'active';
   const pollEnded = isTimeUp || poll.status === 'closed' || assemblyStatus === 'finished';
   const pollAnnulled = poll.status === 'annulled';
-  const canVote = !userHasVotedForSelf && !pollEnded && !userProxyGrant && !pollAnnulled;
+  const canVote = !userHasVotedForSelf && !pollEnded && !hasActiveProxyGrant && !pollAnnulled;
 
   const pollCreator = userProfiles[poll.administratorId];
   const pollAnnuler = userProfiles[poll.annulledBy ?? ''];
-  const proxyGranteeProfile = userProxyGrant ? userProfiles[userProxyGrant.proxyId] : null;
+  const proxyGranteeProfile = hasActiveProxyGrant ? userProfiles[userProxyGrant.proxyId] : null;
 
   const pollResult = useMemo(() => {
     if (poll.type !== 'proposal' || !pollEnded || !options || !votes || poll.status === 'annulled') {
@@ -266,30 +266,36 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
         return;
     };
     
-    const votesColRef = collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes');
+    const votesColPath = `assemblies/${assemblyId}/polls/${poll.id}/votes`;
 
     // 1. The user's own vote
-    const userVoteData: Omit<Vote, 'id' | 'timestamp'> = {
-        userId: user.uid, // The voter is the current user
+    const userVoteRef = doc(firestore, votesColPath, user.uid);
+    const userVoteData: Omit<Vote, 'id'> = {
+        effectiveVoterId: user.uid,
+        userId: user.uid,
         pollId: poll.id,
         assemblyId: assemblyId,
         pollOptionId: selectedOption,
-        assemblyStatus: assemblyStatus
+        assemblyStatus: assemblyStatus,
+        timestamp: serverTimestamp() as any,
     };
-    addDocumentNonBlocking(votesColRef, { ...userVoteData, timestamp: serverTimestamp() });
+    setDocumentNonBlocking(userVoteRef, userVoteData, {});
 
     // 2. Votes for represented users (proxies)
     if (representedAssignments) {
         representedAssignments.forEach(assignment => {
-            const grantorVoteData: Omit<Vote, 'id' | 'timestamp'> = {
-                userId: user.uid, // The voter is still the current user
-                representedUserId: assignment.grantorId, // But they are representing the grantor
+            const grantorVoteRef = doc(firestore, votesColPath, assignment.grantorId);
+            const grantorVoteData: Omit<Vote, 'id'> = {
+                effectiveVoterId: assignment.grantorId,
+                userId: user.uid,
+                representedUserId: assignment.grantorId,
                 pollId: poll.id,
                 assemblyId: assemblyId,
                 pollOptionId: selectedOption,
-                assemblyStatus: assemblyStatus
+                assemblyStatus: assemblyStatus,
+                timestamp: serverTimestamp() as any,
             };
-            addDocumentNonBlocking(votesColRef, { ...grantorVoteData, timestamp: serverTimestamp() });
+            setDocumentNonBlocking(grantorVoteRef, grantorVoteData, {});
         });
     }
     
@@ -499,7 +505,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
           </div>
         ) : (
           <div>
-            {!!userProxyGrant && !userHasVotedForSelf && (
+            {hasActiveProxyGrant && !userHasVotedForSelf && (
                 <div className="mb-4 p-3 flex items-start gap-3 rounded-md bg-blue-50 border-blue-200 text-blue-900 text-sm">
                     <Info className="h-5 w-5 mt-0.5 text-blue-700 flex-shrink-0" />
                     <div>
@@ -1008,7 +1014,11 @@ export default function AssemblyPage() {
   // Proxy Voting Data
   const representedUsersQuery = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
-    return query(collection(firestore, 'assemblies', params.id, 'proxies'), where('proxyId', '==', user.uid));
+    return query(
+        collection(firestore, 'assemblies', params.id, 'proxies'), 
+        where('proxyId', '==', user.uid),
+        where('status', '==', 'active')
+    );
   }, [firestore, params.id, user]);
 
   const userProxyGrantQuery = useMemoFirebase(() => {

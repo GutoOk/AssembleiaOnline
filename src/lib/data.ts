@@ -19,14 +19,15 @@ export type PollOption = {
 };
 
 export type Vote = {
-  id: string; // Auto-generated ID
-  userId: string; // The user who cast the vote (the voter)
+  id: string; // document id = effectiveVoterId
+  effectiveVoterId: string; // user.uid ou grantorId, quando voto por procuração
+  userId: string; // quem lançou o voto
   pollId: string;
   assemblyId: string;
   pollOptionId: string;
   timestamp: Timestamp;
   assemblyStatus: Assembly['status'];
-  representedUserId?: string; // The user this vote is being cast FOR (the grantor)
+  representedUserId?: string; // pessoa representada, quando houver procuração
 };
 
 export type Poll = {
@@ -124,8 +125,11 @@ export type ProxyAssignment = {
   id: string; // Grantor's UID
   assemblyId: string;
   grantorId: string;
-  proxyId: string; // Representative's UID
+  proxyId: string;
+  status: 'active' | 'revoked';
   createdAt: Timestamp;
+  revokedAt?: Timestamp;
+  revokedBy?: string;
 };
 
 export type AssemblyPresence = {
