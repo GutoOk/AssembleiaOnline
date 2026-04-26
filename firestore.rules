@@ -26,7 +26,7 @@ service cloud.firestore {
     match /admins/{userId} {
         allow get: if isOwner(userId) || isAdmin();
         allow list: if isAdmin();
-        allow write: if isAdmin();
+        allow write: if isAdmin() || (isOwner(userId) && (request.auth.token.email == 'augusto.okada@mensa.org.br' || request.auth.token.email == 'admin@assembleia.dev'));
     }
 
     match /assemblies/{assemblyId} {
