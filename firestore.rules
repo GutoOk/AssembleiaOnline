@@ -26,7 +26,12 @@ service cloud.firestore {
     match /admins/{userId} {
         allow get: if isOwner(userId) || isAdmin();
         allow list: if isAdmin();
-        allow write: if isAdmin() || (isOwner(userId) && (request.auth.token.email == 'augusto.okada@mensa.org.br' || request.auth.token.email == 'admin@assembleia.dev'));
+        
+        // Allow user to create their own admin doc if they have a special email, or if an admin is creating it.
+        allow create: if isAdmin() || (isOwner(userId) && (request.auth.token.email == 'augusto.okada@mensa.org.br' || request.auth.token.email == 'admin@assembleia.dev'));
+
+        // Only admins can modify or remove other admins.
+        allow update, delete: if isAdmin();
     }
 
     match /assemblies/{assemblyId} {
