@@ -1,4 +1,5 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -6,94 +7,155 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isMensaEmail() {
+      return request.auth != null
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('.*@mensa\\.org\\.br$');
+    }
+
+    function isVerifiedMensaUser() {
+      return isMensaEmail()
+        && request.auth.token.email_verified == true;
+    }
+
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return request.auth != null && request.auth.uid == userId;
     }
 
     function isAdmin() {
-      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return isVerifiedMensaUser()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
-    
+
     match /users/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+        && isMensaEmail()
+        && request.resource.data.email == request.auth.token.email;
+
+      allow get: if isOwner(userId) && isMensaEmail() || isAdmin();
+
       allow list: if isAdmin();
+
+      allow update: if (isOwner(userId) && isVerifiedMensaUser()) || isAdmin();
+
+      allow delete: if isAdmin();
     }
 
     match /users/{userId}/blockedUsers/{blockedUserId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isOwner(userId) && isVerifiedMensaUser();
     }
-    
-    match /admins/{userId} {
-        allow get: if isOwner(userId) || isAdmin();
-        allow list: if isAdmin();
-        
-        // Allow user to create their own admin doc if they have a special email, or if an admin is creating it.
-        allow create: if isAdmin() || (isOwner(userId) && (request.auth.token.email == 'augusto.okada@mensa.org.br' || request.auth.token.email == 'admin@assembleia.dev'));
 
-        // Only admins can modify or remove other admins.
-        allow update, delete: if isAdmin();
+    match /admins/{userId} {
+      allow get: if (isOwner(userId) && isVerifiedMensaUser()) || isAdmin();
+      allow list: if isAdmin();
+
+      allow create, update, delete: if isAdmin();
     }
 
     match /assemblies/{assemblyId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if isVerifiedMensaUser();
       allow create, update, delete: if isAdmin();
 
       match /ata/{ataId} {
-        allow read, list: if isSignedIn();
+        allow read, list: if isVerifiedMensaUser();
         allow create, update, delete: if isAdmin();
       }
 
       match /polls/{pollId} {
-        allow read, list: if isSignedIn();
+        allow read, list: if isVerifiedMensaUser();
         allow create, update, delete: if isAdmin();
 
         match /options/{optionId} {
-          allow read, list: if isSignedIn();
+          allow read, list: if isVerifiedMensaUser();
           allow create, update, delete: if isAdmin();
         }
 
         match /votes/{voteId} {
-          allow list: if isAdmin();
-          // Users can read their own vote or if they are admin
-          allow get: if (isOwner(resource.data.userId) || isAdmin());
-          // User can create their own vote
-          allow create: if isOwner(request.resource.data.userId); 
-          // No one can update or delete votes
+          allow read, list: if isVerifiedMensaUser();
+
+          allow create: if isVerifiedMensaUser()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.effectiveVoterId == voteId
+            && request.resource.data.assemblyId == assemblyId
+            && request.resource.data.pollId == pollId
+            && get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)).data.status == 'open'
+            && request.time < get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)).data.endDate
+            && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)/options/$(request.resource.data.pollOptionId))
+            && (
+              (
+                voteId == request.auth.uid
+                && !('representedUserId' in request.resource.data)
+              )
+              ||
+              (
+                request.resource.data.representedUserId == voteId
+                && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId))
+                && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId)).data.proxyId == request.auth.uid
+                && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId)).data.status == 'active'
+              )
+            );
+
           allow update, delete: if false;
         }
       }
-      
+
       match /speakerQueue/{queueItemId} {
-        allow read, list: if isSignedIn();
-        // Only owner can create (request word)
-        allow create: if isOwner(request.resource.data.userId);
-        // Admin can update (change status), owner can delete (cancel request)
+        allow read, list: if isVerifiedMensaUser();
+
+        allow create: if isVerifiedMensaUser()
+          && isOwner(request.resource.data.userId)
+          && queueItemId == request.auth.uid;
+
         allow update: if isAdmin();
-        allow delete: if isOwner(resource.data.userId) || isAdmin();
+
+        allow delete: if isAdmin()
+          || (isVerifiedMensaUser() && isOwner(resource.data.userId));
       }
 
       match /chat/{messageId} {
-        allow read, list: if isSignedIn();
-        allow create: if isOwner(request.resource.data.userId);
-        allow update, delete: if false; // Simplification: No edits/deletes
+        allow read, list: if isVerifiedMensaUser();
+
+        allow create: if isVerifiedMensaUser()
+          && isOwner(request.resource.data.userId)
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000;
+
+        allow update, delete: if false;
 
         match /reactions/{reactionId} {
-          allow read, list: if isSignedIn();
-          // A user can create/delete their own reaction
-          allow write: if isOwner(reactionId);
+          allow read, list: if isVerifiedMensaUser();
+
+          allow create, update, delete: if isVerifiedMensaUser()
+            && reactionId == request.auth.uid
+            && request.resource.data.userId == request.auth.uid;
         }
       }
 
       match /proxies/{grantorId} {
-        allow read, list: if isSignedIn();
-        // A user can create/delete their own proxy assignment
-        allow write: if isOwner(grantorId);
+        allow read, list: if isVerifiedMensaUser();
+
+        allow create: if isVerifiedMensaUser()
+          && grantorId == request.auth.uid
+          && request.resource.data.grantorId == request.auth.uid
+          && request.resource.data.assemblyId == assemblyId
+          && request.resource.data.proxyId != request.auth.uid
+          && request.resource.data.status == 'active'
+          && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled'
+          && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.allowProxyVoting == true;
+
+        allow update: if isVerifiedMensaUser()
+          && grantorId == request.auth.uid
+          && resource.data.grantorId == request.auth.uid
+          && request.resource.data.status == 'revoked'
+          && resource.data.status == 'active';
+
+        allow delete: if false;
       }
 
       match /presence/{userId} {
-        allow read, list: if isSignedIn();
-        // A user can only write to their own presence document
-        allow write: if isOwner(userId);
+        allow read, list: if isVerifiedMensaUser();
+        allow create, update, delete: if isVerifiedMensaUser() && isOwner(userId);
       }
     }
   }

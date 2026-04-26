@@ -222,12 +222,6 @@ function RegisterDialog({
         createdAt: serverTimestamp(),
       }, {});
 
-
-      if (newUser.email === 'admin@assembleia.dev' || newUser.email === 'augusto.okada@mensa.org.br') {
-        const adminDocRef = doc(firestore, 'admins', newUser.uid);
-        setDocumentNonBlocking(adminDocRef, {}, {});
-      }
-
       await sendEmailVerification(newUser);
 
       toast({
@@ -475,11 +469,6 @@ export default function LoginPage() {
           setDocumentNonBlocking(userDocRef, userProfile, {});
         }
         
-        if (firebaseUser.email === 'augusto.okada@mensa.org.br') {
-          const adminDocRef = doc(firestore, 'admins', firebaseUser.uid);
-          setDocumentNonBlocking(adminDocRef, {}, {});
-        }
-
         return true;
       } catch (error: any) {
         console.error('Error processing Google user:', error);
@@ -546,26 +535,18 @@ export default function LoginPage() {
     }
     setIsLoadingEmail(true);
 
-    if (
-      !email.endsWith('@mensa.org.br') &&
-      !email.endsWith('@assembleia.dev')
-    ) {
+    if (!email.endsWith('@mensa.org.br')) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
-        description:
-          'Apenas emails do domínio @mensa.org.br ou de teste são permitidos.',
+        description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
       });
       setIsLoadingEmail(false);
       return;
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      if (userCredential.user.email === 'augusto.okada@mensa.org.br') {
-        const adminDocRef = doc(firestore, 'admins', userCredential.user.uid);
-        setDocumentNonBlocking(adminDocRef, {}, {});
-      }
+      await signInWithEmailAndPassword(auth, email, password);
       // Success, onAuthStateChanged will handle the redirect.
     } catch (error: any) {
       // Login failed, now we diagnose the error.
@@ -705,15 +686,12 @@ export default function LoginPage() {
       });
       return;
     }
-    if (
-      !email.endsWith('@mensa.org.br') &&
-      !email.endsWith('@assembleia.dev')
-    ) {
+    if (!email.endsWith('@mensa.org.br')) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
         description:
-          'Apenas emails do domínio @mensa.org.br ou de teste são permitidos para cadastro.',
+          'Apenas emails do domínio @mensa.org.br são permitidos para cadastro.',
       });
       return;
     }
