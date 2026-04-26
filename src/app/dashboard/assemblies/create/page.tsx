@@ -235,6 +235,11 @@ export default function CreateAssemblyPage() {
     );
   }
 
+  if (!isAdmin) {
+    // This will be handled by the useEffect for redirection, but we return null to prevent flicker.
+    return null;
+  }
+
   return (
     <>
     <Card>
@@ -514,5 +519,3 @@ export default function CreateAssemblyPage() {
     </>
   );
 }
-
-    
