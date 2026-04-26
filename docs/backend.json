@@ -1,321 +1,243 @@
 {
   "entities": {
-    "User": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "User",
+    "UserProfile": {
+      "title": "User Profile",
       "type": "object",
-      "description": "Represents an individual participant or administrator registered in the AssembleiaOnline platform. This entity stores core profile information and a reference to the external authentication system's user ID.",
+      "description": "Represents a user's profile information.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the User entity."
-        },
-        "email": {
-          "type": "string",
-          "description": "The user's email address, used for communication and as a primary identifier.",
-          "format": "email"
+          "description": "The user's unique ID."
         },
         "name": {
           "type": "string",
-          "description": "The user's display name or full name."
+          "description": "The user's full name."
         },
-        "role": {
+        "email": {
           "type": "string",
-          "description": "The role of the user within the application, e.g., 'participant' or 'admin'. Administrators have additional privileges.",
-          "format": "enum",
-          "items": {
-            "type": "string"
-          }
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "avatarDataUri": {
+          "type": "string",
+          "description": "A data URI for the user's avatar image."
         },
         "createdAt": {
           "type": "string",
-          "description": "Timestamp indicating when the user account was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating the last time the user's profile information was updated.",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "The timestamp when the user profile was created."
         }
       },
-      "required": [
-        "id",
-        "email",
-        "role",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "name", "email"]
     },
     "Assembly": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Assembly",
       "type": "object",
-      "description": "Represents an online assembly session, managed by an administrator. It includes details about the event and its associated live stream.",
+      "description": "Represents an assembly meeting.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Assembly entity."
-        },
-        "title": {
-          "type": "string",
-          "description": "The official title or name of the assembly session."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed description or agenda for the assembly session."
-        },
-        "youtubeLiveStreamUrl": {
-          "type": "string",
-          "description": "The URL of the YouTube live stream associated with this assembly.",
-          "format": "uri"
-        },
-        "scheduledStartTime": {
-          "type": "string",
-          "description": "The planned start date and time of the assembly session.",
-          "format": "date-time"
-        },
-        "scheduledEndTime": {
-          "type": "string",
-          "description": "The planned end date and time of the assembly session (optional).",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the assembly (e.g., 'scheduled', 'live', 'completed', 'cancelled').",
-          "format": "enum",
-          "items": {
-            "type": "string"
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "youtubeUrl": { "type": "string", "format": "uri" },
+        "zoomUrl": { "type": "string", "format": "uri" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "status": { "type": "string", "enum": ["scheduled", "live", "finished", "cancelled"] },
+        "administratorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "endedAt": { "type": "string", "format": "date-time" },
+        "allowProxyVoting": { "type": "boolean" },
+        "maxProxiesPerUser": { "type": "number" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "address": { "type": "string" },
+            "city": { "type": "string" },
+            "state": { "type": "string" },
+            "zip": { "type": "string" },
+            "details": { "type": "string" }
           }
         },
-        "adminId": {
-          "type": "string",
-          "description": "Reference to the User (admin) who created and manages this assembly. (Relationship: User 1:N Assembly)"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the assembly record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating the last time the assembly record was updated.",
-          "format": "date-time"
-        }
+        "ordemDoDia": { "type": "string" }
       },
-      "required": [
-        "id",
-        "title",
-        "description",
-        "youtubeLiveStreamUrl",
-        "scheduledStartTime",
-        "status",
-        "adminId",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["title", "description", "date", "status", "administratorId"]
     },
-    "Motion": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Motion",
+    "AtaItem": {
+        "title": "Ata Item",
+        "type": "object",
+        "description": "An item in the assembly's minutes.",
+        "properties": {
+            "id": { "type": "string"},
+            "assemblyId": { "type": "string" },
+            "administratorId": { "type": "string"},
+            "text": { "type": "string"},
+            "createdAt": { "type": "string", "format": "date-time"},
+            "updatedAt": { "type": "string", "format": "date-time"},
+            "assemblyStatus": { "type": "string" }
+        },
+        "required": ["assemblyId", "administratorId", "text", "createdAt"]
+    },
+    "Poll": {
+        "title": "Poll",
+        "type": "object",
+        "description": "A poll for voting in an assembly.",
+        "properties": {
+            "id": { "type": "string"},
+            "question": { "type": "string"},
+            "endDate": { "type": "string", "format": "date-time"},
+            "status": { "type": "string", "enum": ["draft", "open", "closed", "annulled"]},
+            "createdAt": { "type": "string", "format": "date-time"},
+            "updatedAt": { "type": "string", "format": "date-time"},
+            "type": { "type": "string", "enum": ["proposal", "opinion"]},
+            "assemblyId": { "type": "string"},
+            "administratorId": { "type": "string"},
+            "assemblyStatus": { "type": "string" },
+            "annulmentReason": { "type": "string" },
+            "annulledBy": { "type": "string" },
+            "annulledAt": { "type": "string", "format": "date-time"},
+            "quorumType": { "type": "string", "enum": ["simple_majority", "absolute_majority", "two_thirds_majority"]},
+            "totalActiveMembers": { "type": "number" }
+        },
+        "required": ["question", "endDate", "status", "createdAt", "type", "assemblyId", "administratorId", "assemblyStatus"]
+    },
+    "PollOption": {
+      "title": "Poll Option",
       "type": "object",
-      "description": "Represents a specific topic or proposal presented for discussion and voting within an assembly. It defines the details and state of the voting process for this topic.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Motion entity."
-        },
-        "assemblyId": {
-          "type": "string",
-          "description": "Reference to the Assembly this motion belongs to. (Relationship: Assembly 1:N Motion)"
-        },
-        "title": {
-          "type": "string",
-          "description": "The title or subject of the motion."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the motion, including its purpose or proposed action."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current voting status of the motion (e.g., 'draft', 'pending_vote', 'open_for_vote', 'vote_closed', 'approved', 'rejected').",
-          "format": "enum",
-          "items": {
-            "type": "string"
-          }
-        },
-        "votingStartTime": {
-          "type": "string",
-          "description": "The date and time when voting for this motion officially opens (optional).",
-          "format": "date-time"
-        },
-        "votingEndTime": {
-          "type": "string",
-          "description": "The date and time when voting for this motion officially closes (optional).",
-          "format": "date-time"
-        },
-        "suggestedAlternativeWording": {
-          "type": "string",
-          "description": "Optional alternative wording or impact suggestions generated by the AI tool to improve clarity or completeness of the motion.",
-          "format": "text"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the motion record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating the last time the motion record was updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "pollId": { "type": "string" },
+        "assemblyId": { "type": "string" },
+        "assemblyStatus": { "type": "string" }
       },
-      "required": [
-        "id",
-        "assemblyId",
-        "title",
-        "description",
-        "status",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["text", "pollId", "assemblyId"]
     },
     "Vote": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Vote",
+        "title": "Vote",
+        "type": "object",
+        "description": "A user's vote in a poll.",
+        "properties": {
+            "id": { "type": "string"},
+            "userId": { "type": "string"},
+            "pollId": { "type": "string"},
+            "assemblyId": { "type": "string"},
+            "pollOptionId": { "type": "string"},
+            "timestamp": { "type": "string", "format": "date-time"},
+            "assemblyStatus": { "type": "string"},
+            "representedUserId": { "type": "string"}
+        },
+        "required": ["userId", "pollId", "assemblyId", "pollOptionId", "timestamp"]
+    },
+    "SpeakerQueueItem": {
+        "title": "Speaker Queue Item",
+        "type": "object",
+        "description": "An item in the speaker queue for an assembly.",
+        "properties": {
+            "id": { "type": "string" },
+            "userId": { "type": "string"},
+            "joinedAt": { "type": "string", "format": "date-time"},
+            "status": { "type": "string", "enum": ["Na Fila", "Entrada Autorizada", "Com a Fala"]},
+            "assemblyId": { "type": "string"},
+            "administratorId": { "type": "string"},
+            "assemblyStatus": { "type": "string"}
+        },
+        "required": ["userId", "joinedAt", "status", "assemblyId", "administratorId"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
       "type": "object",
-      "description": "Records an individual participant's choice for a specific motion during an assembly. Ensures one vote per user per motion.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Vote entity."
-        },
-        "motionId": {
-          "type": "string",
-          "description": "Reference to the Motion that was voted on. (Relationship: Motion 1:N Vote)"
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the User who cast this vote. (Relationship: User 1:N Vote)"
-        },
-        "choice": {
-          "type": "string",
-          "description": "The choice made by the user for the motion (e.g., 'for', 'against', 'abstain').",
-          "format": "enum",
-          "items": {
-            "type": "string"
-          }
-        },
-        "timestamp": {
-          "type": "string",
-          "description": "Timestamp indicating when the vote was cast.",
-          "format": "date-time"
-        }
+          "id": { "type": "string" },
+          "assemblyId": { "type": "string"},
+          "userId": { "type": "string" },
+          "text": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "motionId",
-        "userId",
-        "choice",
-        "timestamp"
-      ]
+      "required": ["assemblyId", "userId", "text", "timestamp"]
+    },
+    "Reaction": {
+      "title": "Reaction",
+      "type": "object",
+      "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string"},
+          "emoji": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "messageId": { "type": "string" },
+          "assemblyId": { "type": "string" }
+      },
+      "required": ["userId", "emoji", "createdAt", "messageId", "assemblyId"]
+    },
+    "ProxyAssignment": {
+      "title": "Proxy Assignment",
+      "type": "object",
+      "properties": {
+          "id": { "type": "string"},
+          "assemblyId": { "type": "string"},
+          "grantorId": { "type": "string"},
+          "proxyId": { "type": "string"},
+          "createdAt": { "type": "string", "format": "date-time"}
+      },
+      "required": ["assemblyId", "grantorId", "proxyId", "createdAt"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "google.com"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user profile information, accessible by the user themselves or by administrators. The document ID (`userId`) must match `request.auth.uid`."
-        }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Marker collection for administrators. Existence of a document at `/roles_admin/{userId}` signifies that `userId` is an admin. Used for Database Access Control (DBAC). Only administrators can write to this collection, and only for other admins.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user who is an administrator. This ID corresponds to `request.auth.uid`."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/assemblies/{assemblyId}",
-        "definition": {
-          "entityName": "Assembly",
-          "schema": {
-            "$ref": "#/backend/entities/Assembly"
-          },
-          "description": "Stores details about an online assembly session. Includes `adminId` for explicit management ownership. Participants can read, only the `adminId` or general admins can manage this document.",
-          "params": [
-            {
-              "name": "assemblyId",
-              "description": "The unique identifier for the assembly session."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/assemblies/{assemblyId}/motions/{motionId}",
-        "definition": {
-          "entityName": "Motion",
-          "schema": {
-            "$ref": "#/backend/entities/Motion"
-          },
-          "description": "Stores motions proposed within a specific assembly. Includes denormalized `adminId` from the parent assembly for authorization independence. Participants can read motions, only the `adminId` (of the assembly) can manage motions.",
-          "params": [
-            {
-              "name": "assemblyId",
-              "description": "The unique identifier of the parent assembly."
-            },
-            {
-              "name": "motionId",
-              "description": "The unique identifier for the motion within the assembly."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/assemblies/{assemblyId}/motions/{motionId}/votes/{userId}",
-        "definition": {
-          "entityName": "Vote",
-          "schema": {
-            "$ref": "#/backend/entities/Vote"
-          },
-          "description": "Records individual user votes for a motion. The document ID (`userId`) must match `request.auth.uid` to enforce one vote per user per motion. Includes denormalized `assemblyId`, `adminId`, and `motionStatus` for authorization independence and contextual validation (e.g., voting period).",
-          "params": [
-            {
-              "name": "assemblyId",
-              "description": "The unique identifier of the parent assembly."
-            },
-            {
-              "name": "motionId",
-              "description": "The unique identifier of the parent motion."
-            },
-            {
-              "name": "userId",
-              "description": "The unique ID of the user who cast the vote. This ID corresponds to `request.auth.uid`."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The recommended Firestore structure prioritizes Authorization Independence, ensuring security rules are simple, robust, and easily debuggable by minimizing the use of `get()` operations. This is achieved primarily through strategic denormalization and structural segregation.\n\n**Authorization Independence (Denormalization Strategy):**\n1.  **Motions:** To allow independent authorization for motions without querying their parent assembly, each `Motion` document at `/assemblies/{assemblyId}/motions/{motionId}` will denormalize the `adminId` from its parent `Assembly`. This means that security rules for motions can directly check `resource.data.adminId == request.auth.uid` for admin-level access, eliminating the need for `get(/assemblies/$(assemblyId))`.\n2.  **Votes:** Similarly, `Vote` documents at `/assemblies/{assemblyId}/motions/{motionId}/votes/{userId}` will denormalize `assemblyId`, `adminId` (from the parent `Assembly` via `Motion`), and `motionStatus` (from the parent `Motion`). This allows rules for votes to verify the context (e.g., if the user is voting in the correct assembly, if the motion is 'open_for_vote', or if an admin is accessing the vote count) without any `get()` calls on parent `Assembly` or `Motion` documents.\n\n**QAPs (Query Anything Principle) Support:**\n1.  **Structural Segregation:** Separate collections like `/users` for user profiles, `/roles_admin` for administrative role checks, and `/assemblies` for top-level assembly data ensure homogeneous security postures. Publicly readable data (e.g., assembly details, published motions) is clearly separated from private data (e.g., user profiles, individual votes).\n2.  **Explicit Status Fields:** The `status` field in `Assembly` and `Motion` entities (e.g., `scheduled`, `live`, `open_for_vote`) allows for efficient and secure list queries. For instance, participants can easily query `db.collection('assemblies').where('status', 'in', ['scheduled', 'live'])` and security rules can validate these queries without needing to filter results. Similarly, participants can list motions for an assembly using `db.collection('/assemblies/{assemblyId}/motions').where('status', 'in', ['pending_vote', 'open_for_vote', 'vote_closed'])`.\n3.  **Path-Based Ownership and DBAC:**\n    *   `/users/{userId}` ensures that only the `userId` (`request.auth.uid`) or an authorized administrator can access their profile, supporting granular access control for personal data.\n    *   `/roles_admin/{userId}` provides a clear and efficient mechanism for Database Access Control (DBAC). Rules can check `exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))` to determine if a user has administrative privileges, enabling QAPs for admins across collections.\n    *   The `adminId` in `Assembly` and denormalized in `Motion` and `Vote` documents, combined with the `/roles_admin` collection, facilitates simple rule logic for allowing admins to perform `list` operations across their managed assemblies and motions, and view vote tallies.\n\nThis design ensures that authorization checks are performed directly on the document being accessed, or through a simple existence check for global roles, making the system highly performant, secure, and easy to maintain."
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores user profile information."
+    },
+    "/admins/{userId}": {
+        "schema": {"type": "object", "properties": {}},
+        "description": "Marker collection for admin users."
+    },
+    "/assemblies/{assemblyId}": {
+      "schema": { "$ref": "#/entities/Assembly" },
+      "description": "Stores assembly meeting details."
+    },
+    "/assemblies/{assemblyId}/ata/{ataId}": {
+      "schema": { "$ref": "#/entities/AtaItem" },
+      "description": "Stores items for the assembly minutes."
+    },
+    "/assemblies/{assemblyId}/polls/{pollId}": {
+      "schema": { "$ref": "#/entities/Poll" },
+      "description": "Stores polls for an assembly."
+    },
+    "/assemblies/{assemblyId}/polls/{pollId}/options/{optionId}": {
+      "schema": { "$ref": "#/entities/PollOption" },
+      "description": "Stores the options for a poll."
+    },
+    "/assemblies/{assemblyId}/polls/{pollId}/votes/{voteId}": {
+      "schema": { "$ref": "#/entities/Vote" },
+      "description": "Stores votes for a poll."
+    },
+    "/assemblies/{assemblyId}/speakerQueue/{queueItemId}": {
+        "schema": { "$ref": "#/entities/SpeakerQueueItem" },
+        "description": "Stores items in the speaker queue for an assembly."
+    },
+    "/assemblies/{assemblyId}/chat/{messageId}": {
+        "schema": { "$ref": "#/entities/ChatMessage" },
+        "description": "Stores chat messages for an assembly."
+    },
+    "/assemblies/{assemblyId}/chat/{messageId}/reactions/{reactionId}": {
+        "schema": { "$ref": "#/entities/Reaction" },
+        "description": "Stores reactions to chat messages."
+    },
+    "/assemblies/{assemblyId}/proxies/{grantorId}": {
+      "schema": { "$ref": "#/entities/ProxyAssignment" },
+      "description": "Stores proxy voting assignments for an assembly."
+    },
+    "/users/{userId}/blockedUsers/{blockedUserId}": {
+      "schema": { "type": "object", "properties": {}},
+      "description": "Subcollection to store blocked users for a user."
+    },
+    "/assemblies/{assemblyId}/presence/{userId}": {
+        "schema": { "type": "object", "properties": { "lastSeen": {"type": "string", "format": "date-time"}, "joinedAt": {"type": "string", "format": "date-time"}}},
+        "description": "Stores user presence information for an assembly."
+    }
   }
 }

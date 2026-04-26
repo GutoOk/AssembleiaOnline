@@ -1,33 +1,7 @@
-/**
- * Core Philosophy: This ruleset implements a flexible security model with three primary access tiers:
- * 1. General Authenticated Users (Participants): Can read public data like assemblies and motions, and can create and manage their own private data (user profile, votes).
- * 2. Resource Owners (Assembly Admins): Users designated by an `adminId` on an Assembly have full control over that assembly and its sub-collections (like motions).
- * 3. Global Administrators: Users marked in the `/roles_admin` collection have privileged access across the system for management and moderation.
- *
- * Data Structure:
- * - /users/{userId}: Private user profiles, owned by the user.
- * - /roles_admin/{userId}: A separate collection to efficiently identify global administrators.
- * - /assemblies/{assemblyId}: Top-level public-read documents for assembly events, with writes controlled by a specific `adminId`.
- * - /assemblies/{assemblyId}/motions/{motionId}: Motions nested under an assembly. Intended to be public-read with writes controlled by the parent assembly's admin.
- * - /assemblies/{assemblyId}/motions/{motionId}/votes/{userId}: Private votes, where the document ID is the user's UID, enforcing one vote per user per motion.
- *
- * Key Security Decisions:
- * - Admin Rights: Global admin status is determined by the existence of a document in `/roles_admin/{userId}`. This is a highly performant pattern for checking roles.
- * - Public Data: Assembly and motion details are readable by any authenticated user to facilitate participation, but all write operations are strictly controlled.
- * - Private Data: User profiles and votes are private. A user can only access their own data. Admins are granted read access to votes for tallying purposes but cannot modify them.
- * - User Enumeration: Listing users from the top-level `/users` collection is explicitly disallowed to protect user privacy.
- *
- * Denormalization for Authorization:
- * This ruleset relies on denormalization as described in the application requirements. For example, the `adminId` from an assembly is expected to be copied to its motions to allow for fast, independent security checks without needing costly `get()` calls to the parent document. This is critical for securing writes on the `/motions` subcollection.
- *
- * Structural Segregation:
- * The separation of `/users` (private), `/roles_admin` (security markers), and `/assemblies` (public-read) creates clear security boundaries and simplifies rules for list operations.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for readable and reusable logic
     function isSignedIn() {
       return request.auth != null;
     }
@@ -36,96 +10,84 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
-    // Checks if the requesting user is a global administrator
     function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
-
-    // Checks if a document exists before an update or delete operation
-    function isExistingDoc() {
-      return resource != null;
-    }
-
-    /**
-     * @description Stores user profile information. Users can manage their own profile. Admins can also view and modify user profiles.
-     * @path /users/{userId}
-     * @allow (create) A new user signing up: `auth.uid == 'user_abc'`, creating doc `users/user_abc`.
-     * @deny (get) Another user trying to read a profile: `auth.uid == 'user_xyz'`, reading doc `users/user_abc`.
-     * @deny (list) Any user trying to list all users in the collection.
-     * @principle Restricts access to a user's own data tree and prevents user enumeration.
-     */
+    
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if (isOwner(userId) || isAdmin()) && isExistingDoc() && request.resource.data.id == resource.data.id;
-      allow delete: if (isOwner(userId) || isAdmin()) && isExistingDoc();
-    }
-
-    /**
-     * @description Marker collection for administrators. Only other admins can manage this collection.
-     * @path /roles_admin/{userId}
-     * @allow (create) An existing admin adding a new admin: `isAdmin() == true`, creating doc `roles_admin/new_admin_uid`.
-     * @deny (create) A non-admin user trying to make themselves an admin: `isAdmin() == false`.
-     * @deny (get) A non-admin user checking if another user is an admin.
-     * @principle Enforces Role-Based Access Control (RBAC) for privileged operations.
-     */
-    match /roles_admin/{userId} {
-      allow get: if isAdmin();
+      allow read, write: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && isExistingDoc();
-      allow delete: if isAdmin() && isExistingDoc();
     }
 
-    /**
-     * @description Stores assembly sessions. Readable by any authenticated user, but only manageable by the designated assembly admin or a global admin.
-     * @path /assemblies/{assemblyId}
-     * @allow (get) Any signed-in participant viewing an assembly: `isSignedIn() == true`.
-     * @allow (create) An authenticated user creating a new assembly and setting themselves as the admin: `request.resource.data.adminId == request.auth.uid`.
-     * @deny (update) A participant trying to change assembly details: `resource.data.adminId != request.auth.uid`.
-     * @principle Implements a "Public Read with Owner-Only Writes" pattern.
-     */
+    match /users/{userId}/blockedUsers/{blockedUserId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    match /admins/{userId} {
+        allow read, write: if isAdmin();
+    }
+
     match /assemblies/{assemblyId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.adminId == request.auth.uid;
-      allow update: if (isOwner(resource.data.adminId) || isAdmin()) && isExistingDoc() && request.resource.data.adminId == resource.data.adminId;
-      allow delete: if (isOwner(resource.data.adminId) || isAdmin()) && isExistingDoc();
-    }
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
 
-    /**
-     * @description Stores motions for an assembly. Readable by any participant. Writes are restricted.
-     * @path /assemblies/{assemblyId}/motions/{motionId}
-     * @allow (list) Any signed-in participant listing motions for an assembly: `isSignedIn() == true`.
-     * @deny (create) A regular user trying to create a motion.
-     * @principle Subcollection rules must be explicit. Write access depends on a denormalized ownership field.
-     */
-    match /assemblies/{assemblyId}/motions/{motionId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      // CRITICAL: Cannot securely implement owner-only writes. The 'Motion' entity in the IR is missing the denormalized 'adminId' field from the parent Assembly.
-      // This field is required to check permissions without a slow and costly `get()` call on the parent document.
-      allow create: if false; // TODO: Add owner validation (e.g., `request.resource.data.adminId == get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.adminId`) once the schema is updated with an 'adminId' field on Motion documents.
-      allow update: if false; // TODO: Add owner validation (e.g., `isOwner(resource.data.adminId)`) once the schema is updated.
-      allow delete: if false; // TODO: Add owner validation (e.g., `isOwner(resource.data.adminId)`) once the schema is updated.
-    }
+      match /ata/{ataId} {
+        allow read, list: if isSignedIn();
+        allow create, update, delete: if isAdmin();
+      }
 
-    /**
-     * @description Stores individual user votes. A user can only create and manage their own vote. Admins can read votes for tallying.
-     * @path /assemblies/{assemblyId}/motions/{motionId}/votes/{userId}
-     * @allow (create) A user casting their own vote: `auth.uid == 'user_abc'`, creating doc `.../votes/user_abc`.
-     * @deny (create) A user trying to cast a vote for someone else: `auth.uid == 'user_abc'`, creating doc `.../votes/user_xyz`.
-     * @deny (update) An admin trying to change a user's vote.
-     * @principle Enforces document ownership for writes and path consistency for relational integrity.
-     */
-    match /assemblies/{assemblyId}/motions/{motionId}/votes/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      // Only admins can list all votes for a motion to prevent users from seeing how others voted.
-      allow list: if isAdmin();
-      allow create: if isOwner(userId) && request.resource.data.userId == userId && request.resource.data.motionId == motionId && request.resource.data.assemblyId == assemblyId;
-      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.userId == resource.data.userId && request.resource.data.motionId == resource.data.motionId && request.resource.data.assemblyId == resource.data.assemblyId;
-      allow delete: if isOwner(userId) && isExistingDoc();
+      match /polls/{pollId} {
+        allow read, list: if isSignedIn();
+        allow create, update, delete: if isAdmin();
+
+        match /options/{optionId} {
+          allow read, list: if isSignedIn();
+          allow create, update, delete: if isAdmin();
+        }
+
+        match /votes/{voteId} {
+          allow list: if isAdmin();
+          // Users can read their own vote or if they are admin
+          allow get: if (isOwner(resource.data.userId) || isAdmin());
+          // User can create their own vote
+          allow create: if isOwner(request.resource.data.userId); 
+          // No one can update or delete votes
+          allow update, delete: if false;
+        }
+      }
+      
+      match /speakerQueue/{queueItemId} {
+        allow read, list: if isSignedIn();
+        // Only owner can create (request word)
+        allow create: if isOwner(request.resource.data.userId);
+        // Admin can update (change status), owner can delete (cancel request)
+        allow update: if isAdmin();
+        allow delete: if isOwner(resource.data.userId) || isAdmin();
+      }
+
+      match /chat/{messageId} {
+        allow read, list: if isSignedIn();
+        allow create: if isOwner(request.resource.data.userId);
+        allow update, delete: if false; // Simplification: No edits/deletes
+
+        match /reactions/{reactionId} {
+          allow read, list: if isSignedIn();
+          // A user can create/delete their own reaction
+          allow write: if isOwner(reactionId);
+        }
+      }
+
+      match /proxies/{grantorId} {
+        allow read, list: if isSignedIn();
+        // A user can create/delete their own proxy assignment
+        allow write: if isOwner(grantorId);
+      }
+
+      match /presence/{userId} {
+        allow read, list: if isSignedIn();
+        // A user can only write to their own presence document
+        allow write: if isOwner(userId);
+      }
     }
   }
 }
