@@ -107,10 +107,10 @@ export default function CreateAssemblyPage() {
   });
 
   useEffect(() => {
-    if (!isAdminLoading && !isAdmin) {
+    if (!isAdminLoading && user && !isAdmin) {
       router.replace('/dashboard');
     }
-  }, [isAdmin, isAdminLoading, router]);
+  }, [user, isAdmin, isAdminLoading, router]);
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

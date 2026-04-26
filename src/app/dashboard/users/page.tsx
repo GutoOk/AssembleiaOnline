@@ -35,10 +35,10 @@ export default function UsersPage() {
   const adminIds = new Set(admins?.map(a => a.id) ?? []);
 
   useEffect(() => {
-    if (!isAdminLoading && !isAdmin) {
+    if (!isAdminLoading && currentUser && !isAdmin) {
       router.replace('/dashboard');
     }
-  }, [isAdmin, isAdminLoading, router]);
+  }, [currentUser, isAdmin, isAdminLoading, router]);
 
   const handleAdminToggle = (userToToggle: UserProfile, isCurrentlyAdmin: boolean) => {
     if (!firestore || !currentUser) return;
@@ -73,12 +73,16 @@ export default function UsersPage() {
 
   const isLoading = isAdminLoading || areUsersLoading || areAdminsLoading;
 
-  if (isLoading || !isAdmin) {
+  if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+  
+  if (!isAdmin) {
+    return null;
   }
 
   return (

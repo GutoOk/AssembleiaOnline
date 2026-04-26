@@ -114,10 +114,10 @@ export default function EditAssemblyPage() {
   });
 
   useEffect(() => {
-    if (!isAdminLoading && !isAdmin) {
+    if (!isAdminLoading && user && !isAdmin) {
       router.replace('/dashboard');
     }
-  }, [isAdmin, isAdminLoading, router]);
+  }, [user, isAdmin, isAdminLoading, router]);
 
   // When assembly data loads, populate the form
   useEffect(() => {
