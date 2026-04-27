@@ -525,7 +525,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
     });
 }, [activeVotes, userProfiles]);
 
-  const recentVotes = useMemo(() => activeVotes?.slice(0, 3) ?? [], [activeVotes]);
+  const recentVotes = useMemo(() => activeVotes.slice(0, 3), [activeVotes]);
   const votesToShow = showAllVotes ? sortedVotesAlphabetically : recentVotes;
 
 
@@ -743,7 +743,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                   pollResult.status === 'Aprovada'
                   ? 'bg-green-50 border-green-200 text-green-900 dark:bg-green-900/20 dark:border-green-500/30 dark:text-green-200'
                   : pollResult.status === 'Reprovada'
-                  ? 'bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-500/30 dark:text-green-200'
+                  ? 'bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-200'
                   : 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-500/30 dark:text-amber-200'
               }`}>
               <div className="flex items-center gap-2">
