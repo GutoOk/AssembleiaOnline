@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import Link from 'next/link';
-import { CreatePollDialog } from '@/components/CreatePollDialog';
+import { CreatePollSheet } from '@/components/CreatePollSheet';
 import { ManageQueueDialog } from '@/components/ManageQueueDialog';
 import {
   Dialog,
@@ -1692,7 +1692,7 @@ export default function AssemblyPage() {
             )}
             
             {isAdmin && assembly.status === 'live' && (
-              <CreatePollDialog
+              <CreatePollSheet
                 open={isCreatePollOpen}
                 onOpenChange={setIsCreatePollOpen}
                 assembly={assembly}
