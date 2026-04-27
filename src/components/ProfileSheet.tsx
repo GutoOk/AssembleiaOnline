@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { useUser, useFirestore, useAuth, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { updateProfile } from 'firebase/auth';
@@ -102,7 +102,8 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
   const { blockedUserIds } = useBlockedUsers();
-  const { profiles: blockedUserProfiles, isLoading: areBlockedProfilesLoading } = useUserProfiles(Array.from(blockedUserIds));
+  const blockedUserIdsArray = useMemo(() => Array.from(blockedUserIds), [blockedUserIds]);
+  const { profiles: blockedUserProfiles, isLoading: areBlockedProfilesLoading } = useUserProfiles(blockedUserIdsArray);
 
   useEffect(() => {
     if (userProfile) {
