@@ -32,6 +32,7 @@ import {
   where,
   documentId,
 } from 'firebase/firestore';
+import { calculatePollResult } from './domain/quorum';
 
 
 const DISCLAIMER_TEXT =
@@ -130,7 +131,7 @@ function getPollResult(poll: Poll, options: PollOption[], votes: Vote[]) {
         return null;
     }
     if (poll.status === 'annulled') {
-        return { status: 'Anulada', message: poll.annulmentReason || 'Votação foi anulada.' };
+        return { status: 'Anulada' as const, message: poll.annulmentReason || 'Votação foi anulada.' };
     }
 
     const favorOption = options.find(o => o.text.trim().toLowerCase() === 'a favor');
@@ -139,57 +140,20 @@ function getPollResult(poll: Poll, options: PollOption[], votes: Vote[]) {
 
 
     if (!favorOption || !contraOption) {
-      return { status: 'Indeterminado', message: 'Não é uma votação de proposta padrão (A favor/Contra).' };
+      return { status: 'Indeterminado' as const, message: 'Não é uma votação de proposta padrão (A favor/Contra).' };
     }
 
     const favorVotes = votes.filter(v => v.pollOptionId === favorOption.id).length;
     const contraVotes = votes.filter(v => v.pollOptionId === contraOption.id).length;
-    const abstencaoVotes = abstencaoOption ? votes.filter(v => v.pollOptionId === abstencaoOption.id).length : 0;
-
-    let isApproved = false;
-    let quorumMessage = '';
-
-    const quorumTypeMap = {
-        simple_majority: 'Maioria Simples',
-        absolute_majority: 'Maioria Absoluta',
-        two_thirds_majority: '2/3 dos Votantes'
-    };
-    const quorumText = poll.quorumType ? quorumTypeMap[poll.quorumType] : '';
-
-    switch (poll.quorumType) {
-        case 'simple_majority':
-            isApproved = favorVotes > (contraVotes + abstencaoVotes);
-            quorumMessage = `${quorumText}: ${favorVotes} (A favor) vs ${contraVotes + abstencaoVotes} (Contra + Abstenções).`;
-            break;
-        
-        case 'absolute_majority':
-            if (!poll.totalActiveMembers || poll.totalActiveMembers === 0) {
-                return { status: 'Indeterminado', message: 'Número total de membros ativos não definido para cálculo de maioria absoluta.' };
-            }
-            const requiredVotes = Math.floor(poll.totalActiveMembers / 2) + 1;
-            isApproved = favorVotes >= requiredVotes;
-            quorumMessage = `${quorumText}: ${favorVotes} votos de ${requiredVotes} necessários (baseado em ${poll.totalActiveMembers} membros).`;
-            break;
-
-        case 'two_thirds_majority':
-            const totalVotes = favorVotes + contraVotes + abstencaoVotes;
-            if (totalVotes === 0) {
-                isApproved = false;
-                quorumMessage = 'Quórum de 2/3: Nenhum voto registrado.'
-            } else {
-                isApproved = favorVotes > ( (2/3) * totalVotes );
-                quorumMessage = `${quorumText}: ${favorVotes} votos a favor de um total de ${totalVotes} votantes.`;
-            }
-            break;
-        
-        default:
-            return { status: 'Indeterminado', message: 'Tipo de quórum não reconhecido.' };
-    }
+    const abstentionVotes = abstencaoOption ? votes.filter(v => v.pollOptionId === abstencaoOption.id).length : 0;
     
-    return {
-        status: isApproved ? 'Aprovada' : 'Reprovada',
-        message: quorumMessage
-    };
+    return calculatePollResult({
+        quorumType: poll.quorumType,
+        favorVotes,
+        contraVotes,
+        abstentionVotes,
+        totalActiveMembers: poll.totalActiveMembers,
+    });
 }
 
 

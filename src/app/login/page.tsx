@@ -208,19 +208,17 @@ function RegisterDialog({
       );
       const newUser = userCredential.user;
 
-      const userProfile: Omit<UserProfile, 'createdAt'> = {
+      const userProfileData = {
         id: newUser.uid,
         name: values.name,
         email: email,
         avatarDataUri:
           avatarPreview || `https://avatar.vercel.sh/${newUser.uid}.svg`,
+        createdAt: serverTimestamp(),
       };
 
       const userDocRef = doc(firestore, 'users', newUser.uid);
-      setDocumentNonBlocking(userDocRef, {
-        ...userProfile,
-        createdAt: serverTimestamp(),
-      }, {});
+      setDocumentNonBlocking(userDocRef, userProfileData, {});
 
       await sendEmailVerification(newUser);
 
@@ -436,7 +434,7 @@ export default function LoginPage() {
       if (!firestore || !auth) return false;
       try {
         if (
-          firebaseUser.email &&
+          !firebaseUser.email ||
           !firebaseUser.email.endsWith('@mensa.org.br')
         ) {
           // This is a valid user, but not for this app. Sign them out.
@@ -457,16 +455,16 @@ export default function LoginPage() {
             firebaseUser.displayName ||
             firebaseUser.email?.split('@')[0] ||
             'Novo Usuário';
-          const userProfile: UserProfile = {
+          const userProfileData = {
             id: firebaseUser.uid,
             name: name,
-            email: firebaseUser.email!,
+            email: firebaseUser.email,
             avatarDataUri:
               firebaseUser.photoURL ||
               `https://avatar.vercel.sh/${firebaseUser.uid}.svg`,
-            createdAt: serverTimestamp() as any,
+            createdAt: serverTimestamp(),
           };
-          setDocumentNonBlocking(userDocRef, userProfile, {});
+          setDocumentNonBlocking(userDocRef, userProfileData, {});
         }
         
         return true;

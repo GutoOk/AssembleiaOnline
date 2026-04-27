@@ -90,35 +90,6 @@ const LinkifiedText = ({ text, className }: { text: string; className?: string }
   );
 };
 
-function UserDisplay({ userId }: { userId: string }) {
-  const firestore = useFirestore();
-  const { user } = useUser();
-  const userProfileRef = useMemoFirebase(() => {
-    if (!firestore || !userId || !user) return null;
-    return doc(firestore, 'users', userId);
-  }, [firestore, userId, user]);
-
-  const { data: userProfile, isLoading } = useDoc<UserProfile>(userProfileRef);
-
-  if (isLoading) {
-    return <div className="flex items-center gap-1"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>;
-  }
-
-  if (!userProfile) {
-    return <span>Usuário não encontrado</span>;
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      <Avatar className="h-6 w-6">
-        <AvatarImage src={userProfile.avatarDataUri} alt={userProfile.name} />
-        <AvatarFallback>{userProfile.name?.charAt(0).toUpperCase()} </AvatarFallback>
-      </Avatar>
-      <span>{userProfile.name}</span>
-    </div>
-  );
-}
-
 function Countdown({ endDate }: { endDate: Date }) {
   const [timeLeft, setTimeLeft] = useState(endDate.getTime() - Date.now());
 
