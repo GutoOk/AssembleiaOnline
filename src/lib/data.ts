@@ -159,7 +159,7 @@ export type AuditEventType =
   | 'VOTE_CAST'
   | 'VOTE_RECAST'
   | 'VOTE_WITHDRAWN'
-  | 'PROXY_ASSIGNED'
+  | 'PROXY_GRANTED'
   | 'PROXY_REVOKED'
   | 'ATA_ITEM_CREATED'
   | 'ATA_ITEM_UPDATED'

@@ -517,15 +517,15 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   }, [options, activeVotes]);
 
   const sortedVotesAlphabetically = useMemo(() => {
-    if (!votes || !userProfiles) return [];
-    return [...votes].sort((a, b) => {
+    if (!activeVotes || !userProfiles) return [];
+    return [...activeVotes].sort((a, b) => {
         const nameA = userProfiles[a.effectiveVoterId]?.name ?? '';
         const nameB = userProfiles[b.effectiveVoterId]?.name ?? '';
         return nameA.localeCompare(nameB);
     });
-}, [votes, userProfiles]);
+}, [activeVotes, userProfiles]);
 
-  const recentVotes = useMemo(() => votes?.slice(0, 3) ?? [], [votes]);
+  const recentVotes = useMemo(() => activeVotes?.slice(0, 3) ?? [], [activeVotes]);
   const votesToShow = showAllVotes ? sortedVotesAlphabetically : recentVotes;
 
 
@@ -812,7 +812,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                     )
                 })}
                 </div>
-                {votes.length > 3 && (
+                {activeVotes.length > 3 && (
                     <Button variant="link" size="sm" className="p-0 h-auto mt-2 text-xs" onClick={() => setShowAllVotes(!showAllVotes)}>
                         {showAllVotes ? 'Ver menos' : 'Ver mais...'}
                     </Button>

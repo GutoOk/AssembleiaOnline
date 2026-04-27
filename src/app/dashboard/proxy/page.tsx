@@ -205,7 +205,7 @@ export default function ProxyPage() {
             firestore,
             assemblyId: values.assemblyId,
             actorId: user.uid,
-            type: 'PROXY_ASSIGNED',
+            type: 'PROXY_GRANTED',
             targetId: proxyId,
             metadata: { proxyEmail: normalizedProxyEmail }
         });
