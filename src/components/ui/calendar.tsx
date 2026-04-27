@@ -20,20 +20,18 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
-        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+        months: "flex flex-col gap-4 sm:flex-row sm:gap-4",
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
         caption_label: "text-sm font-medium",
         nav: "space-x-1 flex items-center",
         nav_button_previous: cn(
           buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
-          "absolute left-1"
+          "absolute left-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
         ),
         nav_button_next: cn(
           buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
-          "absolute right-1"
+          "absolute right-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
         ),
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
@@ -58,8 +56,23 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ChevronLeft,
-        IconRight: ChevronRight,
+        Chevron: ({ className, orientation, ...props }) => {
+          if (orientation === "left") {
+            return (
+              <ChevronLeft
+                className={cn("h-4 w-4", className)}
+                {...props}
+              />
+            );
+          }
+
+          return (
+            <ChevronRight
+              className={cn("h-4 w-4", className)}
+              {...props}
+            />
+          );
+        },
       }}
       {...props}
     />
