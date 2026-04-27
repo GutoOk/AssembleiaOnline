@@ -125,6 +125,9 @@ service cloud.firestore {
             && userId == request.auth.uid
             && resource.data.userId == request.auth.uid
             && request.resource.data.userId == resource.data.userId
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.createdBy == resource.data.createdBy
+            && request.resource.data.expiresAt == resource.data.expiresAt
             && request.resource.data.active == false
             && request.resource.data.zoomUrl == null
             && request.resource.data.revokedBy == request.auth.uid
@@ -164,6 +167,8 @@ service cloud.firestore {
           allow get, list: if hasAssemblyAccess();
 
           allow create: if hasAssemblyAccess()
+            && request.resource.data.status == 'active'
+            && request.resource.data.pollOptionId is string
             && pollDoc().data.status == 'open'
             && request.time < pollDoc().data.endDate
             && request.resource.data.userId == request.auth.uid
@@ -260,6 +265,8 @@ service cloud.firestore {
             && request.resource.data.assemblyId == resource.data.assemblyId
             && request.resource.data.administratorId == resource.data.administratorId
             && request.resource.data.assemblyStatus == resource.data.assemblyStatus
+            && request.resource.data.joinedAt == resource.data.joinedAt
+            && request.resource.data.speakerStartedAt is timestamp
           );
 
         allow delete: if isAdmin()

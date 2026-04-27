@@ -1584,7 +1584,7 @@ export default function AssemblyPage() {
       batch.delete(itemRef);
 
       if (userInQueue.status === 'Entrada Autorizada' || userInQueue.status === 'Com a Fala') {
-          const accessRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerAccess', userInQueue.id);
+          const accessRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerAccess', userInQueue.userId);
           batch.set(accessRef, {
               active: false,
               zoomUrl: null,
@@ -1623,7 +1623,7 @@ export default function AssemblyPage() {
     try {
         const batch = writeBatch(firestore);
         const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
-        const accessRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerAccess', userInQueue.id);
+        const accessRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerAccess', userInQueue.userId);
 
         batch.delete(itemRef);
         batch.set(accessRef, {

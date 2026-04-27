@@ -86,7 +86,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
               type: 'ZOOM_ACCESS_GRANTED',
               assemblyId: assemblyId,
               actorId: user.uid,
-              targetId: item.id,
+              targetId: item.userId,
               metadata: { queueItemId: item.id },
               createdAt: serverTimestamp(),
             });
@@ -106,13 +106,31 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                 type: 'ZOOM_ACCESS_REVOKED',
                 assemblyId: assemblyId,
                 actorId: user.uid,
-                targetId: item.id,
+                targetId: item.userId,
                 metadata: { queueItemId: item.id, reason: 'Status changed back to queue' },
                 createdAt: serverTimestamp(),
               });
         }
 
-        batch.update(itemRef, { status: newStatus });
+        const queueUpdateData: Record<string, unknown> = {
+          status: newStatus,
+        };
+
+        if (newStatus === 'Com a Fala') {
+          queueUpdateData.speakerStartedAt = serverTimestamp();
+        }
+
+        if (newStatus === 'Entrada Autorizada') {
+          queueUpdateData.calledAt = serverTimestamp();
+          queueUpdateData.calledBy = user.uid;
+        }
+
+        if (newStatus === 'Na Fila') {
+          queueUpdateData.speakerStartedAt = null;
+        }
+
+        batch.update(itemRef, queueUpdateData);
+        
         await batch.commit();
         toast({ title: 'Status Atualizado', description: 'O status do participante foi alterado.' });
     } catch(error) {
@@ -132,7 +150,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
         batch.delete(itemRef);
 
         if (item.status === 'Entrada Autorizada' || item.status === 'Com a Fala') {
-            const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.id);
+            const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.userId);
             batch.set(accessRef, {
                 active: false,
                 zoomUrl: null,
@@ -145,7 +163,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                 type: 'ZOOM_ACCESS_REVOKED',
                 assemblyId: assemblyId,
                 actorId: user.uid,
-                targetId: item.id,
+                targetId: item.userId,
                 metadata: { queueItemId: item.id, reason: 'Removed from queue' },
                 createdAt: serverTimestamp(),
             });

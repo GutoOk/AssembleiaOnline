@@ -65,9 +65,8 @@ export type Poll = {
 export type SpeakerQueueItem = {
   id: string;
   userId: string;
-  joinedAt: Timestamp; // Renamed from requestTime
+  joinedAt: Timestamp;
   status: 'Na Fila' | 'Entrada Autorizada' | 'Com a Fala';
-  // Denormalized fields for rules
   assemblyId: string;
   administratorId: string;
   assemblyStatus: Assembly['status'];
