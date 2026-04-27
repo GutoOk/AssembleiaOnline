@@ -21,8 +21,6 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   setPersistence,
   browserLocalPersistence,
   sendPasswordResetEmail,
@@ -34,7 +32,6 @@ import {
 import { doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
 import { Icons } from '@/components/icons';
-import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Dialog,
   DialogContent,
@@ -424,13 +421,16 @@ export default function LoginPage() {
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
-  const isMobile = useIsMobile();
 
   // This effect runs once to set persistence for the session.
   useEffect(() => {
     if (auth) {
       // Use local persistence to keep the user signed in across browser sessions.
-      setPersistence(auth, browserLocalPersistence);
+      setPersistence(auth, browserLocalPersistence).finally(() => {
+        setIsProcessingRedirect(false);
+      });
+    } else {
+      setIsProcessingRedirect(false);
     }
   }, [auth]);
 
@@ -521,35 +521,6 @@ export default function LoginPage() {
     },
     [auth, firestore, toast]
   );
-
-  // This effect handles the result from the redirect login flow
-  useEffect(() => {
-    if (auth) {
-      setIsProcessingRedirect(true);
-      getRedirectResult(auth)
-        .then(async (result) => {
-          if (result?.user) {
-            const loginSuccessful = await processGoogleUser(result.user);
-            if (loginSuccessful) {
-              router.replace('/dashboard');
-            }
-          }
-        })
-        .catch((error) => {
-          console.error('Google Sign-In redirect error:', error);
-          toast({
-            variant: 'destructive',
-            title: 'Erro no Login com Google',
-            description: `Ocorreu um erro: ${error.code} - ${error.message}. Tente novamente. Se o problema persistir, verifique as permissões de cookies e pop-ups no seu navegador.`,
-          });
-        })
-        .finally(() => {
-          setIsProcessingRedirect(false);
-        });
-    } else {
-      setIsProcessingRedirect(false);
-    }
-  }, [auth, processGoogleUser, toast, router]);
 
   // This effect handles navigation *after* the user state is confirmed and any redirect is processed.
   useEffect(() => {
