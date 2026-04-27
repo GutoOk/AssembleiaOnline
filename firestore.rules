@@ -85,7 +85,7 @@ service cloud.firestore {
             && (
               (
                 voteId == request.auth.uid
-                && !('representedUserId' in request.resource.data)
+                && request.resource.data.representedUserId == null
               )
               ||
               (
