@@ -31,7 +31,7 @@ import {
   signOut,
   fetchSignInMethodsForEmail,
 } from 'firebase/auth';
-import { doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
 import { Icons } from '@/components/icons';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -218,7 +218,12 @@ function RegisterDialog({
       };
 
       const userDocRef = doc(firestore, 'users', newUser.uid);
-      setDocumentNonBlocking(userDocRef, userProfileData, {});
+      await setDoc(userDocRef, userProfileData);
+
+      const normalizedEmail = email.trim().toLowerCase();
+      const memberEmailDocRef = doc(firestore, 'memberEmails', normalizedEmail);
+      await setDoc(memberEmailDocRef, { uid: newUser.uid, name: values.name });
+
 
       await sendEmailVerification(newUser);
 
@@ -464,7 +469,13 @@ export default function LoginPage() {
               `https://avatar.vercel.sh/${firebaseUser.uid}.svg`,
             createdAt: serverTimestamp(),
           };
-          setDocumentNonBlocking(userDocRef, userProfileData, {});
+          await setDoc(userDocRef, userProfileData);
+
+          if (firebaseUser.email) {
+            const normalizedEmail = firebaseUser.email.trim().toLowerCase();
+            const memberEmailDocRef = doc(firestore, 'memberEmails', normalizedEmail);
+            await setDoc(memberEmailDocRef, { uid: firebaseUser.uid, name: name });
+          }
         }
         
         return true;

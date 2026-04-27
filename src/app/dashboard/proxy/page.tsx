@@ -9,7 +9,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, doc, serverTimestamp, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, serverTimestamp, onSnapshot, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Trash2 } from 'lucide-react';
@@ -147,29 +147,30 @@ export default function ProxyPage() {
   const onSubmit = async (values: z.infer<typeof proxySchema>) => {
     if (!user || !firestore) return;
     
-    if (user.email === values.proxyEmail) {
-        toast({ variant: 'destructive', title: 'Ação inválida', description: 'Você não pode dar uma procuração para si mesmo.' });
-        return;
-    }
-
     try {
         const assembly = assembliesForProxy?.find(a => a.id === values.assemblyId);
         if (!assembly) {
             toast({ variant: 'destructive', title: 'Erro', description: 'Assembleia não encontrada ou não permite procuração.' });
             return;
         }
+        
+        const normalizedProxyEmail = values.proxyEmail.trim().toLowerCase();
+        const memberEmailRef = doc(firestore, 'memberEmails', normalizedProxyEmail);
+        const memberEmailSnap = await getDoc(memberEmailRef);
 
-        const usersRef = collection(firestore, 'users');
-        const q = query(usersRef, where('email', '==', values.proxyEmail));
-        const userSnapshot = await getDocs(q);
-
-        if (userSnapshot.empty) {
+        if (!memberEmailSnap.exists()) {
             toast({ variant: 'destructive', title: 'Usuário não encontrado', description: `Nenhum usuário encontrado com o email: ${values.proxyEmail}` });
             return;
         }
 
-        const proxyUser = userSnapshot.docs[0];
-        const proxyId = proxyUser.id;
+        const proxyUserData = memberEmailSnap.data();
+        const proxyId = proxyUserData.uid;
+        const proxyName = proxyUserData.name;
+
+        if (proxyId === user.uid) {
+            toast({ variant: 'destructive', title: 'Ação inválida', description: 'Você não pode dar uma procuração para si mesmo.' });
+            return;
+        }
 
         const maxProxies = assembly.maxProxiesPerUser ?? 4;
         const existingProxiesQuery = query(
@@ -183,7 +184,7 @@ export default function ProxyPage() {
             toast({ 
                 variant: 'destructive', 
                 title: 'Limite Atingido', 
-                description: `${proxyUser.data().name} já atingiu o limite de ${maxProxies} procurações para esta assembleia.` 
+                description: `${proxyName} já atingiu o limite de ${maxProxies} procurações para esta assembleia.` 
             });
             return;
         }
@@ -206,10 +207,10 @@ export default function ProxyPage() {
             actorId: user.uid,
             type: 'PROXY_ASSIGNED',
             targetId: proxyId,
-            metadata: { proxyEmail: values.proxyEmail }
+            metadata: { proxyEmail: normalizedProxyEmail }
         });
 
-        toast({ title: 'Procuração Concedida!', description: `Você concedeu procuração para ${proxyUser.data().name}.` });
+        toast({ title: 'Procuração Concedida!', description: `Você concedeu procuração para ${proxyName}.` });
         form.reset();
 
     } catch (error) {

@@ -210,6 +210,16 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["type", "assemblyId", "actorId", "createdAt"]
+    },
+    "MemberEmail": {
+        "title": "Member Email Lookup",
+        "type": "object",
+        "description": "A lookup document to find a user's UID by their normalized email address.",
+        "properties": {
+            "uid": { "type": "string", "description": "The user's unique ID." },
+            "name": { "type": "string", "description": "The user's full name." }
+        },
+        "required": ["uid", "name"]
     }
   },
   "auth": {
@@ -223,6 +233,10 @@
     "/admins/{userId}": {
         "schema": {"type": "object", "properties": {}},
         "description": "Marker collection for admin users."
+    },
+    "/memberEmails/{email}": {
+      "schema": { "$ref": "#/entities/MemberEmail" },
+      "description": "Stores a mapping from a normalized user email to their UID and name for lookups."
     },
     "/assemblies/{assemblyId}": {
       "schema": { "$ref": "#/entities/Assembly" },

@@ -32,13 +32,25 @@ service cloud.firestore {
         && isMensaEmail()
         && request.resource.data.email == request.auth.token.email;
       allow get: if isVerifiedMensaUser();
-      allow list: if isVerifiedMensaUser();
+      allow list: if isAdmin();
       allow update: if (isOwner(userId) && isVerifiedMensaUser()) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /users/{userId}/blockedUsers/{blockedUserId} {
       allow read, write: if isOwner(userId) && isVerifiedMensaUser();
+    }
+    
+    match /memberEmails/{email} {
+      allow get: if isVerifiedMensaUser();
+      allow create: if isVerifiedMensaUser()
+        && request.auth.token.email == email
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if isVerifiedMensaUser()
+        && request.auth.token.email == email
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid;
+      allow delete: if false;
     }
 
     match /admins/{userId} {

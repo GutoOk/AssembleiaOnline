@@ -209,6 +209,12 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
         const userDocRef = doc(firestore, 'users', user.uid);
         await updateDoc(userDocRef, dataToUpdate);
 
+        if (user.email) {
+            const normalizedEmail = user.email.trim().toLowerCase();
+            const memberEmailDocRef = doc(firestore, 'memberEmails', normalizedEmail);
+            await updateDoc(memberEmailDocRef, { name: dataToUpdate.name });
+        }
+
         toast({
             title: 'Perfil Atualizado!',
             description: 'Suas informações foram salvas com sucesso.',
