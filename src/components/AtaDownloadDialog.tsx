@@ -41,7 +41,7 @@ export function AtaDownloadDialog({ onConfirmDocx, onConfirmPdf, children, disab
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col gap-2 pt-4">
+        <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2 pt-4">
             {isAdmin ? (
                 <>
                 <AlertDialogAction asChild>
@@ -50,7 +50,7 @@ export function AtaDownloadDialog({ onConfirmDocx, onConfirmPdf, children, disab
                     </Button>
                 </AlertDialogAction>
                 <AlertDialogAction asChild>
-                    <Button className="w-full" variant="outline" onClick={onConfirmPdf}>
+                    <Button className="w-full" variant="secondary" onClick={onConfirmPdf}>
                     Baixar PDF (Versão do Usuário)
                     </Button>
                 </AlertDialogAction>
@@ -62,7 +62,9 @@ export function AtaDownloadDialog({ onConfirmDocx, onConfirmPdf, children, disab
                     </Button>
                 </AlertDialogAction>
             )}
-            <AlertDialogCancel className="w-full mt-0">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel asChild>
+                <Button variant="outline" className="w-full mt-0">Cancelar</Button>
+            </AlertDialogCancel>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
