@@ -30,6 +30,7 @@ import 'react-image-crop/dist/ReactCrop.css';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { createAuditLog } from '@/lib/services/audit.service';
+import { saveAssemblyPrivateConfig } from '@/lib/services/zoom-access.service';
 
 const assemblySchema = z.object({
   title: z.string().min(10, 'O título deve ter pelo menos 10 caracteres.'),
@@ -220,7 +221,7 @@ export default function EditAssemblyPage() {
   };
   
   const onSubmit = async (values: z.infer<typeof assemblySchema>) => {
-    if (!isAdmin || !user || !assemblyRef || !firestore || !assembly || !privateConfigRef) {
+    if (!isAdmin || !user || !assemblyRef || !firestore || !assembly) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
@@ -260,7 +261,12 @@ export default function EditAssemblyPage() {
         publicDataToUpdate.location = location;
 
         await updateDoc(assemblyRef, publicDataToUpdate);
-        await setDoc(privateConfigRef, { zoomUrl: zoomUrl || '' }, { merge: true });
+        
+        await saveAssemblyPrivateConfig({
+          firestore,
+          assemblyId: assembly.id,
+          zoomUrl: zoomUrl || null,
+        });
         
         await createAuditLog({
             firestore,
@@ -560,7 +566,7 @@ export default function EditAssemblyPage() {
     </Card>
     
     <Dialog open={isCropperOpen} onOpenChange={setCropperOpen}>
-        <DialogContent className="sm:max-w-[625px]">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[625px] max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Recortar Imagem</DialogTitle>
             <DialogDescriptionComponent>
@@ -581,7 +587,7 @@ export default function EditAssemblyPage() {
                   alt="Crop me"
                   src={imgSrc}
                   onLoad={onImageLoad}
-                  style={{ maxHeight: '70vh' }}
+                  style={{ maxHeight: '55dvh', maxWidth: '100%' }}
                 />
               </ReactCrop>
             )}

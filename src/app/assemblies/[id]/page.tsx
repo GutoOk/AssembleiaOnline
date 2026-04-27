@@ -39,9 +39,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser } from '@/firebase';
-import { doc, collection, query, orderBy, serverTimestamp, where, writeBatch, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { doc, collection, query, orderBy, serverTimestamp, where, writeBatch, updateDoc, addDoc, deleteDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
-import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence, Reaction, AssemblyPrivateConfig } from '@/lib/data';
+import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence, Reaction, AssemblyPrivateConfig, SpeakerAccess } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -59,6 +59,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal
 import { WhoReactedSheet } from '@/components/WhoReactedSheet';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { calculatePollResult } from '@/lib/domain/quorum';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 
 const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
@@ -898,7 +899,6 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
 function SpeakingQueue({ 
     assemblyId, 
-    assemblyZoomUrl,
     assemblyFinished,
     onEnterSpeakerMode,
     onJoinQueue,
@@ -909,9 +909,8 @@ function SpeakingQueue({
     isLoading
   }: { 
     assemblyId: string; 
-    assemblyZoomUrl?: string;
     assemblyFinished: boolean;
-    onEnterSpeakerMode: (zoomLink: string, queueItem: SpeakerQueueItem) => void;
+    onEnterSpeakerMode: (queueItem: SpeakerQueueItem) => void;
     onJoinQueue: () => void;
     onLeaveQueue: () => void;
     queue: SpeakerQueueItem[] | null;
@@ -962,8 +961,8 @@ function SpeakingQueue({
           <div>
             <p className="font-medium text-sm">{speakerUser.name}</p>
             <p className="text-xs text-muted-foreground">{speakerUser.email}</p>
-             {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl && userInQueue ? (
-                <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl, userInQueue)} className="mt-2" disabled={isSubmitting}>
+             {isCurrentUser && speaker.status === 'Entrada Autorizada' && userInQueue ? (
+                <Button size="sm" onClick={() => onEnterSpeakerMode(userInQueue)} className="mt-2" disabled={isSubmitting}>
                     {isSubmitting ? <Loader2 className='h-4 w-4 animate-spin' /> : <Video className="h-4 w-4" />} Entrar para Falar
                 </Button>
             ) : (
@@ -1245,11 +1244,14 @@ export default function AssemblyPage() {
   const firestore = useFirestore();
   const { user, isAdmin, isLoading: isAdminLoading } = useAdmin();
   const { toast } = useToast();
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [speakerZoomLink, setSpeakerZoomLink] = useState('');
   const [adminVideoSource, setAdminVideoSource] = useState<'youtube' | 'zoom'>('zoom');
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
   const [isSubmittingQueue, setIsSubmittingQueue] = useState(false);
+  const isMobile = useIsMobile();
+  const [adminZoomUrl, setAdminZoomUrl] = useState<string | null>(null);
+
+  const [mySpeakerAccess, setMySpeakerAccess] = useState<SpeakerAccess | null>(null);
+  const [isLoadingSpeakerAccess, setIsLoadingSpeakerAccess] = useState(true);
 
   const assemblyContext = useAssemblyContext();
   const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems, isCreatePollOpen, setIsCreatePollOpen, setAssemblyPrivateConfig } = assemblyContext!;
@@ -1269,7 +1271,84 @@ export default function AssemblyPage() {
   const { data: privateConfig } = useDoc<AssemblyPrivateConfig>(privateConfigRef);
   
   const assemblyId = assembly?.id;
-  const assemblyZoomUrl = privateConfig?.zoomUrl;
+  
+  useEffect(() => {
+    if (!firestore || !assemblyId || !isAdmin) {
+      setAdminZoomUrl(null);
+      return;
+    }
+  
+    const configRef = doc(
+      firestore,
+      'assemblies',
+      assemblyId,
+      'private',
+      'config'
+    );
+  
+    const unsubscribe = onSnapshot(
+      configRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setAdminZoomUrl(null);
+          return;
+        }
+  
+        setAdminZoomUrl(snapshot.data().zoomUrl ?? null);
+      },
+      (error) => {
+        console.error('Erro ao carregar Zoom privado:', error);
+        setAdminZoomUrl(null);
+      }
+    );
+  
+    return () => unsubscribe();
+  }, [firestore, assemblyId, isAdmin]);
+
+  useEffect(() => {
+    if (!firestore || !user || !assemblyId) {
+      setMySpeakerAccess(null);
+      setIsLoadingSpeakerAccess(false);
+      return;
+    }
+  
+    setIsLoadingSpeakerAccess(true);
+  
+    const accessRef = doc(
+      firestore,
+      'assemblies',
+      assemblyId,
+      'speakerAccess',
+      user.uid
+    );
+  
+    const unsubscribe = onSnapshot(
+      accessRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setMySpeakerAccess(null);
+          setIsLoadingSpeakerAccess(false);
+          return;
+        }
+  
+        const data = {
+          id: snapshot.id,
+          ...snapshot.data(),
+        } as SpeakerAccess;
+  
+        setMySpeakerAccess(data.active ? data : null);
+        setIsLoadingSpeakerAccess(false);
+      },
+      (error) => {
+        console.error('Erro ao carregar acesso ao Zoom:', error);
+        setMySpeakerAccess(null);
+        setIsLoadingSpeakerAccess(false);
+      }
+    );
+  
+    return () => unsubscribe();
+  }, [firestore, user, assemblyId]);
+
 
   const pollsQuery = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -1469,11 +1548,23 @@ export default function AssemblyPage() {
   };
 
   const handleLeaveQueue = async () => {
-    if (!userInQueue || !firestore) return;
+    if (!userInQueue || !firestore || !user) return;
     setIsSubmittingQueue(true);
     try {
-        const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
-        await deleteDoc(itemRef);
+      const batch = writeBatch(firestore);
+      const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
+      batch.delete(itemRef);
+
+      if (userInQueue.status === 'Entrada Autorizada' || userInQueue.status === 'Com a Fala') {
+          const accessRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerAccess', userInQueue.id);
+          batch.set(accessRef, {
+              active: false,
+              revokedAt: serverTimestamp(),
+              revokedBy: user.uid,
+          }, { merge: true });
+      }
+
+      await batch.commit();
         toast({ title: 'Inscrição Cancelada', description: 'Você foi removido da fila.' });
     } catch (error) {
         console.error("Error leaving queue:", error);
@@ -1483,42 +1574,44 @@ export default function AssemblyPage() {
     }
   };
 
-  const handleEnterSpeakerMode = async (zoomLink: string, queueItem: SpeakerQueueItem) => {
-      if(!zoomLink) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'O administrador ainda não forneceu um link do Zoom.' });
-        return;
-      }
-      if (!firestore) return;
-      setIsSubmittingQueue(true);
-      try {
-          const itemRef = doc(firestore, 'assemblies', queueItem.assemblyId, 'speakerQueue', queueItem.id);
-          await updateDoc(itemRef, { status: 'Com a Fala' });
-          
-          setSpeakerZoomLink(zoomLink);
-          setIsSpeaking(true);
-      } catch (error) {
-          console.error("Error entering speaker mode:", error);
-          toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível alterar seu status.' });
-      } finally {
-          setIsSubmittingQueue(false);
-      }
+  const handleEnterSpeakerMode = async (queueItem: SpeakerQueueItem) => {
+    if (!firestore) return;
+    setIsSubmittingQueue(true);
+    try {
+        const itemRef = doc(firestore, 'assemblies', queueItem.assemblyId, 'speakerQueue', queueItem.id);
+        await updateDoc(itemRef, { status: 'Com a Fala' });
+    } catch (error) {
+        console.error("Error entering speaker mode:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível alterar seu status.' });
+    } finally {
+        setIsSubmittingQueue(false);
+    }
   };
   
   const handleEndParticipation = async () => {
-      if (!userInQueue || !firestore) return;
-      setIsSubmittingQueue(true);
-      try {
-          const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
-          await deleteDoc(itemRef);
-          setIsSpeaking(false);
-          setSpeakerZoomLink('');
-          toast({ title: 'Participação Encerrada', description: 'Você saiu da chamada e foi removido da fila.' });
-      } catch (error) {
-          console.error("Error ending participation:", error);
-          toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível encerrar a participação.' });
-      } finally {
-          setIsSubmittingQueue(false);
-      }
+    if (!userInQueue || !firestore || !user) return;
+    setIsSubmittingQueue(true);
+    try {
+        const batch = writeBatch(firestore);
+        const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
+        const accessRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerAccess', userInQueue.id);
+
+        batch.delete(itemRef);
+        batch.set(accessRef, {
+            active: false,
+            revokedAt: serverTimestamp(),
+            revokedBy: user.uid,
+        }, { merge: true });
+
+        await batch.commit();
+
+        toast({ title: 'Participação Encerrada', description: 'Você saiu da chamada e foi removido da fila.' });
+    } catch (error) {
+        console.error("Error ending participation:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível encerrar a participação.' });
+    } finally {
+        setIsSubmittingQueue(false);
+    }
   };
 
   const displayEmbedUrl = useMemo(() => {
@@ -1570,7 +1663,6 @@ export default function AssemblyPage() {
           <div className="flex-1 overflow-y-auto p-6 pt-0">
              <SpeakingQueue 
               assemblyId={assembly.id}
-              assemblyZoomUrl={assemblyZoomUrl}
               assemblyFinished={assemblyFinished}
               queue={queue}
               userInQueue={userInQueue}
@@ -1613,27 +1705,49 @@ export default function AssemblyPage() {
 
       <div className="container mx-auto p-0 md:space-y-4">
         <div className="space-y-4">
+          {mySpeakerAccess?.active && mySpeakerAccess.zoomUrl && (
+            <Card className="border-green-500 bg-green-50 dark:bg-green-950/20">
+              <CardHeader className="p-4">
+                <CardTitle className="text-base text-green-900 dark:text-green-100">
+                  Você foi chamado para falar
+                </CardTitle>
+                <CardDescription className="text-green-800 dark:text-green-200">
+                  O acesso ao Zoom foi liberado para sua fala. Ao terminar, retorne para a assembleia.
+                </CardDescription>
+              </CardHeader>
+          
+              <CardContent className="p-4 pt-0">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button asChild className="w-full sm:w-auto">
+                    <a
+                      href={mySpeakerAccess.zoomUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Entrar no Zoom
+                    </a>
+                  </Button>
+                   <Button onClick={handleEndParticipation} variant="destructive" className="w-full sm:w-auto" disabled={isSubmittingQueue}>
+                      {isSubmittingQueue ? <Loader2 className="h-4 w-4 animate-spin"/> : <LogOut className="h-4 w-4" />}
+                      Encerrar Participação
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
-              <CardHeader className="flex flex-row items-center justify-between p-4">
+              <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 gap-2">
                 <div className="flex-1">
-                   {isSpeaking && (
-                      <Alert variant="default" className="bg-blue-50 border-blue-200">
-                        <AlertTriangle className="h-4 w-4 text-blue-600" />
-                        <AlertTitle className="text-blue-800 text-sm font-semibold">Modo de Fala Ativado</AlertTitle>
-                        <AlertDescription className="text-blue-700 text-xs">
-                          Você está prestes a entrar na sala do Zoom. Por favor, **permita o acesso à sua câmera e microfone** no aviso que aparecerá no seu navegador. O sistema não armazena essas permissões permanentemente.
-                        </AlertDescription>
-                      </Alert>
-                   )}
+                   {/* Placeholder for future alerts */}
                 </div>
-                <div className="flex items-center gap-1 ml-4">
-                  {isSpeaking && (
-                      <Button onClick={handleEndParticipation} variant="destructive" size="sm" disabled={isSubmittingQueue}>
-                          {isSubmittingQueue ? <Loader2 className="h-4 w-4 animate-spin"/> : <LogOut className="h-4 w-4" />}
-                          Encerrar Participação
-                      </Button>
-                  )}
-                </div>
+                {isAdmin && adminZoomUrl && (
+                  <Button asChild variant="outline" size="sm">
+                    <a href={adminZoomUrl} target="_blank" rel="noopener noreferrer">
+                      Abrir Zoom da Assembleia
+                    </a>
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="p-4 pt-0">
                 <div className="relative aspect-video w-full overflow-hidden rounded-lg border">
@@ -1675,40 +1789,15 @@ export default function AssemblyPage() {
                         <p className="text-muted-foreground">A gravação desta assembleia não está disponível</p>
                       </div>
                     )
-                  ) : isAdmin && assembly.status === 'live' ? (
-                    adminVideoSource === 'zoom' && assemblyZoomUrl ? (
+                  ) : isAdmin && assembly.status === 'live' && adminZoomUrl && adminVideoSource === 'zoom' && !isMobile ? (
                       <iframe
                         width="100%"
                         height="100%"
-                        src={convertToZoomEmbedUrl(assemblyZoomUrl)}
+                        src={convertToZoomEmbedUrl(adminZoomUrl)}
                         title="Zoom Meeting"
                         allow="fullscreen; microphone; camera; display-capture; autoplay"
                         className="border-0"
                       ></iframe>
-                    ) : displayEmbedUrl ? (
-                      <iframe
-                        width="100%"
-                        height="100%"
-                        src={displayEmbedUrl}
-                        title="YouTube Stream Preview"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        className="border-0"
-                      ></iframe>
-                    ) : (
-                      <div className="flex h-full items-center justify-center bg-muted">
-                        <p className="text-muted-foreground">Vídeo indisponível</p>
-                      </div>
-                    )
-                  ) : isSpeaking && speakerZoomLink ? (
-                    <iframe
-                      width="100%"
-                      height="100%"
-                      src={convertToZoomEmbedUrl(speakerZoomLink)}
-                      title="Zoom Meeting"
-                      allow="fullscreen; microphone; camera; display-capture; autoplay"
-                      className="border-0"
-                    ></iframe>
                   ) : displayEmbedUrl ? (
                     <iframe
                       width="100%"

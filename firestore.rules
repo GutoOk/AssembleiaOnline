@@ -72,6 +72,19 @@ service cloud.firestore {
       match /private/{docId} {
         allow read, write: if isAdmin();
       }
+      
+      match /speakerAccess/{userId} {
+        allow get: if isAdmin()
+          || (
+            isVerifiedMensaUser()
+            && request.auth.uid == userId
+            && resource.data.active == true
+          );
+      
+        allow list: if isAdmin();
+      
+        allow create, update, delete: if isAdmin();
+      }
 
       match /ata/{ataId} {
         allow read, list: if isVerifiedMensaUser();

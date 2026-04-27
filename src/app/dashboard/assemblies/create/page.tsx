@@ -29,6 +29,7 @@ import 'react-image-crop/dist/ReactCrop.css';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { createAuditLog } from '@/lib/services/audit.service';
+import { saveAssemblyPrivateConfig } from '@/lib/services/zoom-access.service';
 
 
 const assemblySchema = z.object({
@@ -220,10 +221,11 @@ export default function CreateAssemblyPage() {
             updatedAt: serverTimestamp(),
         });
         
-        if (zoomUrl) {
-          const privateConfigRef = doc(firestore, 'assemblies', newAssemblyRef.id, 'private', 'config');
-          await setDoc(privateConfigRef, { zoomUrl });
-        }
+        await saveAssemblyPrivateConfig({
+          firestore,
+          assemblyId: newAssemblyRef.id,
+          zoomUrl: zoomUrl || null,
+        });
         
         await createAuditLog({
             firestore,

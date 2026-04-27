@@ -110,8 +110,21 @@ export type Assembly = {
 };
 
 export type AssemblyPrivateConfig = {
-  zoomUrl?: string;
+  zoomUrl?: string | null;
+  internalNotes?: string | null;
+  updatedAt?: Timestamp;
 };
+
+export type SpeakerAccess = {
+  id: string; // userId
+  userId: string;
+  zoomUrl: string;
+  active: boolean;
+  createdAt: Timestamp;
+  createdBy: string;
+  expiresAt?: Timestamp | null;
+};
+
 
 export type ChatMessage = {
   id: string;
@@ -167,7 +180,9 @@ export type AuditEventType =
   | 'ATA_ITEM_CREATED'
   | 'ATA_ITEM_UPDATED'
   | 'ADMIN_GRANTED'
-  | 'ADMIN_REMOVED';
+  | 'ADMIN_REMOVED'
+  | 'ZOOM_ACCESS_GRANTED'
+  | 'ZOOM_ACCESS_REVOKED';
 
 export type AuditLog = {
   id: string;

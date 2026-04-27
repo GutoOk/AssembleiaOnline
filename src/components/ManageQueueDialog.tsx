@@ -10,8 +10,8 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useFirestore } from '@/firebase';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
+import { doc, updateDoc, deleteDoc, writeBatch, getDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Trash2 } from 'lucide-react';
 import type { SpeakerQueueItem, UserProfile } from '@/lib/data';
@@ -36,15 +36,77 @@ interface ManageQueueDialogProps {
 
 export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userProfiles }: ManageQueueDialogProps) {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null); // Store ID of item being processed
 
-  const handleStatusChange = async (itemId: string, newStatus: SpeakerQueueItem['status']) => {
-    if (!firestore) return;
-    setIsSubmitting(itemId);
+  const handleStatusChange = async (item: SpeakerQueueItem, newStatus: SpeakerQueueItem['status']) => {
+    if (!firestore || !user) return;
+    setIsSubmitting(item.id);
+    
     try {
-        const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', itemId);
-        await updateDoc(itemRef, { status: newStatus });
+        const batch = writeBatch(firestore);
+        const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', item.id);
+        
+        // Grant Access
+        if (newStatus === 'Entrada Autorizada' && item.status === 'Na Fila') {
+            const configRef = doc(firestore, 'assemblies', assemblyId, 'private', 'config');
+            const configSnap = await getDoc(configRef);
+            const zoomUrl = configSnap.exists() ? configSnap.data().zoomUrl : null;
+
+            if (!zoomUrl) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Zoom não configurado',
+                    description: 'Cadastre o link do Zoom privado antes de autorizar um participante.',
+                });
+                setIsSubmitting(null);
+                return;
+            }
+
+            const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.id);
+            batch.set(accessRef, {
+                userId: item.id,
+                zoomUrl,
+                active: true,
+                createdAt: serverTimestamp(),
+                createdBy: user.uid,
+                expiresAt: null,
+            }, { merge: true });
+
+            const auditRef = doc(collection(firestore, 'assemblies', assemblyId, 'auditLogs'));
+            batch.set(auditRef, {
+              type: 'ZOOM_ACCESS_GRANTED',
+              assemblyId: assemblyId,
+              actorId: user.uid,
+              targetId: item.id,
+              metadata: { queueItemId: item.id },
+              createdAt: serverTimestamp(),
+            });
+        }
+        
+        // Revoke Access
+        if (newStatus === 'Na Fila' && (item.status === 'Entrada Autorizada' || item.status === 'Com a Fala')) {
+            const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.id);
+            batch.set(accessRef, {
+                active: false,
+                revokedAt: serverTimestamp(),
+                revokedBy: user.uid,
+            }, { merge: true });
+            
+             const auditRef = doc(collection(firestore, 'assemblies', assemblyId, 'auditLogs'));
+              batch.set(auditRef, {
+                type: 'ZOOM_ACCESS_REVOKED',
+                assemblyId: assemblyId,
+                actorId: user.uid,
+                targetId: item.id,
+                metadata: { queueItemId: item.id, reason: 'Status changed back to queue' },
+                createdAt: serverTimestamp(),
+              });
+        }
+
+        batch.update(itemRef, { status: newStatus });
+        await batch.commit();
         toast({ title: 'Status Atualizado', description: 'O status do participante foi alterado.' });
     } catch(error) {
         console.error("Error changing status:", error);
@@ -54,12 +116,35 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
     }
   };
 
-  const handleDelete = async (itemId: string) => {
-    if (!firestore) return;
-    setIsSubmitting(itemId);
+  const handleDelete = async (item: SpeakerQueueItem) => {
+    if (!firestore || !user) return;
+    setIsSubmitting(item.id);
     try {
-        const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', itemId);
-        await deleteDoc(itemRef);
+        const batch = writeBatch(firestore);
+        const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', item.id);
+        batch.delete(itemRef);
+
+        if (item.status === 'Entrada Autorizada' || item.status === 'Com a Fala') {
+            const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.id);
+            batch.set(accessRef, {
+                active: false,
+                revokedAt: serverTimestamp(),
+                revokedBy: user.uid,
+            }, { merge: true });
+
+            const auditRef = doc(collection(firestore, 'assemblies', assemblyId, 'auditLogs'));
+            batch.set(auditRef, {
+                type: 'ZOOM_ACCESS_REVOKED',
+                assemblyId: assemblyId,
+                actorId: user.uid,
+                targetId: item.id,
+                metadata: { queueItemId: item.id, reason: 'Removed from queue' },
+                createdAt: serverTimestamp(),
+            });
+        }
+
+        await batch.commit();
+
         toast({ title: 'Participante Removido', description: 'O participante foi removido da fila.' });
     } catch(error) {
         console.error("Error deleting from queue:", error);
@@ -89,25 +174,25 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
             </TableHeader>
             <TableBody>
               {queue.length > 0 ? queue.map(item => {
-                const user = userProfiles[item.userId];
+                const userProfile = userProfiles[item.userId];
                 const isProcessing = isSubmitting === item.id;
                 return (
                   <TableRow key={item.id}>
                     <TableCell>
-                      {user ? (
+                      {userProfile ? (
                         <div className="flex items-center gap-3">
                           <Avatar>
-                            <AvatarImage src={user.avatarDataUri} alt={user.name} />
-                            <AvatarFallback>{user.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                            <AvatarImage src={userProfile.avatarDataUri} alt={userProfile.name} />
+                            <AvatarFallback>{userProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
                           </Avatar>
-                          <span className="font-medium">{user.name}</span>
+                          <span className="font-medium">{userProfile.name}</span>
                         </div>
                       ) : <Loader2 className="h-4 w-4 animate-spin" />}
                     </TableCell>
                     <TableCell>
                       <Select
                         value={item.status}
-                        onValueChange={(newStatus: SpeakerQueueItem['status']) => handleStatusChange(item.id, newStatus)}
+                        onValueChange={(newStatus: SpeakerQueueItem['status']) => handleStatusChange(item, newStatus)}
                         disabled={!!isSubmitting}
                       >
                         <SelectTrigger className="w-[180px]">
@@ -121,7 +206,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                       </Select>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} disabled={!!isSubmitting}>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item)} disabled={!!isSubmitting}>
                         {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                         <span className="sr-only">Remover</span>
                       </Button>
