@@ -74,6 +74,7 @@ service cloud.firestore {
           allow read, list: if isVerifiedMensaUser();
 
           allow create: if isVerifiedMensaUser()
+            && request.resource.data.status == 'active'
             && request.resource.data.userId == request.auth.uid
             && request.resource.data.effectiveVoterId == voteId
             && request.resource.data.assemblyId == assemblyId
@@ -95,7 +96,47 @@ service cloud.firestore {
               )
             );
 
-          allow update, delete: if false;
+          allow update: if isVerifiedMensaUser()
+            && resource.data.effectiveVoterId == voteId
+            && request.resource.data.effectiveVoterId == resource.data.effectiveVoterId
+            && request.resource.data.assemblyId == assemblyId
+            && request.resource.data.pollId == pollId
+            && get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)).data.status == 'open'
+            && request.time < get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)).data.endDate
+            && (
+              (
+                // retirar voto ativo
+                resource.data.status == 'active'
+                && request.resource.data.status == 'withdrawn'
+                && request.resource.data.pollOptionId == null
+                && request.resource.data.previousPollOptionId == resource.data.pollOptionId
+                && request.resource.data.withdrawnBy == request.auth.uid
+              )
+              ||
+              (
+                // votar novamente após retirada
+                resource.data.status == 'withdrawn'
+                && request.resource.data.status == 'active'
+                && request.resource.data.pollOptionId is string
+                && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)/options/$(request.resource.data.pollOptionId))
+                && request.resource.data.votedAgainBy == request.auth.uid
+              )
+            )
+            && (
+              (
+                voteId == request.auth.uid
+                && resource.data.userId == request.auth.uid
+              )
+              ||
+              (
+                resource.data.representedUserId == voteId
+                && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId))
+                && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId)).data.proxyId == request.auth.uid
+                && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId)).data.status == 'active'
+              )
+            );
+
+          allow delete: if false;
         }
       }
 

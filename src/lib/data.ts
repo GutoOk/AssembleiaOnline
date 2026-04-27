@@ -18,17 +18,26 @@ export type PollOption = {
   assemblyStatus: Assembly['status'];
 };
 
+export type VoteStatus = 'active' | 'withdrawn';
+
 export type Vote = {
-  id: string; // document id = effectiveVoterId
-  effectiveVoterId: string; // user.uid ou grantorId, quando voto por procuração
-  userId: string; // quem lançou o voto
+  id: string;
+  effectiveVoterId: string;
+  userId: string;
   pollId: string;
   assemblyId: string;
-  pollOptionId: string;
+  pollOptionId: string | null;
+  previousPollOptionId?: string | null;
+  status: VoteStatus;
   timestamp: Timestamp;
+  withdrawnAt?: Timestamp | null;
+  withdrawnBy?: string | null;
+  votedAgainAt?: Timestamp | null;
+  votedAgainBy?: string | null;
   assemblyStatus: Assembly['status'];
-  representedUserId?: string; // pessoa representada, quando houver procuração
+  representedUserId?: string | null;
 };
+
 
 export type Poll = {
   id: string;
@@ -146,6 +155,8 @@ export type AuditEventType =
   | 'POLL_CREATED'
   | 'POLL_ANNULLED'
   | 'VOTE_CAST'
+  | 'VOTE_RECAST'
+  | 'VOTE_WITHDRAWN'
   | 'PROXY_ASSIGNED'
   | 'PROXY_REVOKED'
   | 'ATA_ITEM_CREATED'

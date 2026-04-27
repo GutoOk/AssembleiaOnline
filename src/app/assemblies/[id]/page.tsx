@@ -135,6 +135,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const [isEditingAnnulment, setIsEditingAnnulment] = useState(false);
   const [editTextAnnulment, setEditTextAnnulment] = useState(poll.annulmentReason || '');
   const [isVoting, setIsVoting] = useState(false);
+  const [isWithdrawingVote, setIsWithdrawingVote] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pollEndDate = poll.endDate.toDate();
@@ -165,19 +166,20 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const { data: options, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
   const { data: votes, isLoading: isLoadingVotes } = useCollection<Vote>(votesQuery);
 
-  const userHasVotedForSelf = useMemo(() => votes?.some(v => v.userId === user?.uid && !v.representedUserId), [votes, user]);
+  const ownVote = useMemo(() => votes?.find((v) => v.effectiveVoterId === user?.uid), [votes, user]);
   
   const hasActiveProxyGrant = userProxyGrant?.status === 'active';
   const pollEnded = isTimeUp || poll.status === 'closed' || assemblyStatus === 'finished';
   const pollAnnulled = poll.status === 'annulled';
-  const canVote = !userHasVotedForSelf && !pollEnded && !hasActiveProxyGrant && !pollAnnulled;
-
+  const canVote = (!ownVote || ownVote.status === 'withdrawn') && !pollEnded && !hasActiveProxyGrant && !pollAnnulled;
+  
   const pollCreator = userProfiles[poll.administratorId];
   const pollAnnuler = userProfiles[poll.annulledBy ?? ''];
   const proxyGranteeProfile = hasActiveProxyGrant ? userProfiles[userProxyGrant.proxyId] : null;
+  const activeVotes = useMemo(() => votes?.filter((vote) => vote.status === 'active') ?? [], [votes]);
 
   const pollResult = useMemo(() => {
-    if (poll.type !== 'proposal' || !pollEnded || !options || !votes || poll.status === 'annulled') {
+    if (poll.type !== 'proposal' || !pollEnded || !options || !activeVotes || poll.status === 'annulled') {
       return null;
     }
 
@@ -190,9 +192,9 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
       return { status: 'Indeterminado' as const, message: 'Não é uma votação de proposta padrão (A favor/Contra).' };
     }
 
-    const favorVotes = votes.filter(v => v.pollOptionId === favorOption.id).length;
-    const contraVotes = votes.filter(v => v.pollOptionId === contraOption.id).length;
-    const abstentionVotes = abstencaoOption ? votes.filter(v => v.pollOptionId === abstencaoOption.id).length : 0;
+    const favorVotes = activeVotes.filter(v => v.pollOptionId === favorOption.id).length;
+    const contraVotes = activeVotes.filter(v => v.pollOptionId === contraOption.id).length;
+    const abstentionVotes = abstencaoOption ? activeVotes.filter(v => v.pollOptionId === abstencaoOption.id).length : 0;
     
     return calculatePollResult({
         quorumType: poll.quorumType,
@@ -201,99 +203,189 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
         abstentionVotes,
         totalActiveMembers: poll.totalActiveMembers,
     });
-  }, [poll, options, votes, pollEnded]);
+  }, [poll, options, activeVotes, pollEnded]);
 
   const handleVote = async () => {
     if (!selectedOption || !user || !firestore) {
-      toast({
+        toast({
         variant: 'destructive',
         title: 'Erro',
         description: 'Selecione uma opção para votar.',
-      });
-      return;
+        });
+        return;
     }
-  
+
     if (poll.status !== 'open' || pollEnded || pollAnnulled) {
-      toast({
+        toast({
         variant: 'destructive',
         title: 'Votação indisponível',
         description: 'Esta votação não está aberta para novos votos.',
-      });
-      return;
+        });
+        return;
     }
-  
-    setIsVoting(true);
+
+    if (ownVote?.status === 'active') {
+        toast({
+        variant: 'destructive',
+        title: 'Você já votou',
+        description: 'Para votar novamente, retire seu voto atual primeiro.',
+        });
+        return;
+    }
+
     try {
-      const batch = writeBatch(firestore);
-  
-      const createVote = (effectiveVoterId: string, representedUserId?: string) => {
+        setIsVoting(true);
+
         const voteRef = doc(
-          firestore,
-          'assemblies',
-          assemblyId,
-          'polls',
-          poll.id,
-          'votes',
-          effectiveVoterId
-        );
-  
-        const voteData: Omit<Vote, 'id' | 'timestamp'> & { timestamp: any } = {
-          effectiveVoterId,
-          userId: user.uid,
-          representedUserId,
-          pollId: poll.id,
-          assemblyId,
-          pollOptionId: selectedOption,
-          assemblyStatus,
-          timestamp: serverTimestamp(),
-        };
-  
-        batch.set(voteRef, voteData);
-      };
-  
-      createVote(user.uid);
-      
-      const activeAssignments = representedAssignments?.filter((a) => a.status === 'active') ?? [];
-      activeAssignments.forEach((assignment) => {
-          createVote(assignment.grantorId, assignment.grantorId);
-      });
-  
-      await batch.commit();
-      
-      await createAuditLog({
         firestore,
+        'assemblies',
         assemblyId,
-        actorId: user.uid,
-        type: 'VOTE_CAST',
-        targetId: poll.id,
-        metadata: {
+        'polls',
+        poll.id,
+        'votes',
+        user.uid
+        );
+
+        if (!ownVote) {
+        await setDoc(voteRef, {
+            effectiveVoterId: user.uid,
+            userId: user.uid,
+            representedUserId: null,
+            pollId: poll.id,
+            assemblyId,
+            pollOptionId: selectedOption,
+            previousPollOptionId: null,
+            status: 'active',
+            assemblyStatus,
+            timestamp: serverTimestamp(),
+            withdrawnAt: null,
+            withdrawnBy: null,
+            votedAgainAt: null,
+            votedAgainBy: null,
+        });
+
+        await createAuditLog({
+            firestore,
+            assemblyId,
+            actorId: user.uid,
+            type: 'VOTE_CAST',
+            targetId: poll.id,
+            metadata: {
             pollId: poll.id,
             optionId: selectedOption,
-            representedCount: activeAssignments.length,
-        },
-      });
-  
-      const totalVotes = 1 + activeAssignments.length;
-  
-      const toastDescription =
-        totalVotes > 1
-          ? `Seu voto e de seus ${totalVotes - 1} representados foram computados.`
-          : 'Seu voto foi computado com sucesso.';
-  
-      toast({
-        title: 'Voto Registrado!',
-        description: toastDescription,
-      });
+            },
+        });
+        }
+
+        if (ownVote?.status === 'withdrawn') {
+        await updateDoc(voteRef, {
+            status: 'active',
+            pollOptionId: selectedOption,
+            votedAgainAt: serverTimestamp(),
+            votedAgainBy: user.uid,
+            withdrawnAt: null,
+            withdrawnBy: null,
+        });
+
+        await createAuditLog({
+            firestore,
+            assemblyId,
+            actorId: user.uid,
+            type: 'VOTE_RECAST',
+            targetId: poll.id,
+            metadata: {
+            pollId: poll.id,
+            optionId: selectedOption,
+            previousPollOptionId: ownVote.previousPollOptionId ?? null,
+            },
+        });
+        }
+
+        toast({
+        title: ownVote?.status === 'withdrawn' ? 'Voto registrado novamente' : 'Voto registrado',
+        description: 'Seu voto foi computado com sucesso.',
+        });
     } catch (error) {
-      console.error('Erro ao registrar voto:', error);
-      toast({
+        console.error('Erro ao votar:', error);
+
+        toast({
         variant: 'destructive',
-        title: 'Erro ao registrar voto',
-        description:
-          'O voto não foi confirmado. Verifique se você já votou ou se a votação ainda está aberta.',
-      });
+        title: 'Erro ao votar',
+        description: 'O voto não foi confirmado pelo servidor.',
+        });
     } finally {
-      setIsVoting(false);
+        setIsVoting(false);
+    }
+  };
+  
+  const handleWithdrawVote = async () => {
+    if (!user || !firestore) return;
+
+    if (!ownVote || ownVote.status !== 'active') {
+        toast({
+        variant: 'destructive',
+        title: 'Nenhum voto ativo',
+        description: 'Você não tem voto ativo para retirar.',
+        });
+        return;
+    }
+
+    if (poll.status !== 'open' || pollEnded || pollAnnulled) {
+        toast({
+        variant: 'destructive',
+        title: 'Votação indisponível',
+        description: 'Não é possível retirar voto de uma votação encerrada.',
+        });
+        return;
+    }
+
+    try {
+        setIsWithdrawingVote(true);
+
+        const voteRef = doc(
+            firestore,
+            'assemblies',
+            assemblyId,
+            'polls',
+            poll.id,
+            'votes',
+            user.uid
+        );
+
+        await updateDoc(voteRef, {
+            status: 'withdrawn',
+            pollOptionId: null,
+            previousPollOptionId: ownVote.pollOptionId,
+            withdrawnAt: serverTimestamp(),
+            withdrawnBy: user.uid,
+        });
+
+        await createAuditLog({
+            firestore,
+            assemblyId,
+            actorId: user.uid,
+            type: 'VOTE_WITHDRAWN',
+            targetId: poll.id,
+            metadata: {
+                pollId: poll.id,
+                previousPollOptionId: ownVote.pollOptionId,
+            },
+        });
+
+        toast({
+            title: 'Voto retirado',
+            description: 'Seu voto foi retirado. Você poderá votar novamente enquanto a votação estiver aberta.',
+        });
+    } catch (error) {
+        console.error('Erro ao retirar voto:', error);
+
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao retirar voto',
+            description: 'A retirada do voto não foi confirmada pelo servidor.',
+        });
+    } finally {
+        setIsWithdrawingVote(false);
     }
   };
 
@@ -357,12 +449,12 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   };
 
   const voteData = useMemo(() => {
-    if (!options || !votes) return [];
+    if (!options || !activeVotes) return [];
     return options.map(option => ({
       name: option.text,
-      votos: votes.filter(vote => vote.pollOptionId === option.id).length,
+      votos: activeVotes.filter(vote => vote.pollOptionId === option.id).length,
     }));
-  }, [options, votes]);
+  }, [options, activeVotes]);
 
   const sortedVotesAlphabetically = useMemo(() => {
       if (!votes || !userProfiles) return [];
@@ -437,7 +529,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
             <CardTitle className="text-lg">{poll.question}</CardTitle>
             <div className="flex items-center gap-2 flex-wrap !mt-1">
                 <CardDescription className="flex items-center gap-1">
-                    <Users className="h-4 w-4" /> {votes?.length ?? 0} votos
+                    <Users className="h-4 w-4" /> {activeVotes.length ?? 0} votos
                 </CardDescription>
                 {poll.type === 'proposal' && fullQuorumText && (
                     <>
@@ -491,20 +583,24 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                 </div>
               ))}
             </RadioGroup>
-            <Button onClick={handleVote} disabled={!selectedOption || isLoadingVotes || isVoting} size="sm">
-              {(isLoadingVotes || isVoting) && <Loader2 className="h-4 w-4 animate-spin" />}
-              <Send className="h-4 w-4" />
-              Votar
+            <Button
+                onClick={handleVote}
+                disabled={!selectedOption || isVoting}
+                size="sm"
+            >
+                {isVoting && <Loader2 className="h-4 w-4 animate-spin" />}
+                <Send className="h-4 w-4" />
+                Votar
             </Button>
-             {representedAssignments && representedAssignments.length > 0 && (
-                <p className="text-xs text-muted-foreground pt-1">
-                    Seu vivo também será computado para seus {representedAssignments.length} representados.
+            {ownVote?.status === 'withdrawn' && (
+                <p className="text-xs text-muted-foreground">
+                    Você retirou seu voto. Enquanto a votação estiver aberta, pode votar novamente.
                 </p>
             )}
           </div>
         ) : (
           <div>
-            {hasActiveProxyGrant && !userHasVotedForSelf && (
+            {hasActiveProxyGrant && (!ownVote || ownVote.status === 'withdrawn') && (
                 <div className="mb-4 p-3 flex items-start gap-3 rounded-md bg-blue-50 border-blue-200 text-blue-900 text-sm">
                     <Info className="h-5 w-5 mt-0.5 text-blue-700 flex-shrink-0" />
                     <div>
@@ -553,13 +649,22 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
               </ResponsiveContainer>
             </div>
             
-            {userHasVotedForSelf && !pollEnded && (
+            {ownVote?.status === 'active' && !pollEnded && (
               <div className="flex flex-col items-start gap-2 mt-4">
-                  <p className="text-sm text-muted-foreground">Voto registrado com sucesso! Caso deseje alterá-lo, basta votar novamente na nova opção.</p>
+                  <p className="text-sm text-muted-foreground">Você já votou nesta votação. Para votar novamente, retire seu voto atual primeiro.</p>
+                  <Button
+                    variant="outline"
+                    onClick={handleWithdrawVote}
+                    disabled={isWithdrawingVote}
+                    size="sm"
+                    >
+                    {isWithdrawingVote && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Retirar voto
+                 </Button>
               </div>
             )}
 
-            {pollEnded && votes && votes.length > 0 && (
+            {pollEnded && activeVotes && activeVotes.length > 0 && (
                 <>
                 <Separator className="my-2" />
                 <h3 className="mb-2 text-sm font-normal">Votos individuais:</h3>
