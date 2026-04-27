@@ -170,6 +170,7 @@ async function generatePdf(
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
+  const contentWidth = pageWidth - margin * 2;
   let y = margin;
 
   const FONT = 'Helvetica';
