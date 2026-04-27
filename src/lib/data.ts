@@ -137,3 +137,28 @@ export type AssemblyPresence = {
   joinedAt: Timestamp;
   lastSeen: Timestamp;
 };
+
+export type AuditEventType =
+  | 'ASSEMBLY_CREATED'
+  | 'ASSEMBLY_UPDATED'
+  | 'ASSEMBLY_STARTED'
+  | 'ASSEMBLY_ENDED'
+  | 'POLL_CREATED'
+  | 'POLL_ANNULLED'
+  | 'VOTE_CAST'
+  | 'PROXY_ASSIGNED'
+  | 'PROXY_REVOKED'
+  | 'ATA_ITEM_CREATED'
+  | 'ATA_ITEM_UPDATED'
+  | 'ADMIN_GRANTED'
+  | 'ADMIN_REMOVED';
+
+export type AuditLog = {
+  id: string;
+  type: AuditEventType;
+  assemblyId: string;
+  actorId: string; // User UID
+  targetId?: string; // e.g., Poll ID, User ID, etc.
+  metadata?: Record<string, unknown>;
+  createdAt: Timestamp;
+};

@@ -21,6 +21,7 @@ import { ptBR } from 'date-fns/locale';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import { createAuditLog } from '@/lib/services/audit.service';
 
 
 const proxySchema = z.object({
@@ -198,6 +199,15 @@ export default function ProxyPage() {
         };
         
         await setDoc(proxyRef, data);
+        
+        await createAuditLog({
+            firestore,
+            assemblyId: values.assemblyId,
+            actorId: user.uid,
+            type: 'PROXY_ASSIGNED',
+            targetId: proxyId,
+            metadata: { proxyEmail: values.proxyEmail }
+        });
 
         toast({ title: 'Procuração Concedida!', description: `Você concedeu procuração para ${proxyUser.data().name}.` });
         form.reset();
@@ -224,6 +234,14 @@ export default function ProxyPage() {
         status: 'revoked',
         revokedAt: serverTimestamp(),
         revokedBy: user.uid,
+      });
+      
+      await createAuditLog({
+          firestore,
+          assemblyId: assignment.assemblyId,
+          actorId: user.uid,
+          type: 'PROXY_REVOKED',
+          targetId: assignment.proxyId,
       });
   
       toast({

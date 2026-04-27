@@ -35,6 +35,8 @@ import { Separator } from './ui/separator';
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { createAuditLog } from '@/lib/services/audit.service';
+import type { User } from 'firebase/auth';
 
 const pollSchema = z.object({
   question: z.string().min(10, 'A pergunta deve ter pelo menos 10 caracteres.'),
@@ -69,9 +71,10 @@ interface CreatePollDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assembly: Assembly;
+  user: User | null;
 }
 
-export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDialogProps) {
+export function CreatePollDialog({ open, onOpenChange, assembly, user }: CreatePollDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [pollDataToConfirm, setPollDataToConfirm] = useState<z.infer<typeof pollSchema> | null>(null);
@@ -129,7 +132,7 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
   };
 
   const handleCreatePoll = async () => {
-    if (!pollDataToConfirm || !assembly || !firestore) return;
+    if (!pollDataToConfirm || !assembly || !firestore || !user) return;
 
     setIsCreating(true);
     const values = pollDataToConfirm;
@@ -172,6 +175,15 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
       });
       
       await batch.commit();
+      
+      await createAuditLog({
+        firestore,
+        assemblyId: assembly.id,
+        actorId: user.uid,
+        type: 'POLL_CREATED',
+        targetId: newPollRef.id,
+        metadata: { question: values.question, type: values.type }
+     });
 
       toast({
         title: 'Votação Criada!',

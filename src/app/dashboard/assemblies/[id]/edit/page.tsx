@@ -29,6 +29,7 @@ import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from
 import 'react-image-crop/dist/ReactCrop.css';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { createAuditLog } from '@/lib/services/audit.service';
 
 const assemblySchema = z.object({
   title: z.string().min(10, 'O título deve ter pelo menos 10 caracteres.'),
@@ -212,7 +213,7 @@ export default function EditAssemblyPage() {
   };
   
   const onSubmit = async (values: z.infer<typeof assemblySchema>) => {
-    if (!isAdmin || !user || !assemblyRef || !firestore) {
+    if (!isAdmin || !user || !assemblyRef || !firestore || !assembly) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
@@ -252,6 +253,15 @@ export default function EditAssemblyPage() {
         dataToUpdate.location = location;
 
         await updateDoc(assemblyRef, dataToUpdate);
+        
+        await createAuditLog({
+            firestore,
+            assemblyId: assembly.id,
+            actorId: user.uid,
+            type: 'ASSEMBLY_UPDATED',
+            targetId: assembly.id,
+            metadata: { updatedFields: Object.keys(values) }
+        });
 
         toast({
         title: 'Assembleia Atualizada!',

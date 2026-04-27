@@ -181,6 +181,35 @@
           "createdAt": { "type": "string", "format": "date-time"}
       },
       "required": ["assemblyId", "grantorId", "proxyId", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "Audit Log",
+      "type": "object",
+      "description": "A record of a significant action taken within an assembly.",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": [
+          "ASSEMBLY_CREATED",
+          "ASSEMBLY_UPDATED",
+          "ASSEMBLY_STARTED",
+          "ASSEMBLY_ENDED",
+          "POLL_CREATED",
+          "POLL_ANNULLED",
+          "VOTE_CAST",
+          "PROXY_ASSIGNED",
+          "PROXY_REVOKED",
+          "ATA_ITEM_CREATED",
+          "ATA_ITEM_UPDATED",
+          "ADMIN_GRANTED",
+          "ADMIN_REMOVED"
+        ]},
+        "assemblyId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "assemblyId", "actorId", "createdAt"]
     }
   },
   "auth": {
@@ -230,6 +259,10 @@
     "/assemblies/{assemblyId}/proxies/{grantorId}": {
       "schema": { "$ref": "#/entities/ProxyAssignment" },
       "description": "Stores proxy voting assignments for an assembly."
+    },
+    "/assemblies/{assemblyId}/auditLogs/{auditLogId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Stores audit log entries for an assembly."
     },
     "/users/{userId}/blockedUsers/{blockedUserId}": {
       "schema": { "type": "object", "properties": {}},

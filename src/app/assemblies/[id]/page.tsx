@@ -59,6 +59,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal
 import { WhoReactedSheet } from '@/components/WhoReactedSheet';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { calculatePollResult } from '@/lib/domain/quorum';
+import { createAuditLog } from '@/lib/services/audit.service';
 
 
 const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
@@ -251,17 +252,28 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
       };
   
       createVote(user.uid);
-  
-      representedAssignments
-        ?.filter((assignment) => assignment.status === 'active')
-        .forEach((assignment) => {
+      
+      const activeAssignments = representedAssignments?.filter((a) => a.status === 'active') ?? [];
+      activeAssignments.forEach((assignment) => {
           createVote(assignment.grantorId, assignment.grantorId);
-        });
+      });
   
       await batch.commit();
+      
+      await createAuditLog({
+        firestore,
+        assemblyId,
+        actorId: user.uid,
+        type: 'VOTE_CAST',
+        targetId: poll.id,
+        metadata: {
+            pollId: poll.id,
+            optionId: selectedOption,
+            representedCount: activeAssignments.length,
+        },
+      });
   
-      const totalVotes =
-        1 + (representedAssignments?.filter((a) => a.status === 'active').length ?? 0);
+      const totalVotes = 1 + activeAssignments.length;
   
       const toastDescription =
         totalVotes > 1
@@ -300,6 +312,16 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
             annulledAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
+
+        await createAuditLog({
+            firestore,
+            assemblyId: assemblyId,
+            actorId: user.uid,
+            type: 'POLL_ANNULLED',
+            targetId: poll.id,
+            metadata: { reason: annulReason }
+        });
+
         toast({ title: 'Votação Anulada', description: 'A votação foi anulada com sucesso.' });
         setAnnulConfirmOpen(false);
         setAnnulDialogOpen(false);
@@ -795,7 +817,7 @@ function AdminActionCard({
     if (!user || !firestore) return;
     try {
         const ataRef = collection(firestore, 'assemblies', assembly.id, 'ata');
-        await addDoc(ataRef, {
+        const newAtaRef = await addDoc(ataRef, {
             text: values.text,
             assemblyId: assembly.id,
             administratorId: user.uid,
@@ -803,6 +825,16 @@ function AdminActionCard({
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
+        
+        await createAuditLog({
+            firestore,
+            assemblyId: assembly.id,
+            actorId: user.uid,
+            type: 'ATA_ITEM_CREATED',
+            targetId: newAtaRef.id,
+            metadata: { textLength: values.text.length }
+        });
+
         toast({ title: 'Registro de Ata Publicado!' });
         form.reset();
     } catch (error) {
@@ -845,7 +877,7 @@ function AdminActionCard({
   );
 }
 
-function AtaCard({ ataItem, isAdmin, assemblyFinished, userProfiles }: { ataItem: AtaItem, isAdmin: boolean, assemblyFinished: boolean, userProfiles: Record<string, UserProfile> }) {
+function AtaCard({ ataItem, isAdmin, user, assemblyFinished, userProfiles }: { ataItem: AtaItem, isAdmin: boolean, user: any, assemblyFinished: boolean, userProfiles: Record<string, UserProfile> }) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
@@ -856,7 +888,7 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished, userProfiles }: { ataItem
   const admin = userProfiles[ataItem.administratorId];
 
   const handleUpdate = async () => {
-    if (!editText.trim() || !firestore) {
+    if (!editText.trim() || !firestore || !user) {
       toast({ variant: 'destructive', title: 'O registro não pode estar vazio.' });
       return;
     }
@@ -864,6 +896,15 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished, userProfiles }: { ataItem
     try {
         const itemRef = doc(firestore, 'assemblies', ataItem.assemblyId, 'ata', ataItem.id);
         await updateDoc(itemRef, { text: editText, updatedAt: serverTimestamp() });
+        
+        await createAuditLog({
+            firestore,
+            assemblyId: ataItem.assemblyId,
+            actorId: user.uid,
+            type: 'ATA_ITEM_UPDATED',
+            targetId: ataItem.id,
+        });
+
         toast({ title: 'Registro atualizado!' });
         setIsEditing(false);
     } catch(error) {
@@ -1235,11 +1276,13 @@ export default function AssemblyPage() {
       open={isStartAssemblyDialogOpen}
       onOpenChange={setIsStartAssemblyDialogOpen}
       assembly={assembly}
+      user={user}
     />
     <EndAssemblyDialog
       open={isEndAssemblyDialogOpen}
       onOpenChange={setIsEndAssemblyDialogOpen}
       assembly={assembly}
+      user={user}
     />
     <ChatSheet
       open={isChatOpen}
@@ -1426,6 +1469,7 @@ export default function AssemblyPage() {
                 open={isCreatePollOpen}
                 onOpenChange={setIsCreatePollOpen}
                 assembly={assembly}
+                user={user}
               />
             )}
 
@@ -1446,7 +1490,7 @@ export default function AssemblyPage() {
                   timelineItems.map(item => (
                      'question' in item
                       ? <PollCard key={item.id} poll={item as Poll} assemblyId={assembly.id} assemblyStatus={assembly.status} isAdmin={isAdmin} representedAssignments={representedAssignments} userProxyGrant={userProxyGrant} userProfiles={userProfiles} />
-                      : <AtaCard key={item.id} ataItem={item as AtaItem} isAdmin={isAdmin} assemblyFinished={assemblyFinished} userProfiles={userProfiles} />
+                      : <AtaCard key={item.id} ataItem={item as AtaItem} isAdmin={isAdmin} user={user} assemblyFinished={assemblyFinished} userProfiles={userProfiles} />
                   ))
               ) : (
                   !arePollsLoading && !areAtaItemsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação ou registro na ata para esta assembleia.</p>

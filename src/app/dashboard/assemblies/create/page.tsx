@@ -28,6 +28,7 @@ import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from
 import 'react-image-crop/dist/ReactCrop.css';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { createAuditLog } from '@/lib/services/audit.service';
 
 
 const assemblySchema = z.object({
@@ -208,15 +209,24 @@ export default function CreateAssemblyPage() {
             } : null;
 
         const assembliesRef = collection(firestore, 'assemblies');
-        await addDoc(assembliesRef, {
-        ...restOfValues,
-        ...(location && { location }),
-        date: new Date(values.date),
-        imageUrl: imagePreview,
-        administratorId: user.uid,
-        status: 'scheduled',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        const newAssemblyRef = await addDoc(assembliesRef, {
+            ...restOfValues,
+            ...(location && { location }),
+            date: new Date(values.date),
+            imageUrl: imagePreview,
+            administratorId: user.uid,
+            status: 'scheduled',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+        
+        await createAuditLog({
+            firestore,
+            assemblyId: newAssemblyRef.id, 
+            actorId: user.uid,
+            type: 'ASSEMBLY_CREATED',
+            targetId: newAssemblyRef.id,
+            metadata: { title: values.title }
         });
 
         toast({

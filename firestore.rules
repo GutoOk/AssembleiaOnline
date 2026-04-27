@@ -157,6 +157,14 @@ service cloud.firestore {
         allow read, list: if isVerifiedMensaUser();
         allow create, update, delete: if isVerifiedMensaUser() && isOwner(userId);
       }
+      
+      match /auditLogs/{logId} {
+        allow read: if isAdmin();
+        // This should be moved to a backend function. 
+        // For now, only the user performing the action can log it.
+        allow create: if isVerifiedMensaUser() && request.resource.data.actorId == request.auth.uid;
+        allow update, delete: if false;
+      }
     }
   }
 }

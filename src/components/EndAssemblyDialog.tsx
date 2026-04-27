@@ -18,21 +18,24 @@ import type { Assembly } from '@/lib/data';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { createAuditLog } from '@/lib/services/audit.service';
+import type { User } from 'firebase/auth';
 
 interface EndAssemblyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assembly: Assembly | null;
+  user: User | null;
 }
 
-export function EndAssemblyDialog({ open, onOpenChange, assembly }: EndAssemblyDialogProps) {
+export function EndAssemblyDialog({ open, onOpenChange, assembly, user }: EndAssemblyDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
   const [isEnding, setIsEnding] = useState(false);
 
   const handleConfirm = async () => {
-    if (!firestore || !assembly) {
+    if (!firestore || !assembly || !user) {
       toast({
         variant: 'destructive',
         title: 'Erro',
@@ -48,6 +51,14 @@ export function EndAssemblyDialog({ open, onOpenChange, assembly }: EndAssemblyD
         status: 'finished',
         updatedAt: serverTimestamp(),
         endedAt: serverTimestamp(),
+        });
+        
+        await createAuditLog({
+            firestore,
+            assemblyId: assembly.id,
+            actorId: user.uid,
+            type: 'ASSEMBLY_ENDED',
+            targetId: assembly.id,
         });
 
         toast({

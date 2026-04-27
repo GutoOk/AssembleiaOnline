@@ -17,20 +17,23 @@ import { useToast } from '@/hooks/use-toast';
 import type { Assembly } from '@/lib/data';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { createAuditLog } from '@/lib/services/audit.service';
+import type { User } from 'firebase/auth';
 
 interface StartAssemblyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assembly: Assembly | null;
+  user: User | null;
 }
 
-export function StartAssemblyDialog({ open, onOpenChange, assembly }: StartAssemblyDialogProps) {
+export function StartAssemblyDialog({ open, onOpenChange, assembly, user }: StartAssemblyDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isStarting, setIsStarting] = useState(false);
 
   const handleConfirm = async () => {
-    if (!firestore || !assembly) {
+    if (!firestore || !assembly || !user) {
       toast({
         variant: 'destructive',
         title: 'Erro',
@@ -46,6 +49,14 @@ export function StartAssemblyDialog({ open, onOpenChange, assembly }: StartAssem
         status: 'live',
         startedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        });
+        
+        await createAuditLog({
+            firestore,
+            assemblyId: assembly.id,
+            actorId: user.uid,
+            type: 'ASSEMBLY_STARTED',
+            targetId: assembly.id,
         });
 
         toast({
