@@ -692,16 +692,20 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                         >
                           {options.map((option) => (
                             <div
-                              key={option.id}
-                              className="flex items-center space-x-2"
+                                key={option.id}
+                                className="flex items-start gap-2"
                             >
-                              <RadioGroupItem
-                                value={option.id}
-                                id={`${poll.id}-${voter.effectiveVoterId}-${option.id}`}
-                              />
-                              <Label htmlFor={`${poll.id}-${voter.effectiveVoterId}-${option.id}`} className="font-normal">
-                                {option.text}
-                              </Label>
+                                <RadioGroupItem
+                                    value={option.id}
+                                    id={`${poll.id}-${voter.effectiveVoterId}-${option.id}`}
+                                    className="mt-1 shrink-0"
+                                />
+                                <Label
+                                    htmlFor={`${poll.id}-${voter.effectiveVoterId}-${option.id}`}
+                                    className="min-w-0 break-words font-normal leading-snug"
+                                >
+                                    {option.text}
+                                </Label>
                             </div>
                           ))}
                         </RadioGroup>
@@ -786,14 +790,14 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                     const castByUser = vote.representedUserId ? userProfiles[vote.userId] : undefined;
 
                     return (
-                    <div key={vote.id} className="flex items-start justify-between text-sm p-1.5 rounded-md bg-muted/50">
-                        <div className="flex flex-col">
+                    <div key={vote.id} className="flex flex-col gap-2 rounded-md bg-muted/50 p-2 text-sm sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex flex-col">
                             <div className="flex items-center gap-1.5">
                                 <Avatar className="h-6 w-6">
                                     <AvatarImage src={voteBelongsToUser?.avatarDataUri} />
                                     <AvatarFallback>{voteBelongsToUser?.name?.charAt(0)}</AvatarFallback>
                                 </Avatar>
-                                <span className="font-medium">{voteBelongsToUser?.name ?? 'Carregando...'}</span>
+                                <span className="min-w-0 break-words font-medium">{voteBelongsToUser?.name ?? 'Carregando...'}</span>
                             </div>
                             {castByUser && (
                                 <p className="text-xs text-muted-foreground pl-8">
@@ -801,7 +805,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                                 </p>
                             )}
                         </div>
-                         <div className="flex flex-col text-right self-center">
+                         <div className="flex flex-col text-right self-end sm:self-center">
                             {vote.status === 'active' ? (
                                 <span className="font-medium">{option?.text}</span>
                             ) : (

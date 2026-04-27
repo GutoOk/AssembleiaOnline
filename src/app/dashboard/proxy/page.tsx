@@ -340,7 +340,7 @@ export default function ProxyPage() {
                         const isRevoked = proxy.status === 'revoked';
 
                         return (
-                            <div key={proxy.id} className={`flex items-center justify-between rounded-lg border p-4 ${isRevoked ? 'opacity-60' : ''}`}>
+                            <div key={proxy.id} className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${isRevoked ? 'opacity-60' : ''}`}>
                                 <div>
                                     <p className="font-semibold">{assembly.title}</p>
                                     <p className="text-sm text-muted-foreground">

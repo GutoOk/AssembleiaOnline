@@ -13,8 +13,8 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
-import { useFirestore, updateDocumentNonBlocking } from '@/firebase';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 export function AssemblyInformationSheet() {
