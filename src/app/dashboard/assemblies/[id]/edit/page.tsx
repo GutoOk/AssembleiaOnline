@@ -11,12 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAdmin } from '@/hooks/use-admin';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
-import type { Assembly } from '@/lib/data';
+import type { Assembly, AssemblyPrivateConfig } from '@/lib/data';
 import {
   Dialog,
   DialogContent,
@@ -91,8 +91,15 @@ export default function EditAssemblyPage() {
     if (!firestore || !params.id) return null;
     return doc(firestore, 'assemblies', params.id);
   }, [firestore, params.id]);
+  
+  const privateConfigRef = useMemoFirebase(() => {
+    if (!firestore || !params.id || !isAdmin) return null;
+    return doc(firestore, 'assemblies', params.id, 'private', 'config');
+  }, [firestore, params.id, isAdmin]);
 
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
+  const { data: privateConfig, isLoading: isPrivateConfigLoading } = useDoc<AssemblyPrivateConfig>(privateConfigRef);
+
   const isFinished = assembly?.status === 'finished';
 
   const form = useForm<z.infer<typeof assemblySchema>>({
@@ -133,7 +140,7 @@ export default function EditAssemblyPage() {
         description: assembly.description,
         date: localISOTime,
         youtubeUrl: assembly.youtubeUrl || '',
-        zoomUrl: assembly.zoomUrl || '',
+        zoomUrl: privateConfig?.zoomUrl || '',
         allowProxyVoting: assembly.allowProxyVoting || false,
         maxProxiesPerUser: assembly.maxProxiesPerUser || 4,
         ordemDoDia: assembly.ordemDoDia || '',
@@ -145,7 +152,7 @@ export default function EditAssemblyPage() {
       });
       setImagePreview(assembly.imageUrl);
     }
-  }, [assembly, form]);
+  }, [assembly, privateConfig, form]);
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -213,7 +220,7 @@ export default function EditAssemblyPage() {
   };
   
   const onSubmit = async (values: z.infer<typeof assemblySchema>) => {
-    if (!isAdmin || !user || !assemblyRef || !firestore || !assembly) {
+    if (!isAdmin || !user || !assemblyRef || !firestore || !assembly || !privateConfigRef) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
@@ -232,7 +239,7 @@ export default function EditAssemblyPage() {
     }
     
     try {
-        const { locationAddress, locationCity, locationState, locationZip, locationDetails, ...restOfValues } = values;
+        const { locationAddress, locationCity, locationState, locationZip, locationDetails, zoomUrl, ...publicValues } = values;
 
         const location = locationAddress && locationCity && locationState && locationZip
             ? {
@@ -243,16 +250,17 @@ export default function EditAssemblyPage() {
                 details: locationDetails || '',
             } : null;
 
-        const dataToUpdate: any = {
-            ...restOfValues,
+        const publicDataToUpdate: any = {
+            ...publicValues,
             date: new Date(values.date),
             imageUrl: imagePreview,
             updatedAt: serverTimestamp(),
         };
         
-        dataToUpdate.location = location;
+        publicDataToUpdate.location = location;
 
-        await updateDoc(assemblyRef, dataToUpdate);
+        await updateDoc(assemblyRef, publicDataToUpdate);
+        await setDoc(privateConfigRef, { zoomUrl: zoomUrl || '' }, { merge: true });
         
         await createAuditLog({
             firestore,
@@ -279,7 +287,7 @@ export default function EditAssemblyPage() {
     }
   };
 
-  const isLoading = isAdminLoading || isAssemblyLoading;
+  const isLoading = isAdminLoading || isAssemblyLoading || isPrivateConfigLoading;
 
   if (isLoading) {
     return (
@@ -398,7 +406,7 @@ export default function EditAssemblyPage() {
                       <Input placeholder="https://zoom.us/j/..." {...field} />
                     </FormControl>
                     <FormDescription>
-                      Cole o link completo de entrada da reunião do Zoom.
+                      Cole o link completo de entrada da reunião do Zoom. Este link será privado e visível apenas para administradores e para quem for falar.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -552,7 +560,7 @@ export default function EditAssemblyPage() {
     </Card>
     
     <Dialog open={isCropperOpen} onOpenChange={setCropperOpen}>
-        <DialogContent className="sm:max-w-[625px]">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[625px] max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Recortar Imagem</DialogTitle>
             <DialogDescriptionComponent>
@@ -573,7 +581,7 @@ export default function EditAssemblyPage() {
                   alt="Crop me"
                   src={imgSrc}
                   onLoad={onImageLoad}
-                  style={{ maxHeight: '70vh' }}
+                  style={{ maxHeight: '55dvh', maxWidth: '100%' }}
                 />
               </ReactCrop>
             )}

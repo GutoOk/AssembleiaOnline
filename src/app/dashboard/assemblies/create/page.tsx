@@ -506,7 +506,7 @@ export default function CreateAssemblyPage() {
     </Card>
       
     <Dialog open={isCropperOpen} onOpenChange={setCropperOpen}>
-        <DialogContent className="sm:max-w-[625px]">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[625px] max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Recortar Imagem</DialogTitle>
             <DialogDescriptionComponent>
@@ -527,7 +527,7 @@ export default function CreateAssemblyPage() {
                   alt="Crop me"
                   src={imgSrc}
                   onLoad={onImageLoad}
-                  style={{ maxHeight: '70vh' }}
+                  style={{ maxHeight: '55dvh', maxWidth: '100%' }}
                 />
               </ReactCrop>
             )}

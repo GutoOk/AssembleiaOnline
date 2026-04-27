@@ -361,7 +361,7 @@ function RegisterDialog({
       </Dialog>
 
       <Dialog open={isCropperOpen} onOpenChange={setCropperOpen}>
-        <DialogContent className="sm:max-w-[625px]">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[625px] max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Recortar Imagem</DialogTitle>
             <DialogDescription>
@@ -382,7 +382,7 @@ function RegisterDialog({
                   alt="Crop me"
                   src={imgSrc}
                   onLoad={onImageLoad}
-                  style={{ maxHeight: '70vh' }}
+                  style={{ maxHeight: '55dvh', maxWidth: '100%' }}
                 />
               </ReactCrop>
             )}
@@ -437,59 +437,85 @@ export default function LoginPage() {
   const processGoogleUser = useCallback(
     async (firebaseUser: FirebaseUser): Promise<boolean> => {
       if (!firestore || !auth) return false;
+  
       try {
-        if (
-          !firebaseUser.email ||
-          !firebaseUser.email.endsWith('@mensa.org.br')
-        ) {
-          // This is a valid user, but not for this app. Sign them out.
-          await auth.signOut();
+        const normalizedEmail = firebaseUser.email?.trim().toLowerCase();
+  
+        if (!normalizedEmail || !normalizedEmail.endsWith('@mensa.org.br')) {
+          await signOut(auth);
+  
           toast({
             variant: 'destructive',
-            title: 'Acesso Negado',
+            title: 'Acesso negado',
             description: 'Apenas emails do domínio @mensa.org.br são permitidos.',
           });
+  
           return false;
         }
-
+  
+        if (!firebaseUser.emailVerified) {
+          await signOut(auth);
+  
+          toast({
+            variant: 'destructive',
+            title: 'E-mail não verificado',
+            description: 'Verifique seu e-mail antes de acessar o sistema.',
+          });
+  
+          return false;
+        }
+  
         const userDocRef = doc(firestore, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
-
+  
+        let name =
+          firebaseUser.displayName ||
+          normalizedEmail.split('@')[0] ||
+          'Novo Usuário';
+  
         if (!userDoc.exists()) {
-          const name =
-            firebaseUser.displayName ||
-            firebaseUser.email?.split('@')[0] ||
-            'Novo Usuário';
           const userProfileData = {
             id: firebaseUser.uid,
-            name: name,
-            email: firebaseUser.email,
+            name,
+            email: normalizedEmail,
             avatarDataUri:
               firebaseUser.photoURL ||
               `https://avatar.vercel.sh/${firebaseUser.uid}.svg`,
             createdAt: serverTimestamp(),
           };
+  
           await setDoc(userDocRef, userProfileData);
-
-          if (firebaseUser.email) {
-            const normalizedEmail = firebaseUser.email.trim().toLowerCase();
-            const memberEmailDocRef = doc(firestore, 'memberEmails', normalizedEmail);
-            await setDoc(memberEmailDocRef, { uid: firebaseUser.uid, name: name });
-          }
+        } else {
+          const existingData = userDoc.data();
+          name = existingData.name || name;
         }
-        
+  
+        const memberEmailDocRef = doc(firestore, 'memberEmails', normalizedEmail);
+  
+        await setDoc(
+          memberEmailDocRef,
+          {
+            uid: firebaseUser.uid,
+            name,
+          },
+          { merge: true }
+        );
+  
         return true;
       } catch (error: any) {
         console.error('Error processing Google user:', error);
+  
         toast({
           variant: 'destructive',
-          title: 'Erro de Processamento',
+          title: 'Erro de processamento',
           description:
             error.message || 'Não foi possível configurar o perfil do usuário.',
         });
+  
         if (auth.currentUser) {
-          await auth.signOut();
+          await signOut(auth);
         }
+  
         return false;
       }
     },
@@ -527,8 +553,13 @@ export default function LoginPage() {
 
   // This effect handles navigation *after* the user state is confirmed and any redirect is processed.
   useEffect(() => {
-    if (!isProcessingRedirect && !isUserLoading && user?.emailVerified) {
-      router.replace('/dashboard');
+    if (!isProcessingRedirect && !isUserLoading && user) {
+      const normalizedEmail = user.email?.trim().toLowerCase();
+      const isMensaEmail = normalizedEmail?.endsWith('@mensa.org.br');
+  
+      if (user.emailVerified && isMensaEmail) {
+        router.replace('/dashboard');
+      }
     }
   }, [user, isUserLoading, isProcessingRedirect, router]);
 
@@ -666,33 +697,53 @@ export default function LoginPage() {
       });
       return;
     }
+  
     const provider = new GoogleAuthProvider();
+  
     provider.setCustomParameters({
       prompt: 'select_account',
+      hd: 'mensa.org.br',
     });
-
+  
     setIsLoadingGoogle(true);
+  
     if (isMobile) {
-      signInWithRedirect(auth, provider); // Use redirect for mobile
-    } else {
       try {
-        const result = await signInWithPopup(auth, provider);
-        const loginSuccessful = await processGoogleUser(result.user);
-        if (loginSuccessful) {
-          router.replace('/dashboard');
-        }
+        await signInWithRedirect(auth, provider);
       } catch (error: any) {
-        if (error.code !== 'auth/popup-closed-by-user') {
-          console.error('Google Sign-In popup error:', error);
-          toast({
-            variant: 'destructive',
-            title: 'Erro no Login com Google',
-            description: `Ocorreu um erro: ${error.code} - ${error.message}.`,
-          });
-        }
-      } finally {
+        console.error('Google Sign-In redirect error:', error);
+  
+        toast({
+          variant: 'destructive',
+          title: 'Erro no Login com Google',
+          description: `Ocorreu um erro: ${error.code ?? ''} - ${error.message ?? ''}`,
+        });
+  
         setIsLoadingGoogle(false);
       }
+  
+      return;
+    }
+  
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const loginSuccessful = await processGoogleUser(result.user);
+  
+      if (loginSuccessful) {
+        router.replace('/dashboard');
+      }
+    } catch (error: any) {
+      if (error.code !== 'auth/popup-closed-by-user') {
+        console.error('Google Sign-In popup error:', error);
+  
+        toast({
+          variant: 'destructive',
+          title: 'Erro no Login com Google',
+          description: `Ocorreu um erro: ${error.code ?? ''} - ${error.message ?? ''}`,
+        });
+      }
+    } finally {
+      setIsLoadingGoogle(false);
     }
   };
 
