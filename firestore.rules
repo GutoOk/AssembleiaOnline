@@ -66,8 +66,42 @@ service cloud.firestore {
     }
 
     match /assemblies/{assemblyId} {
-      allow get, list: if isVerifiedMensaUser();
+      function assemblyDoc() {
+        return get(/databases/$(database)/documents/assemblies/$(assemblyId));
+      }
+
+      function userEmail() {
+        return request.auth.token.email;
+      }
+
+      function hasAssemblyAccess() {
+        return isAdmin()
+          || (
+            isVerifiedMensaUser()
+            && (
+              !('accessMode' in assemblyDoc().data)
+              || assemblyDoc().data.accessMode == 'all_verified_members'
+              || (
+                assemblyDoc().data.accessMode == 'restricted_email_list'
+                && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/authorizedParticipants/$(userEmail()))
+              )
+            )
+          );
+      }
+
+      allow get: if hasAssemblyAccess();
+      allow list: if isVerifiedMensaUser();
       allow create, update, delete: if isAdmin();
+
+      match /authorizedParticipants/{email} {
+        allow get: if isAdmin()
+          || (
+            isVerifiedMensaUser()
+            && request.auth.token.email == email
+          );
+        allow list: if isAdmin();
+        allow create, update, delete: if isAdmin();
+      }
 
       match /private/{docId} {
         allow read, write: if isAdmin();
@@ -87,16 +121,16 @@ service cloud.firestore {
       }
 
       match /ata/{ataId} {
-        allow read, list: if isVerifiedMensaUser();
+        allow read, list: if hasAssemblyAccess();
         allow create, update, delete: if isAdmin();
       }
 
       match /polls/{pollId} {
-        allow read, list: if isVerifiedMensaUser();
+        allow read, list: if hasAssemblyAccess();
         allow create, update, delete: if isAdmin();
 
         match /options/{optionId} {
-          allow read, list: if isVerifiedMensaUser();
+          allow read, list: if hasAssemblyAccess();
           allow create, update, delete: if isAdmin();
         }
 
@@ -113,6 +147,8 @@ service cloud.firestore {
             return exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid))
               && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)).data.status == 'active';
           }
+          
+          allow get, list: if hasAssemblyAccess();
 
           allow create: if isVerifiedMensaUser()
             && pollDoc().data.status == 'open'
@@ -194,7 +230,7 @@ service cloud.firestore {
       }
 
       match /speakerQueue/{queueItemId} {
-        allow read, list: if isVerifiedMensaUser();
+        allow read, list: if hasAssemblyAccess();
 
         allow create: if isVerifiedMensaUser()
           && isOwner(request.resource.data.userId)
@@ -207,7 +243,7 @@ service cloud.firestore {
       }
 
       match /chat/{messageId} {
-        allow read, list: if isVerifiedMensaUser();
+        allow read, list: if hasAssemblyAccess();
 
         allow create: if isVerifiedMensaUser()
           && isOwner(request.resource.data.userId)
@@ -218,7 +254,7 @@ service cloud.firestore {
         allow update, delete: if false;
 
         match /reactions/{reactionId} {
-          allow read, list: if isVerifiedMensaUser();
+          allow read, list: if hasAssemblyAccess();
 
           allow create, update, delete: if isVerifiedMensaUser()
             && reactionId == request.auth.uid
@@ -227,7 +263,7 @@ service cloud.firestore {
       }
 
       match /proxies/{grantorId} {
-        allow read, list: if isVerifiedMensaUser();
+        allow read, list: if hasAssemblyAccess();
 
         allow create: if isVerifiedMensaUser()
           && grantorId == request.auth.uid
@@ -248,7 +284,7 @@ service cloud.firestore {
       }
 
       match /presence/{userId} {
-        allow read, list: if isVerifiedMensaUser();
+        allow read, list: if hasAssemblyAccess();
         allow create, update, delete: if isVerifiedMensaUser() && isOwner(userId);
       }
       

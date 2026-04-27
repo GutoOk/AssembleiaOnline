@@ -1249,6 +1249,7 @@ export default function AssemblyPage() {
   const [isSubmittingQueue, setIsSubmittingQueue] = useState(false);
   const isMobile = useIsMobile();
   const [adminZoomUrl, setAdminZoomUrl] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const [mySpeakerAccess, setMySpeakerAccess] = useState<SpeakerAccess | null>(null);
   const [isLoadingSpeakerAccess, setIsLoadingSpeakerAccess] = useState(true);
@@ -1267,8 +1268,14 @@ export default function AssemblyPage() {
     return doc(firestore, 'assemblies', params.id, 'private', 'config');
   }, [firestore, params.id, isAdmin]);
 
-  const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
+  const { data: assembly, isLoading: isAssemblyLoading, error: assemblyError } = useDoc<Assembly>(assemblyRef);
   const { data: privateConfig } = useDoc<AssemblyPrivateConfig>(privateConfigRef);
+  
+  useEffect(() => {
+    if (assemblyError && (assemblyError.message.includes('permission-denied') || assemblyError.message.includes('insufficient permissions'))) {
+        setAccessDenied(true);
+    }
+  }, [assemblyError]);
   
   const assemblyId = assembly?.id;
   
@@ -1351,34 +1358,34 @@ export default function AssemblyPage() {
 
 
   const pollsQuery = useMemoFirebase(() => {
-    if (!firestore || !params.id || !user) return null;
+    if (!firestore || !params.id || !user || accessDenied) return null;
     return query(collection(firestore, 'assemblies', params.id, 'polls'), orderBy('createdAt', 'desc'));
-  }, [firestore, params.id, user]);
+  }, [firestore, params.id, user, accessDenied]);
   
   const queueQuery = useMemoFirebase(() => {
-    if (!firestore || !params.id || !user) return null;
+    if (!firestore || !params.id || !user || accessDenied) return null;
     return query(collection(firestore, 'assemblies', params.id, 'speakerQueue'), orderBy('joinedAt', 'asc'));
-  }, [firestore, params.id, user]);
+  }, [firestore, params.id, user, accessDenied]);
 
   const ataQuery = useMemoFirebase(() => {
-    if (!firestore || !params.id || !user) return null;
+    if (!firestore || !params.id || !user || accessDenied) return null;
     return query(collection(firestore, 'assemblies', params.id, 'ata'), orderBy('createdAt', 'desc'));
-  }, [firestore, params.id, user]);
+  }, [firestore, params.id, user, accessDenied]);
   
   // Proxy Voting Data
   const representedUsersQuery = useMemoFirebase(() => {
-    if (!firestore || !params.id || !user) return null;
+    if (!firestore || !params.id || !user || accessDenied) return null;
     return query(
         collection(firestore, 'assemblies', params.id, 'proxies'), 
         where('proxyId', '==', user.uid),
         where('status', '==', 'active')
     );
-  }, [firestore, params.id, user]);
+  }, [firestore, params.id, user, accessDenied]);
 
   const userProxyGrantQuery = useMemoFirebase(() => {
-    if (!firestore || !params.id || !user) return null;
+    if (!firestore || !params.id || !user || accessDenied) return null;
     return doc(firestore, 'assemblies', params.id, 'proxies', user.uid);
-  }, [firestore, params.id, user]);
+  }, [firestore, params.id, user, accessDenied]);
 
   const { data: polls, isLoading: arePollsLoading } = useCollection<Poll>(pollsQuery);
   const { data: queue, isLoading: isQueueLoading } = useCollection<SpeakerQueueItem>(queueQuery);
@@ -1470,7 +1477,7 @@ export default function AssemblyPage() {
 
   // --- Presence Logic (Heartbeat) ---
   useEffect(() => {
-    if (!firestore || !user || !assemblyId) return;
+    if (!firestore || !user || !assemblyId || accessDenied) return;
 
     const presenceRef = doc(firestore, 'assemblies', assemblyId, 'presence', user.uid);
 
@@ -1494,12 +1501,12 @@ export default function AssemblyPage() {
         window.removeEventListener('beforeunload', handleBeforeUnload);
         deleteDoc(presenceRef);
     };
-  }, [firestore, user, assemblyId]);
+  }, [firestore, user, assemblyId, accessDenied]);
 
   const presenceQuery = useMemoFirebase(() => {
-      if (!firestore || !assemblyId) return null;
+      if (!firestore || !assemblyId || accessDenied) return null;
       return collection(firestore, 'assemblies', assemblyId, 'presence');
-  }, [firestore, assemblyId]);
+  }, [firestore, assemblyId, accessDenied]);
 
   const { data: allPresenceData } = useCollection<AssemblyPresence>(presenceQuery);
 
@@ -1620,7 +1627,31 @@ export default function AssemblyPage() {
 
   const isLoading = isAdminLoading || isAssemblyLoading;
   const isQueueComponentLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
-  const assemblyFinished = assembly?.status === 'finished';
+  
+  if (accessDenied) {
+    return (
+      <div className="container mx-auto flex min-h-[70vh] items-center justify-center p-4">
+        <Card className="max-w-lg text-center">
+          <CardHeader>
+            <CardTitle>Acesso não autorizado</CardTitle>
+            <CardDescription>
+              Você não tem permissão para acessar esta assembleia.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Entre em contato com a secretaria para verificar se sua situação como associado está regular.
+            </p>
+            <Button asChild className="w-full">
+              <Link href="/dashboard">
+                Voltar ao painel
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -1634,6 +1665,8 @@ export default function AssemblyPage() {
     notFound();
   }
   
+  const assemblyFinished = assembly?.status === 'finished';
+
   return (
     <>
     <StartAssemblyDialog

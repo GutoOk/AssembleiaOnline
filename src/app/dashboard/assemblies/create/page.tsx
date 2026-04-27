@@ -30,6 +30,10 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { createAuditLog } from '@/lib/services/audit.service';
 import { saveAssemblyPrivateConfig } from '@/lib/services/zoom-access.service';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { parseEmailList } from '@/lib/utils/email-list';
+import { saveAuthorizedParticipants } from '@/lib/services/assembly-access.service';
 
 
 const assemblySchema = z.object({
@@ -48,6 +52,16 @@ const assemblySchema = z.object({
   locationState: z.string().optional(),
   locationZip: z.string().optional(),
   locationDetails: z.string().optional(),
+  accessMode: z.enum(['all_verified_members', 'restricted_email_list']).default('all_verified_members'),
+  authorizedEmailsRaw: z.string().optional(),
+}).refine((data) => {
+  if (data.accessMode === 'restricted_email_list') {
+    return !!data.authorizedEmailsRaw?.trim();
+  }
+  return true;
+}, {
+  message: 'Informe a lista de e-mails autorizados.',
+  path: ['authorizedEmailsRaw'],
 });
 
 
@@ -104,8 +118,12 @@ export default function CreateAssemblyPage() {
       locationState: '',
       locationZip: '',
       locationDetails: '',
+      accessMode: 'all_verified_members',
+      authorizedEmailsRaw: '',
     },
   });
+
+  const accessMode = form.watch('accessMode');
 
   useEffect(() => {
     if (!isAdminLoading && user && !isAdmin) {
@@ -197,8 +215,30 @@ export default function CreateAssemblyPage() {
       return;
     }
 
+    let authorizedEmails: string[] = [];
+    if (values.accessMode === 'restricted_email_list') {
+      const parsed = parseEmailList(values.authorizedEmailsRaw ?? '');
+      if (parsed.invalidEmails.length > 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Lista de e-mails inválida',
+          description: `Corrija os seguintes e-mails: ${parsed.invalidEmails.slice(0, 5).join(', ')}${parsed.invalidEmails.length > 5 ? '...' : ''}`,
+        });
+        return;
+      }
+      if (parsed.validEmails.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Lista vazia',
+          description: 'Informe ao menos um e-mail @mensa.org.br autorizado.',
+        });
+        return;
+      }
+      authorizedEmails = parsed.validEmails;
+    }
+
     try {
-        const { locationAddress, locationCity, locationState, locationZip, locationDetails, zoomUrl, ...publicValues } = values;
+        const { locationAddress, locationCity, locationState, locationZip, locationDetails, zoomUrl, authorizedEmailsRaw, ...publicValues } = values;
 
         const location = locationAddress && locationCity && locationState && locationZip
             ? {
@@ -212,6 +252,8 @@ export default function CreateAssemblyPage() {
         const assembliesRef = collection(firestore, 'assemblies');
         const newAssemblyRef = await addDoc(assembliesRef, {
             ...publicValues,
+            accessMode: values.accessMode,
+            authorizedParticipantsCount: values.accessMode === 'restricted_email_list' ? authorizedEmails.length : 0,
             ...(location && { location }),
             date: new Date(values.date),
             imageUrl: imagePreview,
@@ -226,6 +268,23 @@ export default function CreateAssemblyPage() {
           assemblyId: newAssemblyRef.id,
           zoomUrl: zoomUrl || null,
         });
+
+        if (values.accessMode === 'restricted_email_list') {
+          await saveAuthorizedParticipants({
+            firestore,
+            assemblyId: newAssemblyRef.id,
+            emails: authorizedEmails,
+            adminId: user.uid,
+          });
+          await createAuditLog({
+            firestore,
+            assemblyId: newAssemblyRef.id,
+            actorId: user.uid,
+            type: 'AUTHORIZED_PARTICIPANTS_UPLOADED',
+            targetId: newAssemblyRef.id,
+            metadata: { count: authorizedEmails.length },
+          });
+        }
         
         await createAuditLog({
             firestore,
@@ -382,6 +441,69 @@ export default function CreateAssemblyPage() {
                 </FormItem>
               )}
             />
+
+            <Separator className="my-6" />
+            
+            <FormField
+              control={form.control}
+              name="accessMode"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>Quem pode participar?</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-start gap-2 rounded-md border p-3">
+                        <RadioGroupItem value="all_verified_members" id="access-all" className="mt-1" />
+                        <Label htmlFor="access-all" className="space-y-1">
+                          <span className="block font-medium">Todos os associados verificados</span>
+                          <span className="block text-sm text-muted-foreground">
+                            Qualquer usuário com e-mail @mensa.org.br verificado poderá acessar.
+                          </span>
+                        </Label>
+                      </div>
+
+                      <div className="flex items-start gap-2 rounded-md border p-3">
+                        <RadioGroupItem value="restricted_email_list" id="access-restricted" className="mt-1" />
+                        <Label htmlFor="access-restricted" className="space-y-1">
+                          <span className="block font-medium">Apenas lista de e-mails autorizados</span>
+                          <span className="block text-sm text-muted-foreground">
+                            Somente os e-mails carregados poderão acessar esta assembleia.
+                          </span>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            {accessMode === 'restricted_email_list' && (
+              <FormField
+                control={form.control}
+                name="authorizedEmailsRaw"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lista de e-mails autorizados</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder={`Cole os e-mails autorizados, um por linha.\nExemplo:\nfulano@mensa.org.br\nciclano@mensa.org.br`}
+                        className="min-h-40 font-mono text-sm"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      A lista será privada. E-mails podem ser separados por linha, vírgula, ponto e vírgula ou espaço.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <Separator className="my-6" />
 

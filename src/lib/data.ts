@@ -107,6 +107,10 @@ export type Assembly = {
     details?: string;
   };
   ordemDoDia?: string;
+  accessMode?: 'all_verified_members' | 'restricted_email_list';
+  authorizedParticipantsCount?: number;
+  authorizedParticipantsUploadedAt?: Timestamp | null;
+  authorizedParticipantsUploadedBy?: string | null;
 };
 
 export type AssemblyPrivateConfig = {
@@ -182,7 +186,9 @@ export type AuditEventType =
   | 'ADMIN_GRANTED'
   | 'ADMIN_REMOVED'
   | 'ZOOM_ACCESS_GRANTED'
-  | 'ZOOM_ACCESS_REVOKED';
+  | 'ZOOM_ACCESS_REVOKED'
+  | 'AUTHORIZED_PARTICIPANTS_UPLOADED'
+  | 'AUTHORIZED_PARTICIPANTS_UPDATED';
 
 export type AuditLog = {
   id: string;
@@ -194,4 +200,14 @@ export type AuditLog = {
   createdAt: Timestamp;
 };
 
+export type AssemblyAccessMode =
+  | 'all_verified_members'
+  | 'restricted_email_list';
+
+export type AuthorizedParticipant = {
+  id: string; // e-mail normalizado
+  email: string;
+  createdAt: Timestamp;
+  createdBy: string;
+};
     
