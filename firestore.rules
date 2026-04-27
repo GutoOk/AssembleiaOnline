@@ -297,12 +297,7 @@ service cloud.firestore {
         function assemblyIsScheduled() {
           return assemblyDoc().data.status == 'scheduled';
         }
-      
-        function isProxyOwner() {
-          return grantorId == request.auth.uid
-            && resource.data.grantorId == request.auth.uid;
-        }
-      
+
         function isCreatingOwnProxy() {
           return grantorId == request.auth.uid
             && request.resource.data.grantorId == request.auth.uid
@@ -310,14 +305,14 @@ service cloud.firestore {
             && request.resource.data.proxyId != request.auth.uid
             && request.resource.data.status == 'active';
         }
-      
+
         allow read, list: if hasAssemblyAccess();
-      
+
         allow create: if hasAssemblyAccess()
           && assemblyIsScheduled()
           && assemblyDoc().data.allowProxyVoting == true
           && isCreatingOwnProxy();
-      
+
         allow update: if hasAssemblyAccess()
           && assemblyIsScheduled()
           && assemblyDoc().data.allowProxyVoting == true
@@ -325,31 +320,42 @@ service cloud.firestore {
           && resource.data.grantorId == request.auth.uid
           && request.resource.data.grantorId == resource.data.grantorId
           && request.resource.data.assemblyId == resource.data.assemblyId
+          && request.resource.data.createdAt == resource.data.createdAt
           && (
             (
+              // Revogar procuração ativa antes do início.
               resource.data.status == 'active'
               && request.resource.data.status == 'revoked'
               && request.resource.data.proxyId == resource.data.proxyId
               && request.resource.data.revokedBy == request.auth.uid
+              && request.resource.data.revokedAt is timestamp
             )
+
             ||
+
             (
+              // Reativar procuração revogada antes do início.
               resource.data.status == 'revoked'
               && request.resource.data.status == 'active'
               && request.resource.data.proxyId != request.auth.uid
               && request.resource.data.revokedAt == null
               && request.resource.data.revokedBy == null
+              && request.resource.data.updatedAt is timestamp
             )
+
             ||
+
             (
+              // Trocar diretamente o procurador antes do início.
               resource.data.status == 'active'
               && request.resource.data.status == 'active'
               && request.resource.data.proxyId != request.auth.uid
               && request.resource.data.revokedAt == null
               && request.resource.data.revokedBy == null
+              && request.resource.data.updatedAt is timestamp
             )
           );
-      
+
         allow delete: if false;
       }
 
