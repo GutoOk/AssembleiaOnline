@@ -777,6 +777,9 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
               />
+               <p className="text-xs text-muted-foreground !mt-2">
+                O login e a senha do sistema são únicos. Se você criou sua conta manualmente, a senha cadastrada pode não ser a mesma do seu provedor de e-mail. Caso prefira não gerenciar uma nova senha, utilize o botão "Entrar com Google".
+              </p>
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoadingEmail ? (
