@@ -32,7 +32,7 @@ service cloud.firestore {
         && isMensaEmail()
         && request.resource.data.email == request.auth.token.email;
       allow get: if isVerifiedMensaUser();
-      allow list: if isAdmin();
+      allow list: if isVerifiedMensaUser();
       allow update: if (isOwner(userId) && isVerifiedMensaUser()) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -88,7 +88,13 @@ service cloud.firestore {
         }
 
         match /votes/{voteId} {
-          allow read, list: if isVerifiedMensaUser();
+          function pollDoc() {
+            return get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId));
+          }
+
+          function proxyDocFor(voterId) {
+            return get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voterId));
+          }
 
           function hasActiveProxyGrant() {
             return exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid))
@@ -96,13 +102,12 @@ service cloud.firestore {
           }
 
           allow create: if isVerifiedMensaUser()
-            && request.resource.data.status == 'active'
+            && pollDoc().data.status == 'open'
+            && request.time < pollDoc().data.endDate
             && request.resource.data.userId == request.auth.uid
             && request.resource.data.effectiveVoterId == voteId
             && request.resource.data.assemblyId == assemblyId
             && request.resource.data.pollId == pollId
-            && get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)).data.status == 'open'
-            && request.time < get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)).data.endDate
             && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)/options/$(request.resource.data.pollOptionId))
             && (
               (
@@ -114,18 +119,10 @@ service cloud.firestore {
               (
                 request.resource.data.representedUserId == voteId
                 && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId))
-                && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId)).data.proxyId == request.auth.uid
-                && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId)).data.status == 'active'
+                && proxyDocFor(voteId).data.proxyId == request.auth.uid
+                && proxyDocFor(voteId).data.status == 'active'
               )
             );
-
-          function pollDoc() {
-            return get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId));
-          }
-
-          function proxyDocFor(voterId) {
-            return get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voterId));
-          }
 
           function canActForVote() {
             return (
