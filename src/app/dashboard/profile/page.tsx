@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useUser, useFirestore, useAuth, updateDocumentNonBlocking, useDoc, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useAuth, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -66,6 +66,7 @@ export default function ProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
 
   // State for image cropper
   const [imgSrc, setImgSrc] = useState('');
@@ -184,28 +185,28 @@ export default function ProfilePage() {
       return;
     }
     
-    const dataToUpdate: { name: string; avatarDataUri?: string } = {
-      name: values.name,
-    };
-
-    if (avatarPreview && avatarPreview !== userProfile?.avatarDataUri) {
-      dataToUpdate.avatarDataUri = avatarPreview;
-    }
-
     try {
-      // The user's name is updated in the auth profile.
-      await updateProfile(auth.currentUser, {
-        displayName: dataToUpdate.name,
-      });
+        const dataToUpdate: { name: string; avatarDataUri?: string } = {
+          name: values.name,
+        };
 
-      // The user's profile document is updated in Firestore.
-      const userDocRef = doc(firestore, 'users', user.uid);
-      updateDocumentNonBlocking(userDocRef, dataToUpdate);
+        if (avatarPreview && avatarPreview !== userProfile?.avatarDataUri) {
+          dataToUpdate.avatarDataUri = avatarPreview;
+        }
+      
+        // The user's name is updated in the auth profile.
+        await updateProfile(auth.currentUser, {
+            displayName: dataToUpdate.name,
+        });
 
-      toast({
-        title: 'Perfil Atualizado!',
-        description: 'Suas informações foram salvas com sucesso.',
-      });
+        // The user's profile document is updated in Firestore.
+        const userDocRef = doc(firestore, 'users', user.uid);
+        await updateDoc(userDocRef, dataToUpdate);
+
+        toast({
+            title: 'Perfil Atualizado!',
+            description: 'Suas informações foram salvas com sucesso.',
+        });
       
     } catch (error) {
         console.error("Error updating profile: ", error);
@@ -217,17 +218,28 @@ export default function ProfilePage() {
     }
   };
 
-  const handleUnblockUser = (userIdToUnblock: string) => {
+  const handleUnblockUser = async (userIdToUnblock: string) => {
     if (!user || !firestore) return;
+    setUnblockingUserId(userIdToUnblock);
+    try {
+        const blockRef = doc(firestore, 'users', user.uid, 'blockedUsers', userIdToUnblock);
+        await deleteDoc(blockRef);
 
-    const blockRef = doc(firestore, 'users', user.uid, 'blockedUsers', userIdToUnblock);
-    deleteDocumentNonBlocking(blockRef);
-
-    const unblockedUserProfile = blockedUserProfiles[userIdToUnblock];
-    toast({
-      title: 'Usuário Desbloqueado',
-      description: `Você agora verá as mensagens de ${unblockedUserProfile?.name ?? 'este usuário'}.`,
-    });
+        const unblockedUserProfile = blockedUserProfiles[userIdToUnblock];
+        toast({
+          title: 'Usuário Desbloqueado',
+          description: `Você agora verá as mensagens de ${unblockedUserProfile?.name ?? 'este usuário'}.`,
+        });
+    } catch(error) {
+        console.error("Error unblocking user:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao Desbloquear',
+            description: 'Não foi possível remover o bloqueio. Tente novamente.',
+        });
+    } finally {
+        setUnblockingUserId(null);
+    }
   };
   
   const isLoading = form.formState.isSubmitting || isUserLoading || isUploading || isProfileLoading;
@@ -333,6 +345,7 @@ export default function ProfilePage() {
                             {Array.from(blockedUserIds).map(userId => {
                                 const blockedUser = blockedUserProfiles[userId];
                                 if (!blockedUser) return null;
+                                const isUnblocking = unblockingUserId === userId;
                                 return (
                                     <div key={userId} className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -345,7 +358,8 @@ export default function ProfilePage() {
                                                 <p className="text-sm text-muted-foreground">{blockedUser.email}</p>
                                             </div>
                                         </div>
-                                        <Button variant="outline" onClick={() => handleUnblockUser(userId)}>
+                                        <Button variant="outline" onClick={() => handleUnblockUser(userId)} disabled={isUnblocking}>
+                                            {isUnblocking && <Loader2 className="h-4 w-4 animate-spin"/>}
                                             Desbloquear
                                         </Button>
                                     </div>

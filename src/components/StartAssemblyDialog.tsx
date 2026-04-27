@@ -11,10 +11,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { useFirestore, updateDocumentNonBlocking } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { Assembly } from '@/lib/data';
+import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 interface StartAssemblyDialogProps {
   open: boolean;
@@ -25,8 +27,9 @@ interface StartAssemblyDialogProps {
 export function StartAssemblyDialog({ open, onOpenChange, assembly }: StartAssemblyDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [isStarting, setIsStarting] = useState(false);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!firestore || !assembly) {
       toast({
         variant: 'destructive',
@@ -35,19 +38,31 @@ export function StartAssemblyDialog({ open, onOpenChange, assembly }: StartAssem
       });
       return;
     }
+    
+    setIsStarting(true);
+    try {
+        const assemblyRef = doc(firestore, 'assemblies', assembly.id);
+        await updateDoc(assemblyRef, {
+        status: 'live',
+        startedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        });
 
-    const assemblyRef = doc(firestore, 'assemblies', assembly.id);
-    updateDocumentNonBlocking(assemblyRef, {
-      status: 'live',
-      startedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    toast({
-      title: 'Assembleia Iniciada!',
-      description: 'A assembleia foi marcada como "Ao Vivo".',
-    });
-    onOpenChange(false);
+        toast({
+        title: 'Assembleia Iniciada!',
+        description: 'A assembleia foi marcada como "Ao Vivo".',
+        });
+        onOpenChange(false);
+    } catch(error) {
+        console.error("Error starting assembly:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao Iniciar',
+            description: 'Não foi possível iniciar a assembleia. Tente novamente.',
+        });
+    } finally {
+        setIsStarting(false);
+    }
   };
 
   return (
@@ -66,7 +81,8 @@ export function StartAssemblyDialog({ open, onOpenChange, assembly }: StartAssem
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
           <AlertDialogAction asChild>
-            <Button onClick={handleConfirm} className="bg-green-600 hover:bg-green-700">
+            <Button onClick={handleConfirm} className="bg-green-600 hover:bg-green-700" disabled={isStarting}>
+              {isStarting && <Loader2 className="h-4 w-4 animate-spin"/>}
               Iniciar Assembleia
             </Button>
           </AlertDialogAction>

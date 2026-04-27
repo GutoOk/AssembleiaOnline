@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send, MoreVertical, ShieldBan } from 'lucide-react';
 import { useCollection, useFirestore, useUser, addDocumentNonBlocking, setDocumentNonBlocking, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, limit, doc } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, limit, doc, setDoc } from 'firebase/firestore';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useToast } from '@/hooks/use-toast';
@@ -213,17 +213,22 @@ export function ChatSheet({ open, onOpenChange, assemblyId }: ChatSheetProps) {
         }
     };
     
-    const handleBlockUser = (userIdToBlock: string) => {
+    const handleBlockUser = async (userIdToBlock: string) => {
         if (!firestore || !user) return;
         
-        const blockRef = doc(firestore, 'users', user.uid, 'blockedUsers', userIdToBlock);
-        setDocumentNonBlocking(blockRef, {}, {});
+        try {
+            const blockRef = doc(firestore, 'users', user.uid, 'blockedUsers', userIdToBlock);
+            await setDoc(blockRef, {});
 
-        const blockedUserProfile = userProfiles[userIdToBlock];
-        toast({
-            title: 'Usuário Bloqueado',
-            description: `Você não verá mais as mensagens de ${blockedUserProfile?.name ?? 'este usuário'}.`,
-        });
+            const blockedUserProfile = userProfiles[userIdToBlock];
+            toast({
+                title: 'Usuário Bloqueado',
+                description: `Você não verá mais as mensagens de ${blockedUserProfile?.name ?? 'este usuário'}.`,
+            });
+        } catch(error) {
+            console.error("Error blocking user:", error);
+            toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível bloquear o usuário.' });
+        }
     };
 
     const isLoading = areMessagesLoading || areBlockedUsersLoading;

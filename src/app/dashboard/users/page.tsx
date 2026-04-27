@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdmin } from '@/hooks/use-admin';
-import { useCollection, useFirestore, setDocumentNonBlocking, deleteDocumentNonBlocking, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
 import { Loader2, Shield, ShieldOff } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ export default function UsersPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const { user: currentUser, isAdmin, isLoading: isAdminLoading } = useAdmin();
+  const [togglingAdminId, setTogglingAdminId] = useState<string | null>(null);
 
   const usersQuery = useMemoFirebase(() => {
     if(!firestore) return null;
@@ -40,10 +41,9 @@ export default function UsersPage() {
     }
   }, [currentUser, isAdmin, isAdminLoading, router]);
 
-  const handleAdminToggle = (userToToggle: UserProfile, isCurrentlyAdmin: boolean) => {
+  const handleAdminToggle = async (userToToggle: UserProfile, isCurrentlyAdmin: boolean) => {
     if (!firestore || !currentUser) return;
     
-    // Prevent admin from removing their own admin status
     if (currentUser.uid === userToToggle.id) {
         toast({
             variant: 'destructive',
@@ -53,21 +53,33 @@ export default function UsersPage() {
       return;
     }
 
+    setTogglingAdminId(userToToggle.id);
     const adminRef = doc(firestore, 'admins', userToToggle.id);
 
-    if (isCurrentlyAdmin) {
-      deleteDocumentNonBlocking(adminRef);
-      toast({
-        title: 'Permissão Removida',
-        description: `${userToToggle.name} não é mais um administrador.`,
-      });
-    } else {
-      // The document can be empty, its existence is what matters.
-      setDocumentNonBlocking(adminRef, {}, {});
-      toast({
-        title: 'Permissão Concedida',
-        description: `${userToToggle.name} agora é um administrador.`,
-      });
+    try {
+        if (isCurrentlyAdmin) {
+          await deleteDoc(adminRef);
+          toast({
+            title: 'Permissão Removida',
+            description: `${userToToggle.name} não é mais um administrador.`,
+          });
+        } else {
+          // The document can be empty, its existence is what matters.
+          await setDoc(adminRef, {});
+          toast({
+            title: 'Permissão Concedida',
+            description: `${userToToggle.name} agora é um administrador.`,
+          });
+        }
+    } catch(error) {
+        console.error("Error toggling admin status:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao alterar permissão',
+            description: 'Não foi possível atualizar o status de administrador. Tente novamente.',
+        });
+    } finally {
+        setTogglingAdminId(null);
     }
   };
 
@@ -104,6 +116,7 @@ export default function UsersPage() {
             {users && users.length > 0 ? (
               users.map((user) => {
                 const isUserAdmin = adminIds.has(user.id);
+                const isToggling = togglingAdminId === user.id;
                 return (
                   <TableRow key={user.id}>
                     <TableCell>
@@ -118,11 +131,12 @@ export default function UsersPage() {
                     <TableCell className="text-muted-foreground">{user.email}</TableCell>
                     <TableCell className="text-right">
                        <div className="flex items-center justify-end gap-2">
-                        {isUserAdmin ? <Shield className="h-5 w-5 text-primary" /> : <ShieldOff className="h-5 w-5 text-muted-foreground" />}
+                        {isToggling ? <Loader2 className="h-5 w-5 animate-spin" /> :
+                         isUserAdmin ? <Shield className="h-5 w-5 text-primary" /> : <ShieldOff className="h-5 w-5 text-muted-foreground" />}
                         <Switch
                           checked={isUserAdmin}
                           onCheckedChange={() => handleAdminToggle(user, isUserAdmin)}
-                          disabled={user.id === currentUser?.uid}
+                          disabled={user.id === currentUser?.uid || isToggling}
                           aria-label={`Tornar ${user.name} administrador`}
                         />
                        </div>

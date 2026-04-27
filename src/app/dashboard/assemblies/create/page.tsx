@@ -10,8 +10,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAdmin } from '@/hooks/use-admin';
-import { addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState, useRef } from 'react';
@@ -178,7 +177,7 @@ export default function CreateAssemblyPage() {
   };
   
   const onSubmit = async (values: z.infer<typeof assemblySchema>) => {
-    if (!isAdmin || !user) {
+    if (!isAdmin || !user || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
@@ -196,35 +195,44 @@ export default function CreateAssemblyPage() {
       return;
     }
 
-    const { locationAddress, locationCity, locationState, locationZip, locationDetails, ...restOfValues } = values;
+    try {
+        const { locationAddress, locationCity, locationState, locationZip, locationDetails, ...restOfValues } = values;
 
-    const location = locationAddress && locationCity && locationState && locationZip
-        ? {
-            address: locationAddress,
-            city: locationCity,
-            state: locationState,
-            zip: locationZip,
-            details: locationDetails || '',
-        } : null;
+        const location = locationAddress && locationCity && locationState && locationZip
+            ? {
+                address: locationAddress,
+                city: locationCity,
+                state: locationState,
+                zip: locationZip,
+                details: locationDetails || '',
+            } : null;
 
-    const assembliesRef = collection(firestore, 'assemblies');
-    addDocumentNonBlocking(assembliesRef, {
-      ...restOfValues,
-      ...(location && { location }),
-      date: new Date(values.date),
-      imageUrl: imagePreview,
-      administratorId: user.uid,
-      status: 'scheduled',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+        const assembliesRef = collection(firestore, 'assemblies');
+        await addDoc(assembliesRef, {
+        ...restOfValues,
+        ...(location && { location }),
+        date: new Date(values.date),
+        imageUrl: imagePreview,
+        administratorId: user.uid,
+        status: 'scheduled',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        });
 
-    toast({
-      title: 'Assembleia Criada!',
-      description: 'A nova assembleia foi criada com sucesso.',
-    });
+        toast({
+        title: 'Assembleia Criada!',
+        description: 'A nova assembleia foi criada com sucesso.',
+        });
 
-    router.push('/dashboard');
+        router.push('/dashboard');
+    } catch (error) {
+        console.error("Error creating assembly: ", error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao Criar',
+            description: 'Não foi possível criar a assembleia. Tente novamente.',
+        });
+    }
   };
 
   if (isAdminLoading) {

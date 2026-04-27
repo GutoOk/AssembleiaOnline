@@ -10,8 +10,8 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAdmin } from '@/hooks/use-admin';
-import { updateDocumentNonBlocking, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -212,7 +212,7 @@ export default function EditAssemblyPage() {
   };
   
   const onSubmit = async (values: z.infer<typeof assemblySchema>) => {
-    if (!isAdmin || !user || !assemblyRef) {
+    if (!isAdmin || !user || !assemblyRef || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
@@ -229,36 +229,44 @@ export default function EditAssemblyPage() {
       });
       return;
     }
-
-    const { locationAddress, locationCity, locationState, locationZip, locationDetails, ...restOfValues } = values;
-
-    const location = locationAddress && locationCity && locationState && locationZip
-        ? {
-            address: locationAddress,
-            city: locationCity,
-            state: locationState,
-            zip: locationZip,
-            details: locationDetails || '',
-        } : null;
-
-    const dataToUpdate: any = {
-        ...restOfValues,
-        date: new Date(values.date),
-        imageUrl: imagePreview,
-        updatedAt: serverTimestamp(),
-    };
     
-    dataToUpdate.location = location;
+    try {
+        const { locationAddress, locationCity, locationState, locationZip, locationDetails, ...restOfValues } = values;
 
+        const location = locationAddress && locationCity && locationState && locationZip
+            ? {
+                address: locationAddress,
+                city: locationCity,
+                state: locationState,
+                zip: locationZip,
+                details: locationDetails || '',
+            } : null;
 
-    updateDocumentNonBlocking(assemblyRef, dataToUpdate);
+        const dataToUpdate: any = {
+            ...restOfValues,
+            date: new Date(values.date),
+            imageUrl: imagePreview,
+            updatedAt: serverTimestamp(),
+        };
+        
+        dataToUpdate.location = location;
 
-    toast({
-      title: 'Assembleia Atualizada!',
-      description: 'A assembleia foi atualizada com sucesso.',
-    });
+        await updateDoc(assemblyRef, dataToUpdate);
 
-    router.push('/dashboard');
+        toast({
+        title: 'Assembleia Atualizada!',
+        description: 'A assembleia foi atualizada com sucesso.',
+        });
+
+        router.push('/dashboard');
+    } catch (error) {
+        console.error("Error updating assembly:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao Atualizar',
+            description: 'Não foi possível salvar as alterações. Tente novamente.',
+        });
+    }
   };
 
   const isLoading = isAdminLoading || isAssemblyLoading;

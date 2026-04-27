@@ -10,8 +10,8 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useFirestore, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Trash2 } from 'lucide-react';
 import type { SpeakerQueueItem, UserProfile } from '@/lib/data';
@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useState } from 'react';
 
 interface ManageQueueDialogProps {
   open: boolean;
@@ -36,19 +37,36 @@ interface ManageQueueDialogProps {
 export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userProfiles }: ManageQueueDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState<string | null>(null); // Store ID of item being processed
 
-  const handleStatusChange = (itemId: string, newStatus: SpeakerQueueItem['status']) => {
+  const handleStatusChange = async (itemId: string, newStatus: SpeakerQueueItem['status']) => {
     if (!firestore) return;
-    const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', itemId);
-    updateDocumentNonBlocking(itemRef, { status: newStatus });
-    toast({ title: 'Status Atualizado', description: 'O status do participante foi alterado.' });
+    setIsSubmitting(itemId);
+    try {
+        const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', itemId);
+        await updateDoc(itemRef, { status: newStatus });
+        toast({ title: 'Status Atualizado', description: 'O status do participante foi alterado.' });
+    } catch(error) {
+        console.error("Error changing status:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível alterar o status.' });
+    } finally {
+        setIsSubmitting(null);
+    }
   };
 
-  const handleDelete = (itemId: string) => {
+  const handleDelete = async (itemId: string) => {
     if (!firestore) return;
-    const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', itemId);
-    deleteDocumentNonBlocking(itemRef);
-    toast({ title: 'Participante Removido', description: 'O participante foi removido da fila.' });
+    setIsSubmitting(itemId);
+    try {
+        const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', itemId);
+        await deleteDoc(itemRef);
+        toast({ title: 'Participante Removido', description: 'O participante foi removido da fila.' });
+    } catch(error) {
+        console.error("Error deleting from queue:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível remover o participante.' });
+    } finally {
+        setIsSubmitting(null);
+    }
   };
 
   return (
@@ -72,6 +90,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
             <TableBody>
               {queue.length > 0 ? queue.map(item => {
                 const user = userProfiles[item.userId];
+                const isProcessing = isSubmitting === item.id;
                 return (
                   <TableRow key={item.id}>
                     <TableCell>
@@ -89,6 +108,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                       <Select
                         value={item.status}
                         onValueChange={(newStatus: SpeakerQueueItem['status']) => handleStatusChange(item.id, newStatus)}
+                        disabled={!!isSubmitting}
                       >
                         <SelectTrigger className="w-[180px]">
                           <SelectValue placeholder="Selecione status" />
@@ -101,8 +121,8 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                       </Select>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} disabled={!!isSubmitting}>
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                         <span className="sr-only">Remover</span>
                       </Button>
                     </TableCell>

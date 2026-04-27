@@ -26,8 +26,8 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useFirestore, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { collection, serverTimestamp, Timestamp, writeBatch, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import type { Assembly, Poll } from '@/lib/data';
@@ -129,15 +129,16 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
   };
 
   const handleCreatePoll = async () => {
-    if (!pollDataToConfirm || !assembly) return;
+    if (!pollDataToConfirm || !assembly || !firestore) return;
 
     setIsCreating(true);
     const values = pollDataToConfirm;
 
     try {
-      // 1. Create Poll Document
+      const batch = writeBatch(firestore);
       const pollsRef = collection(firestore, 'assemblies', assembly.id, 'polls');
-      
+      const newPollRef = doc(pollsRef); // Generate a new ref with a unique ID
+
       const pollData: Omit<Poll, 'id' | 'createdAt' | 'updatedAt' | 'endDate' | 'status'> & { endDate: Timestamp; status: 'open'; createdAt: any } = {
         question: values.question,
         endDate: Timestamp.fromMillis(Date.now() + values.duration * 60 * 1000),
@@ -156,26 +157,21 @@ export function CreatePollDialog({ open, onOpenChange, assembly }: CreatePollDia
           }
       }
       
-      const pollDocRef = await addDocumentNonBlocking(pollsRef, pollData);
+      batch.set(newPollRef, pollData);
       
-      if (!pollDocRef) {
-          throw new Error("Failed to create poll document.");
-      }
-
-      // 2. Create Poll Options from form
-      const optionsRef = collection(firestore, 'assemblies', assembly.id, 'polls', pollDocRef.id, 'options');
-      const optionPromises = values.options.map(option => {
+      values.options.forEach(option => {
+        const optionRef = doc(collection(firestore, 'assemblies', assembly.id, 'polls', newPollRef.id, 'options'));
         const optionData = {
           text: option.text,
-          pollId: pollDocRef.id,
+          pollId: newPollRef.id,
           assemblyId: assembly.id,
           assemblyStatus: assembly.status,
           createdAt: serverTimestamp(),
         };
-        return addDocumentNonBlocking(optionsRef, optionData);
+        batch.set(optionRef, optionData);
       });
       
-      await Promise.all(optionPromises);
+      await batch.commit();
 
       toast({
         title: 'Votação Criada!',

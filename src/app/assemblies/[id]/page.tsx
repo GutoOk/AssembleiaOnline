@@ -38,8 +38,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
-import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { doc, collection, query, orderBy, serverTimestamp, where, writeBatch, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
 import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence, Reaction } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
@@ -162,6 +162,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
   const [isEditingAnnulment, setIsEditingAnnulment] = useState(false);
   const [editTextAnnulment, setEditTextAnnulment] = useState(poll.annulmentReason || '');
   const [isVoting, setIsVoting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pollEndDate = poll.endDate.toDate();
   const [isTimeUp, setIsTimeUp] = useState(() => isPast(pollEndDate));
@@ -279,9 +280,8 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
       return;
     }
   
+    setIsVoting(true);
     try {
-      setIsVoting(true);
-  
       const batch = writeBatch(firestore);
   
       const createVote = (effectiveVoterId: string, representedUserId?: string) => {
@@ -344,37 +344,53 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
     }
   };
 
-  const handleAnnulConfirm = () => {
-    if (!user || !annulReason.trim()) {
+  const handleAnnulConfirm = async () => {
+    if (!user || !annulReason.trim() || !firestore) {
         toast({ variant: 'destructive', title: 'Erro', description: 'O motivo da anulação é obrigatório.' });
         return;
     }
-    const pollRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id);
-    updateDocumentNonBlocking(pollRef, {
-        status: 'annulled',
-        annulmentReason: annulReason,
-        annulledBy: user.uid,
-        annulledAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-    });
-    toast({ title: 'Votação Anulada', description: 'A votação foi anulada com sucesso.' });
-    setAnnulConfirmOpen(false);
-    setAnnulDialogOpen(false);
-    setAnnulReason('');
+    setIsSubmitting(true);
+    try {
+        const pollRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id);
+        await updateDoc(pollRef, {
+            status: 'annulled',
+            annulmentReason: annulReason,
+            annulledBy: user.uid,
+            annulledAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+        toast({ title: 'Votação Anulada', description: 'A votação foi anulada com sucesso.' });
+        setAnnulConfirmOpen(false);
+        setAnnulDialogOpen(false);
+        setAnnulReason('');
+    } catch (error) {
+        console.error("Error annulling poll:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível anular a votação.' });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
-  const handleUpdateAnnulmentReason = () => {
-    if (!editTextAnnulment.trim()) {
+  const handleUpdateAnnulmentReason = async () => {
+    if (!editTextAnnulment.trim() || !firestore) {
         toast({ variant: 'destructive', title: 'O motivo não pode estar vazio.' });
         return;
     }
-    const pollRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id);
-    updateDocumentNonBlocking(pollRef, { 
-        annulmentReason: editTextAnnulment,
-        updatedAt: serverTimestamp() 
-    });
-    toast({ title: 'Motivo da anulação atualizado.' });
-    setIsEditingAnnulment(false);
+    setIsSubmitting(true);
+    try {
+        const pollRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id);
+        await updateDoc(pollRef, { 
+            annulmentReason: editTextAnnulment,
+            updatedAt: serverTimestamp() 
+        });
+        toast({ title: 'Motivo da anulação atualizado.' });
+        setIsEditingAnnulment(false);
+    } catch(error) {
+        console.error("Error updating annulment reason:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível atualizar o motivo.' });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const voteData = useMemo(() => {
@@ -422,7 +438,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
     <Card className="group relative">
         {isAdmin && pollAnnulled && !isEditingAnnulment && (
             <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsEditingAnnulment(true)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsEditingAnnulment(true)} disabled={isSubmitting}>
                     <Pencil className="h-4 w-4" />
                     <span className="sr-only">Editar Motivo</span>
                 </Button>
@@ -483,10 +499,14 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
                       value={editTextAnnulment}
                       onChange={(e) => setEditTextAnnulment(e.target.value)}
                       rows={4}
+                      disabled={isSubmitting}
                     />
                   <div className="flex justify-end gap-1 pt-1">
-                    <Button variant="outline" size="sm" onClick={() => { setIsEditingAnnulment(false); setEditTextAnnulment(poll.annulmentReason || ''); }}>Cancelar</Button>
-                    <Button size="sm" onClick={handleUpdateAnnulmentReason}>Salvar</Button>
+                    <Button variant="outline" size="sm" onClick={() => { setIsEditingAnnulment(false); setEditTextAnnulment(poll.annulmentReason || ''); }} disabled={isSubmitting}>Cancelar</Button>
+                    <Button size="sm" onClick={handleUpdateAnnulmentReason} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                        Salvar
+                    </Button>
                   </div>
               </div>
             ) : (
@@ -674,7 +694,10 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction onClick={handleAnnulConfirm} asChild>
-                  <Button variant="destructive">Confirmar Anulação</Button>
+                  <Button variant="destructive" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Confirmar Anulação
+                  </Button>
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
@@ -709,6 +732,7 @@ function SpeakingQueue({
   }) {
   const { user, isAdmin } = useAdmin();
   const [isManageQueueOpen, setManageQueueOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const getStatusBadge = (status: SpeakerQueueItem['status']) => {
       switch (status) {
@@ -750,8 +774,8 @@ function SpeakingQueue({
             <p className="font-medium text-sm">{speakerUser.name}</p>
             <p className="text-xs text-muted-foreground">{speakerUser.email}</p>
              {isCurrentUser && speaker.status === 'Entrada Autorizada' && assemblyZoomUrl && userInQueue ? (
-                <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl, userInQueue)} className="mt-2">
-                    <Video className="h-4 w-4" /> Entrar para Falar
+                <Button size="sm" onClick={() => onEnterSpeakerMode(assemblyZoomUrl, userInQueue)} className="mt-2" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className='h-4 w-4 animate-spin' /> : <Video className="h-4 w-4" />} Entrar para Falar
                 </Button>
             ) : (
                 <div className="mt-1">{getStatusBadge(speaker.status)}</div>
@@ -783,8 +807,8 @@ function SpeakingQueue({
             )}
           </>
         )}
-        {!userInQueue && !isAdmin && <Button className="w-full" onClick={onJoinQueue} disabled={isLoading || assemblyFinished}><Hand className="h-4 w-4" /> Solicitar Palavra</Button>}
-        {userInQueue && <Button variant="outline" className="w-full" onClick={onLeaveQueue}>Cancelar Inscrição</Button>}
+        {!userInQueue && !isAdmin && <Button className="w-full" onClick={onJoinQueue} disabled={isLoading || assemblyFinished || isSubmitting}> <Hand className="h-4 w-4" /> Solicitar Palavra</Button>}
+        {userInQueue && <Button variant="outline" className="w-full" onClick={onLeaveQueue} disabled={isSubmitting}>Cancelar Inscrição</Button>}
         
         {isLoading ? (
           <div className="space-y-2">
@@ -826,20 +850,24 @@ function AdminActionCard({
     defaultValues: { text: '' },
   });
 
-  const onSubmit = (values: z.infer<typeof ataSchema>) => {
-    if (!user) return;
-    const ataRef = collection(firestore, 'assemblies', assembly.id, 'ata');
-    addDocumentNonBlocking(ataRef, {
-      text: values.text,
-      assemblyId: assembly.id,
-      administratorId: user.uid,
-      assemblyStatus: assembly.status,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    toast({ title: 'Registro de Ata Publicado!' });
-    form.reset();
+  const onSubmit = async (values: z.infer<typeof ataSchema>) => {
+    if (!user || !firestore) return;
+    try {
+        const ataRef = collection(firestore, 'assemblies', assembly.id, 'ata');
+        await addDoc(ataRef, {
+            text: values.text,
+            assemblyId: assembly.id,
+            administratorId: user.uid,
+            assemblyStatus: assembly.status,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+        toast({ title: 'Registro de Ata Publicado!' });
+        form.reset();
+    } catch (error) {
+        console.error("Error adding to minutes:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível publicar o registro.' });
+    }
   };
 
   return (
@@ -857,7 +885,7 @@ function AdminActionCard({
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Textarea placeholder="Ex: O membro X levantou a questão sobre o orçamento..." {...field} rows={3} />
+                    <Textarea placeholder="Ex: O membro X levantou a questão sobre o orçamento..." {...field} rows={3} disabled={form.formState.isSubmitting} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -865,7 +893,8 @@ function AdminActionCard({
             />
           </CardContent>
           <CardFooter className="p-4 pt-0 flex justify-end">
-            <Button type="submit">
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
               Publicar Registro
             </Button>
           </CardFooter>
@@ -881,25 +910,43 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished, userProfiles }: { ataItem
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(ataItem.text);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const admin = userProfiles[ataItem.administratorId];
 
-  const handleUpdate = () => {
-    if (!editText.trim()) {
+  const handleUpdate = async () => {
+    if (!editText.trim() || !firestore) {
       toast({ variant: 'destructive', title: 'O registro não pode estar vazio.' });
       return;
     }
-    const itemRef = doc(firestore, 'assemblies', ataItem.assemblyId, 'ata', ataItem.id);
-    updateDocumentNonBlocking(itemRef, { text: editText, updatedAt: serverTimestamp() });
-    toast({ title: 'Registro atualizado!' });
-    setIsEditing(false);
+    setIsSubmitting(true);
+    try {
+        const itemRef = doc(firestore, 'assemblies', ataItem.assemblyId, 'ata', ataItem.id);
+        await updateDoc(itemRef, { text: editText, updatedAt: serverTimestamp() });
+        toast({ title: 'Registro atualizado!' });
+        setIsEditing(false);
+    } catch(error) {
+        console.error("Error updating minutes item:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível atualizar o registro.' });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = () => {
-    const itemRef = doc(firestore, 'assemblies', ataItem.assemblyId, 'ata', ataItem.id);
-    deleteDocumentNonBlocking(itemRef);
-    toast({ title: 'Registro removido.' });
-    setIsDeleteDialogOpen(false);
+  const handleDelete = async () => {
+    if (!firestore) return;
+    setIsSubmitting(true);
+    try {
+        const itemRef = doc(firestore, 'assemblies', ataItem.assemblyId, 'ata', ataItem.id);
+        await deleteDoc(itemRef);
+        toast({ title: 'Registro removido.' });
+        setIsDeleteDialogOpen(false);
+    } catch (error) {
+        console.error("Error deleting minutes item:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível remover o registro.' });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (
@@ -920,10 +967,13 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished, userProfiles }: { ataItem
         <CardContent className="p-4">
           {isEditing ? (
             <div className="space-y-1">
-              <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={3} />
+              <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={3} disabled={isSubmitting} />
               <div className="flex justify-end gap-1 pt-1">
-                <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setEditText(ataItem.text); }}>Cancelar</Button>
-                <Button size="sm" onClick={handleUpdate}>Salvar</Button>
+                <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setEditText(ataItem.text); }} disabled={isSubmitting}>Cancelar</Button>
+                <Button size="sm" onClick={handleUpdate} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="h-4 w-4 animate-spin"/>}
+                    Salvar
+                </Button>
               </div>
             </div>
           ) : (
@@ -959,7 +1009,10 @@ function AtaCard({ ataItem, isAdmin, assemblyFinished, userProfiles }: { ataItem
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} asChild>
-              <Button variant="destructive">Remover Registro</Button>
+              <Button variant="destructive" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin"/>}
+                Remover Registro
+              </Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -978,6 +1031,7 @@ export default function AssemblyPage() {
   const [speakerZoomLink, setSpeakerZoomLink] = useState('');
   const [adminVideoSource, setAdminVideoSource] = useState<'youtube' | 'zoom'>('zoom');
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
+  const [isSubmittingQueue, setIsSubmittingQueue] = useState(false);
 
   const assemblyContext = useAssemblyContext();
   const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems, isCreatePollOpen, setIsCreatePollOpen } = assemblyContext!;
@@ -1138,47 +1192,80 @@ export default function AssemblyPage() {
   }, [attendeeProfiles, setAttendees]);
 
 
-  const handleJoinQueue = () => {
-    if (!user || !assembly) return;
-    const queueItemRef = doc(firestore, 'assemblies', assembly.id, 'speakerQueue', user.uid);
-    const queueItem: Omit<SpeakerQueueItem, 'id' | 'joinedAt'> & { joinedAt: any } = {
-        userId: user.uid,
-        assemblyId: assembly.id,
-        joinedAt: serverTimestamp(),
-        status: 'Na Fila',
-        administratorId: assembly.administratorId,
-        assemblyStatus: assembly.status,
-    };
-    setDocumentNonBlocking(queueItemRef, queueItem, { merge: true });
-    toast({ title: 'Inscrição Realizada', description: 'Você foi adicionado à fila para falar.' });
+  const handleJoinQueue = async () => {
+    if (!user || !assembly || !firestore) return;
+    setIsSubmittingQueue(true);
+    try {
+        const queueItemRef = doc(firestore, 'assemblies', assembly.id, 'speakerQueue', user.uid);
+        const queueItem: Omit<SpeakerQueueItem, 'id' | 'joinedAt'> & { joinedAt: any } = {
+            userId: user.uid,
+            assemblyId: assembly.id,
+            joinedAt: serverTimestamp(),
+            status: 'Na Fila',
+            administratorId: assembly.administratorId,
+            assemblyStatus: assembly.status,
+        };
+        await setDoc(queueItemRef, queueItem, { merge: true });
+        toast({ title: 'Inscrição Realizada', description: 'Você foi adicionado à fila para falar.' });
+    } catch (error) {
+        console.error("Error joining queue:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível realizar a inscrição.' });
+    } finally {
+        setIsSubmittingQueue(false);
+    }
   };
 
-  const handleLeaveQueue = () => {
-    if (!userInQueue) return;
-    const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
-    deleteDocumentNonBlocking(itemRef);
-    toast({ title: 'Inscrição Cancelada', description: 'Você foi removido da fila.' });
+  const handleLeaveQueue = async () => {
+    if (!userInQueue || !firestore) return;
+    setIsSubmittingQueue(true);
+    try {
+        const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
+        await deleteDoc(itemRef);
+        toast({ title: 'Inscrição Cancelada', description: 'Você foi removido da fila.' });
+    } catch (error) {
+        console.error("Error leaving queue:", error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível cancelar a inscrição.' });
+    } finally {
+        setIsSubmittingQueue(false);
+    }
   };
 
-  const handleEnterSpeakerMode = (zoomLink: string, queueItem: SpeakerQueueItem) => {
+  const handleEnterSpeakerMode = async (zoomLink: string, queueItem: SpeakerQueueItem) => {
       if(!zoomLink) {
         toast({ variant: 'destructive', title: 'Erro', description: 'O administrador ainda não forneceu um link do Zoom.' });
         return;
       }
-      const itemRef = doc(firestore, 'assemblies', queueItem.assemblyId, 'speakerQueue', queueItem.id);
-      updateDocumentNonBlocking(itemRef, { status: 'Com a Fala' });
-      
-      setSpeakerZoomLink(zoomLink);
-      setIsSpeaking(true);
+      if (!firestore) return;
+      setIsSubmittingQueue(true);
+      try {
+          const itemRef = doc(firestore, 'assemblies', queueItem.assemblyId, 'speakerQueue', queueItem.id);
+          await updateDoc(itemRef, { status: 'Com a Fala' });
+          
+          setSpeakerZoomLink(zoomLink);
+          setIsSpeaking(true);
+      } catch (error) {
+          console.error("Error entering speaker mode:", error);
+          toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível alterar seu status.' });
+      } finally {
+          setIsSubmittingQueue(false);
+      }
   };
   
-  const handleEndParticipation = () => {
-      if (!userInQueue) return;
-      const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
-      deleteDocumentNonBlocking(itemRef);
-      setIsSpeaking(false);
-      setSpeakerZoomLink('');
-      toast({ title: 'Participação Encerrada', description: 'Você saiu da chamada e foi removido da fila.' });
+  const handleEndParticipation = async () => {
+      if (!userInQueue || !firestore) return;
+      setIsSubmittingQueue(true);
+      try {
+          const itemRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerQueue', userInQueue.id);
+          await deleteDoc(itemRef);
+          setIsSpeaking(false);
+          setSpeakerZoomLink('');
+          toast({ title: 'Participação Encerrada', description: 'Você saiu da chamada e foi removido da fila.' });
+      } catch (error) {
+          console.error("Error ending participation:", error);
+          toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível encerrar a participação.' });
+      } finally {
+          setIsSubmittingQueue(false);
+      }
   };
 
   const displayEmbedUrl = useMemo(() => {
@@ -1286,8 +1373,8 @@ export default function AssemblyPage() {
                 </div>
                 <div className="flex items-center gap-1 ml-4">
                   {isSpeaking && (
-                      <Button onClick={handleEndParticipation} variant="destructive" size="sm">
-                          <LogOut className="h-4 w-4" />
+                      <Button onClick={handleEndParticipation} variant="destructive" size="sm" disabled={isSubmittingQueue}>
+                          {isSubmittingQueue ? <Loader2 className="h-4 w-4 animate-spin"/> : <LogOut className="h-4 w-4" />}
                           Encerrar Participação
                       </Button>
                   )}
