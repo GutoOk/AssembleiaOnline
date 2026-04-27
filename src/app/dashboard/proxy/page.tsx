@@ -138,7 +138,7 @@ export default function ProxyPage() {
 
   const proxyUserIds = useMemo(() => {
       if (!grantedProxies) return [];
-      return grantedProxies.filter((p) => p.status === 'active').map(p => p.proxyId);
+      return grantedProxies.map(p => p.proxyId);
   }, [grantedProxies]);
   
   const { profiles: proxyUserProfiles, isLoading: areProfilesLoading } = useUserProfiles(proxyUserIds);
@@ -151,6 +151,16 @@ export default function ProxyPage() {
         const assembly = assembliesForProxy?.find(a => a.id === values.assemblyId);
         if (!assembly) {
             toast({ variant: 'destructive', title: 'Erro', description: 'Assembleia não encontrada ou não permite procuração.' });
+            return;
+        }
+
+        if (assembly.status !== 'scheduled') {
+            toast({
+              variant: 'destructive',
+              title: 'Procuração travada',
+              description:
+                'Procurações só podem ser concedidas antes do início da assembleia.',
+            });
             return;
         }
         
@@ -190,16 +200,20 @@ export default function ProxyPage() {
         }
 
         const proxyRef = doc(firestore, 'assemblies', values.assemblyId, 'proxies', user.uid);
-        
-        const data: Omit<ProxyAssignment, 'id' | 'createdAt'> & { createdAt: any } = {
+        const existingProxySnap = await getDoc(proxyRef);
+
+        const data = {
             assemblyId: values.assemblyId,
             grantorId: user.uid,
-            proxyId: proxyId,
-            status: 'active',
-            createdAt: serverTimestamp(),
+            proxyId,
+            status: 'active' as const,
+            updatedAt: serverTimestamp(),
+            ...(existingProxySnap.exists() ? {} : { createdAt: serverTimestamp() }),
+            revokedAt: null,
+            revokedBy: null,
         };
         
-        await setDoc(proxyRef, data);
+        await setDoc(proxyRef, data, { merge: true });
         
         await createAuditLog({
             firestore,
@@ -221,6 +235,19 @@ export default function ProxyPage() {
 
   const handleRevokeProxy = async (assignment: ProxyAssignment) => {
     if (!firestore || !user) return;
+
+    const assembly = assembliesForProxy?.find(
+        (item) => item.id === assignment.assemblyId
+    );
+
+    if (assembly?.status !== 'scheduled') {
+        toast({
+        variant: 'destructive',
+        title: 'Procuração travada',
+        description: 'Procurações só podem ser alteradas antes do início da assembleia.',
+        });
+        return;
+    }
   
     try {
       const proxyRef = doc(
@@ -228,7 +255,7 @@ export default function ProxyPage() {
         'assemblies',
         assignment.assemblyId,
         'proxies',
-        assignment.id
+        assignment.grantorId
       );
   
       await updateDoc(proxyRef, {
@@ -333,46 +360,58 @@ export default function ProxyPage() {
                 </div>
             ) : grantedProxies && grantedProxies.length > 0 ? (
                 <div className="space-y-4">
-                    {grantedProxies.filter((proxy) => proxy.status === 'active').map(proxy => {
+                    {grantedProxies.map(proxy => {
                         const assembly = assembliesForProxy?.find(a => a.id === proxy.assemblyId);
                         const proxyUser = proxyUserProfiles[proxy.proxyId];
                         if (!assembly || !proxyUser) return null;
+                        
                         const isRevoked = proxy.status === 'revoked';
+                        const canRevoke = !isRevoked && assembly.status === 'scheduled';
+                        const isLocked = !isRevoked && assembly.status !== 'scheduled';
 
                         return (
-                            <div key={proxy.id} className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${isRevoked ? 'opacity-60' : ''}`}>
+                            <div key={proxy.id} className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${isRevoked ? 'bg-muted/50' : ''}`}>
                                 <div>
                                     <p className="font-semibold">{assembly.title}</p>
-                                    <p className="text-sm text-muted-foreground">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                         Representado por: <span className="font-medium text-foreground">{proxyUser.name}</span>
-                                        {isRevoked && <Badge variant="destructive" className="ml-2">Revogada</Badge>}
-                                    </p>
+                                        {isRevoked && <Badge variant="secondary" className="ml-2">Revogada</Badge>}
+                                    </div>
                                     <p className="text-xs text-muted-foreground">
                                         Data da Assembleia: {format(assembly.date.toDate(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                                     </p>
                                 </div>
 
-                                {!isRevoked && (
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <Button variant="outline" size="icon" disabled={assembly.status !== 'scheduled'}>
-                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>Revogar Procuração?</AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            Tem certeza que deseja revogar esta procuração? Esta ação não pode ser desfeita.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                          <AlertDialogAction onClick={() => handleRevokeProxy(proxy)}>Revogar</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                )}
+                                <div className="flex items-center justify-end gap-2 self-end sm:self-center">
+                                    {canRevoke && (
+                                        <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="outline" size="sm">
+                                                <Trash2 className="h-4 w-4" />
+                                                Revogar
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                            <AlertDialogTitle>Revogar procuração?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Esta ação só pode ser feita antes do início da assembleia.
+                                            </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleRevokeProxy(proxy)}>Revogar</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
+
+                                    {isLocked && (
+                                        <Badge variant="outline">
+                                            Procuração travada após início
+                                        </Badge>
+                                    )}
+                                </div>
                             </div>
                         )
                     })}

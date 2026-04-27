@@ -294,23 +294,61 @@ service cloud.firestore {
       }
 
       match /proxies/{grantorId} {
+        function assemblyIsScheduled() {
+          return assemblyDoc().data.status == 'scheduled';
+        }
+      
+        function isProxyOwner() {
+          return grantorId == request.auth.uid
+            && resource.data.grantorId == request.auth.uid;
+        }
+      
+        function isCreatingOwnProxy() {
+          return grantorId == request.auth.uid
+            && request.resource.data.grantorId == request.auth.uid
+            && request.resource.data.assemblyId == assemblyId
+            && request.resource.data.proxyId != request.auth.uid
+            && request.resource.data.status == 'active';
+        }
+      
         allow read, list: if hasAssemblyAccess();
-
+      
         allow create: if hasAssemblyAccess()
-          && grantorId == request.auth.uid
-          && request.resource.data.grantorId == request.auth.uid
-          && request.resource.data.assemblyId == assemblyId
-          && request.resource.data.proxyId != request.auth.uid
-          && request.resource.data.status == 'active'
-          && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled'
-          && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.allowProxyVoting == true;
-
+          && assemblyIsScheduled()
+          && assemblyDoc().data.allowProxyVoting == true
+          && isCreatingOwnProxy();
+      
         allow update: if hasAssemblyAccess()
+          && assemblyIsScheduled()
+          && assemblyDoc().data.allowProxyVoting == true
           && grantorId == request.auth.uid
           && resource.data.grantorId == request.auth.uid
-          && request.resource.data.status == 'revoked'
-          && resource.data.status == 'active';
-
+          && request.resource.data.grantorId == resource.data.grantorId
+          && request.resource.data.assemblyId == resource.data.assemblyId
+          && (
+            (
+              resource.data.status == 'active'
+              && request.resource.data.status == 'revoked'
+              && request.resource.data.revokedBy == request.auth.uid
+            )
+      
+            ||
+      
+            (
+              resource.data.status == 'revoked'
+              && request.resource.data.status == 'active'
+              && request.resource.data.proxyId != request.auth.uid
+            )
+      
+            ||
+      
+            (
+              resource.data.status == 'active'
+              && request.resource.data.status == 'active'
+              && request.resource.data.proxyId != request.auth.uid
+            )
+          );
+      
         allow delete: if false;
       }
 

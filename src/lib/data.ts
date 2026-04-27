@@ -185,8 +185,9 @@ export type ProxyAssignment = {
   proxyId: string;
   status: 'active' | 'revoked';
   createdAt: Timestamp;
-  revokedAt?: Timestamp;
-  revokedBy?: string;
+  updatedAt?: Timestamp | null;
+  revokedAt?: Timestamp | null;
+  revokedBy?: string | null;
 };
 
 export type AssemblyPresence = {
