@@ -81,6 +81,11 @@ service cloud.firestore {
         match /votes/{voteId} {
           allow read, list: if isVerifiedMensaUser();
 
+          function hasActiveProxyGrant() {
+            return exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid))
+              && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)).data.status == 'active';
+          }
+
           allow create: if isVerifiedMensaUser()
             && request.resource.data.status == 'active'
             && request.resource.data.userId == request.auth.uid
@@ -94,7 +99,7 @@ service cloud.firestore {
               (
                 voteId == request.auth.uid
                 && request.resource.data.representedUserId == null
-                && (!exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)) || get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)).data.status != 'active')
+                && !hasActiveProxyGrant()
               )
               ||
               (
@@ -105,16 +110,50 @@ service cloud.firestore {
               )
             );
 
+          function pollDoc() {
+            return get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId));
+          }
+
+          function proxyDocFor(voterId) {
+            return get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voterId));
+          }
+
+          function canActForVote() {
+            return (
+              (
+                voteId == request.auth.uid
+                && resource.data.userId == request.auth.uid
+                && resource.data.representedUserId == null
+                && !hasActiveProxyGrant()
+              )
+              ||
+              (
+                resource.data.representedUserId == voteId
+                && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId))
+                && proxyDocFor(voteId).data.proxyId == request.auth.uid
+                && proxyDocFor(voteId).data.status == 'active'
+              )
+            );
+          }
+
+          function immutableVoteFieldsPreserved() {
+            return request.resource.data.effectiveVoterId == resource.data.effectiveVoterId
+              && request.resource.data.assemblyId == resource.data.assemblyId
+              && request.resource.data.pollId == resource.data.pollId
+              && request.resource.data.userId == resource.data.userId
+              && request.resource.data.representedUserId == resource.data.representedUserId
+              && request.resource.data.timestamp == resource.data.timestamp
+              && request.resource.data.assemblyStatus == resource.data.assemblyStatus;
+          }
+
           allow update: if isVerifiedMensaUser()
             && resource.data.effectiveVoterId == voteId
-            && request.resource.data.effectiveVoterId == resource.data.effectiveVoterId
-            && request.resource.data.assemblyId == assemblyId
-            && request.resource.data.pollId == pollId
-            && get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)).data.status == 'open'
-            && request.time < get(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)).data.endDate
+            && immutableVoteFieldsPreserved()
+            && pollDoc().data.status == 'open'
+            && request.time < pollDoc().data.endDate
+            && canActForVote()
             && (
               (
-                // retirar voto ativo
                 resource.data.status == 'active'
                 && request.resource.data.status == 'withdrawn'
                 && request.resource.data.pollOptionId == null
@@ -123,26 +162,11 @@ service cloud.firestore {
               )
               ||
               (
-                // votar novamente após retirada
                 resource.data.status == 'withdrawn'
                 && request.resource.data.status == 'active'
                 && request.resource.data.pollOptionId is string
                 && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/polls/$(pollId)/options/$(request.resource.data.pollOptionId))
                 && request.resource.data.votedAgainBy == request.auth.uid
-              )
-            )
-            && (
-              (
-                voteId == request.auth.uid
-                && resource.data.userId == request.auth.uid
-                && (!exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)) || get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)).data.status != 'active')
-              )
-              ||
-              (
-                resource.data.representedUserId == voteId
-                && exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId))
-                && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId)).data.proxyId == request.auth.uid
-                && get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(voteId)).data.status == 'active'
               )
             );
 
