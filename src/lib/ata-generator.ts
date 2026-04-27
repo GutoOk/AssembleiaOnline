@@ -133,6 +133,8 @@ function getPollResult(poll: Poll, options: PollOption[], votes: Vote[]) {
     if (poll.status === 'annulled') {
         return { status: 'Anulada' as const, message: poll.annulmentReason || 'Votação foi anulada.' };
     }
+    
+    const activeVotes = votes.filter(v => v.status === 'active');
 
     const favorOption = options.find(o => o.text.trim().toLowerCase() === 'a favor');
     const contraOption = options.find(o => o.text.trim().toLowerCase() === 'contra');
@@ -143,9 +145,9 @@ function getPollResult(poll: Poll, options: PollOption[], votes: Vote[]) {
       return { status: 'Indeterminado' as const, message: 'Não é uma votação de proposta padrão (A favor/Contra).' };
     }
 
-    const favorVotes = votes.filter(v => v.pollOptionId === favorOption.id).length;
-    const contraVotes = votes.filter(v => v.pollOptionId === contraOption.id).length;
-    const abstentionVotes = abstencaoOption ? votes.filter(v => v.pollOptionId === abstencaoOption.id).length : 0;
+    const favorVotes = activeVotes.filter(v => v.pollOptionId === favorOption.id).length;
+    const contraVotes = activeVotes.filter(v => v.pollOptionId === contraOption.id).length;
+    const abstentionVotes = abstencaoOption ? activeVotes.filter(v => v.pollOptionId === abstencaoOption.id).length : 0;
     
     return calculatePollResult({
         quorumType: poll.quorumType,
@@ -168,7 +170,6 @@ async function generatePdf(
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
-  const contentWidth = pageWidth - margin * 2;
   let y = margin;
 
   const FONT = 'Helvetica';
@@ -237,8 +238,10 @@ async function generatePdf(
             addText(`Detalhes: ${pollResult.message}`, { size: 9, spaceAfter: 15 });
         }
         
+        const activeVotes = votes.filter((vote): vote is typeof vote & { pollOptionId: string } => vote.status === 'active' && typeof vote.pollOptionId === 'string');
+
         const head = [['NOME', 'EMAIL', 'VOTO', 'POR PROCURAÇÃO A']];
-        const body = votes.map((vote) => {
+        const body = activeVotes.map((vote) => {
           const personRepresented = userProfiles[vote.representedUserId || ''];
           const voter = userProfiles[vote.userId];
           const optionText = optionMap.get(vote.pollOptionId) || 'Voto inválido';
@@ -406,7 +409,11 @@ async function generateDocx(
       children.push(new Paragraph({}));
 
       // Votes Table
-      const voterList = votes
+      const activeVotes = votes.filter(
+        (vote): vote is typeof vote & { pollOptionId: string } =>
+            vote.status === 'active' && typeof vote.pollOptionId === 'string'
+      );
+      const voterList = activeVotes
         .map((voter) => {
           const personRepresented = userProfiles[voter.representedUserId || ''];
           const proxyVoter = userProfiles[voter.userId];
