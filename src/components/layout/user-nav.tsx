@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { doc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/data';
 
-export function UserNav() {
+export function UserNav({ onOpenProfileSheet }: { onOpenProfileSheet: () => void }) {
   const { user, isAdmin } = useAdmin();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -33,7 +33,9 @@ export function UserNav() {
   const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
 
   const handleLogout = () => {
-    signOut(auth);
+    if (auth) {
+      signOut(auth);
+    }
     router.push('/login');
   };
 
@@ -75,7 +77,7 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
+          <DropdownMenuItem onClick={onOpenProfileSheet}>
             Perfil
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push('/dashboard/proxy')}>
