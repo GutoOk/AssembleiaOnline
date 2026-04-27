@@ -70,11 +70,11 @@ export type SpeakerQueueItem = {
   assemblyId: string;
   administratorId: string;
   assemblyStatus: Assembly['status'];
-  calledAt?: Timestamp;
-  calledBy?: string;
-  speakerStartedAt?: Timestamp;
-  finishedAt?: Timestamp;
-  finishedBy?: string;
+  calledAt?: Timestamp | null;
+  calledBy?: string | null;
+  speakerStartedAt?: Timestamp | null;
+  finishedAt?: Timestamp | null;
+  finishedBy?: string | null;
 };
 
 export type AtaItem = {

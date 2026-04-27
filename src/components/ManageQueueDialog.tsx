@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useFirestore, useUser } from '@/firebase';
-import { doc, updateDoc, deleteDoc, writeBatch, getDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, deleteDoc, writeBatch, getDoc, collection, serverTimestamp, type UpdateData } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Trash2 } from 'lucide-react';
 import type { SpeakerQueueItem, UserProfile } from '@/lib/data';
@@ -112,7 +112,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
               });
         }
 
-        const queueUpdateData: Record<string, unknown> = {
+        const queueUpdateData: UpdateData<SpeakerQueueItem> = {
           status: newStatus,
         };
 
