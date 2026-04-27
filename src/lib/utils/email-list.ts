@@ -1,3 +1,5 @@
+export const AUTHORIZED_PARTICIPANTS_BATCH_SIZE = 400;
+
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
@@ -32,4 +34,14 @@ export function parseEmailList(rawText: string) {
     totalReceived: candidates.length,
     totalUnique: uniqueEmails.length,
   };
+}
+
+export function chunkArray<T>(items: T[], chunkSize: number) {
+  const chunks: T[][] = [];
+
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+
+  return chunks;
 }

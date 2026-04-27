@@ -84,6 +84,24 @@ export type AtaItem = {
   assemblyStatus: Assembly['status'];
 };
 
+export type AssemblyAccessMode =
+  | 'all_verified_members'
+  | 'restricted_email_list';
+
+export type AuthorizedParticipantsImportStatus =
+  | 'none'
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed';
+
+export type AuthorizedParticipant = {
+  id: string;
+  email: string;
+  createdAt: Timestamp;
+  createdBy: string;
+};
+
 export type Assembly = {
   id: string;
   title: string;
@@ -107,10 +125,12 @@ export type Assembly = {
     details?: string;
   };
   ordemDoDia?: string;
-  accessMode?: 'all_verified_members' | 'restricted_email_list';
+  accessMode?: AssemblyAccessMode;
   authorizedParticipantsCount?: number;
   authorizedParticipantsUploadedAt?: Timestamp | null;
   authorizedParticipantsUploadedBy?: string | null;
+  authorizedParticipantsImportStatus?: AuthorizedParticipantsImportStatus;
+  authorizedParticipantsImportError?: string | null;
 };
 
 export type AssemblyPrivateConfig = {
@@ -198,16 +218,5 @@ export type AuditLog = {
   targetId?: string; // e.g., Poll ID, User ID, etc.
   metadata?: Record<string, unknown>;
   createdAt: Timestamp;
-};
-
-export type AssemblyAccessMode =
-  | 'all_verified_members'
-  | 'restricted_email_list';
-
-export type AuthorizedParticipant = {
-  id: string; // e-mail normalizado
-  email: string;
-  createdAt: Timestamp;
-  createdBy: string;
 };
     

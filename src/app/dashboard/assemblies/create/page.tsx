@@ -10,7 +10,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAdmin } from '@/hooks/use-admin';
-import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState, useRef } from 'react';
@@ -216,7 +216,9 @@ export default function CreateAssemblyPage() {
     }
 
     let authorizedEmails: string[] = [];
-    if (values.accessMode === 'restricted_email_list') {
+    const accessMode = values.accessMode ?? 'all_verified_members';
+
+    if (accessMode === 'restricted_email_list') {
       const parsed = parseEmailList(values.authorizedEmailsRaw ?? '');
       if (parsed.invalidEmails.length > 0) {
         toast({
@@ -252,8 +254,12 @@ export default function CreateAssemblyPage() {
         const assembliesRef = collection(firestore, 'assemblies');
         const newAssemblyRef = await addDoc(assembliesRef, {
             ...publicValues,
-            accessMode: values.accessMode,
-            authorizedParticipantsCount: values.accessMode === 'restricted_email_list' ? authorizedEmails.length : 0,
+            accessMode,
+            authorizedParticipantsCount: 0,
+            authorizedParticipantsUploadedAt: null,
+            authorizedParticipantsUploadedBy: null,
+            authorizedParticipantsImportStatus: accessMode === 'restricted_email_list' ? 'processing' : 'none',
+            authorizedParticipantsImportError: null,
             ...(location && { location }),
             date: new Date(values.date),
             imageUrl: imagePreview,
@@ -269,21 +275,39 @@ export default function CreateAssemblyPage() {
           zoomUrl: zoomUrl || null,
         });
 
-        if (values.accessMode === 'restricted_email_list') {
-          await saveAuthorizedParticipants({
-            firestore,
-            assemblyId: newAssemblyRef.id,
-            emails: authorizedEmails,
-            adminId: user.uid,
-          });
-          await createAuditLog({
-            firestore,
-            assemblyId: newAssemblyRef.id,
-            actorId: user.uid,
-            type: 'AUTHORIZED_PARTICIPANTS_UPLOADED',
-            targetId: newAssemblyRef.id,
-            metadata: { count: authorizedEmails.length },
-          });
+        if (accessMode === 'restricted_email_list') {
+            try {
+                await saveAuthorizedParticipants({
+                    firestore,
+                    assemblyId: newAssemblyRef.id,
+                    emails: authorizedEmails,
+                    adminId: user.uid,
+                });
+
+                await createAuditLog({
+                    firestore,
+                    assemblyId: newAssemblyRef.id,
+                    actorId: user.uid,
+                    type: 'AUTHORIZED_PARTICIPANTS_UPLOADED',
+                    targetId: newAssemblyRef.id,
+                    metadata: { count: authorizedEmails.length },
+                });
+            } catch (error: any) {
+                console.error('Erro ao salvar participantes autorizados:', error);
+
+                await updateDoc(newAssemblyRef, {
+                    authorizedParticipantsImportStatus: 'failed',
+                    authorizedParticipantsImportError: error?.message || 'Erro ao salvar participantes autorizados.',
+                    updatedAt: serverTimestamp(),
+                });
+
+                toast({
+                    variant: 'destructive',
+                    title: 'Erro ao salvar lista',
+                    description: 'A assembleia foi criada, mas houve erro ao salvar a lista de participantes autorizados.',
+                });
+                return;
+            }
         }
         
         await createAuditLog({
@@ -292,7 +316,11 @@ export default function CreateAssemblyPage() {
             actorId: user.uid,
             type: 'ASSEMBLY_CREATED',
             targetId: newAssemblyRef.id,
-            metadata: { title: values.title }
+            metadata: { 
+              title: values.title,
+              accessMode,
+              authorizedParticipantsCount: authorizedEmails.length
+            }
         });
 
         toast({
