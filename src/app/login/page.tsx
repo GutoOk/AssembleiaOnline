@@ -797,34 +797,32 @@ export default function LoginPage() {
             Criar novo usuário
           </Button>
 
-          {!isMobile && (
-            <>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Ou
-                  </span>
-                </div>
+          <>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
               </div>
-              <Button
-                variant="outline"
-                className="w-full"
-                type="button"
-                disabled={isLoading}
-                onClick={handleGoogleLogin}
-              >
-                {isLoadingGoogle ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Icons.google className="h-4 w-4" />
-                )}
-                Entrar com Google
-              </Button>
-            </>
-          )}
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Ou
+                </span>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              type="button"
+              disabled={isLoading}
+              onClick={handleGoogleLogin}
+            >
+              {isLoadingGoogle ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Icons.google className="h-4 w-4" />
+              )}
+              Entrar com Google
+            </Button>
+          </>
         </CardContent>
       </Card>
       <RegisterDialog
