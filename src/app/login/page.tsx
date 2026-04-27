@@ -60,6 +60,7 @@ import ReactCrop, {
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const registerSchema = z.object({
   name: z.string().min(3, 'O nome deve ter pelo menos 3 caracteres.'),
@@ -421,6 +422,7 @@ export default function LoginPage() {
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // This effect runs once to set persistence for the session.
   useEffect(() => {

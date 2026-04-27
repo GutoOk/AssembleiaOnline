@@ -71,6 +71,11 @@ export type SpeakerQueueItem = {
   assemblyId: string;
   administratorId: string;
   assemblyStatus: Assembly['status'];
+  calledAt?: Timestamp;
+  calledBy?: string;
+  speakerStartedAt?: Timestamp;
+  finishedAt?: Timestamp;
+  finishedBy?: string;
 };
 
 export type AtaItem = {
@@ -142,11 +147,13 @@ export type AssemblyPrivateConfig = {
 export type SpeakerAccess = {
   id: string; // userId
   userId: string;
-  zoomUrl: string;
+  zoomUrl: string | null;
   active: boolean;
   createdAt: Timestamp;
   createdBy: string;
   expiresAt?: Timestamp | null;
+  revokedAt?: Timestamp | null;
+  revokedBy?: string | null;
 };
 
 
