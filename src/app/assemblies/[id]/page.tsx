@@ -1566,6 +1566,7 @@ export default function AssemblyPage() {
           const accessRef = doc(firestore, 'assemblies', userInQueue.assemblyId, 'speakerAccess', userInQueue.id);
           batch.set(accessRef, {
               active: false,
+              zoomUrl: null,
               revokedAt: serverTimestamp(),
               revokedBy: user.uid,
           }, { merge: true });
@@ -1606,6 +1607,7 @@ export default function AssemblyPage() {
         batch.delete(itemRef);
         batch.set(accessRef, {
             active: false,
+            zoomUrl: null,
             revokedAt: serverTimestamp(),
             revokedBy: user.uid,
         }, { merge: true });

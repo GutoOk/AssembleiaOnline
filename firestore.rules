@@ -110,14 +110,27 @@ service cloud.firestore {
       match /speakerAccess/{userId} {
         allow get: if isAdmin()
           || (
-            isVerifiedMensaUser()
+            hasAssemblyAccess()
             && request.auth.uid == userId
-            && resource.data.active == true
           );
       
         allow list: if isAdmin();
       
-        allow create, update, delete: if isAdmin();
+        allow create: if isAdmin();
+
+        allow update: if isAdmin()
+          || (
+            hasAssemblyAccess()
+            && request.auth.uid == userId
+            && userId == request.auth.uid
+            && resource.data.userId == request.auth.uid
+            && request.resource.data.userId == resource.data.userId
+            && request.resource.data.active == false
+            && request.resource.data.zoomUrl == null
+            && request.resource.data.revokedBy == request.auth.uid
+          );
+
+        allow delete: if isAdmin();
       }
 
       match /ata/{ataId} {
@@ -150,7 +163,7 @@ service cloud.firestore {
           
           allow get, list: if hasAssemblyAccess();
 
-          allow create: if isVerifiedMensaUser()
+          allow create: if hasAssemblyAccess()
             && pollDoc().data.status == 'open'
             && request.time < pollDoc().data.endDate
             && request.resource.data.userId == request.auth.uid
@@ -201,7 +214,7 @@ service cloud.firestore {
               && request.resource.data.assemblyStatus == resource.data.assemblyStatus;
           }
 
-          allow update: if isVerifiedMensaUser()
+          allow update: if hasAssemblyAccess()
             && resource.data.effectiveVoterId == voteId
             && immutableVoteFieldsPreserved()
             && pollDoc().data.status == 'open'
@@ -232,20 +245,31 @@ service cloud.firestore {
       match /speakerQueue/{queueItemId} {
         allow read, list: if hasAssemblyAccess();
 
-        allow create: if isVerifiedMensaUser()
+        allow create: if hasAssemblyAccess()
           && isOwner(request.resource.data.userId)
           && queueItemId == request.auth.uid;
 
-        allow update: if isAdmin();
+        allow update: if isAdmin()
+          || (
+            hasAssemblyAccess()
+            && queueItemId == request.auth.uid
+            && resource.data.userId == request.auth.uid
+            && resource.data.status == 'Entrada Autorizada'
+            && request.resource.data.status == 'Com a Fala'
+            && request.resource.data.userId == resource.data.userId
+            && request.resource.data.assemblyId == resource.data.assemblyId
+            && request.resource.data.administratorId == resource.data.administratorId
+            && request.resource.data.assemblyStatus == resource.data.assemblyStatus
+          );
 
         allow delete: if isAdmin()
-          || (isVerifiedMensaUser() && isOwner(resource.data.userId));
+          || (hasAssemblyAccess() && isOwner(resource.data.userId));
       }
 
       match /chat/{messageId} {
         allow read, list: if hasAssemblyAccess();
 
-        allow create: if isVerifiedMensaUser()
+        allow create: if hasAssemblyAccess()
           && isOwner(request.resource.data.userId)
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
@@ -256,7 +280,7 @@ service cloud.firestore {
         match /reactions/{reactionId} {
           allow read, list: if hasAssemblyAccess();
 
-          allow create, update, delete: if isVerifiedMensaUser()
+          allow create, update, delete: if hasAssemblyAccess()
             && reactionId == request.auth.uid
             && request.resource.data.userId == request.auth.uid;
         }
@@ -265,7 +289,7 @@ service cloud.firestore {
       match /proxies/{grantorId} {
         allow read, list: if hasAssemblyAccess();
 
-        allow create: if isVerifiedMensaUser()
+        allow create: if hasAssemblyAccess()
           && grantorId == request.auth.uid
           && request.resource.data.grantorId == request.auth.uid
           && request.resource.data.assemblyId == assemblyId
@@ -274,7 +298,7 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.status == 'scheduled'
           && get(/databases/$(database)/documents/assemblies/$(assemblyId)).data.allowProxyVoting == true;
 
-        allow update: if isVerifiedMensaUser()
+        allow update: if hasAssemblyAccess()
           && grantorId == request.auth.uid
           && resource.data.grantorId == request.auth.uid
           && request.resource.data.status == 'revoked'
@@ -285,14 +309,14 @@ service cloud.firestore {
 
       match /presence/{userId} {
         allow read, list: if hasAssemblyAccess();
-        allow create, update, delete: if isVerifiedMensaUser() && isOwner(userId);
+        allow create, update, delete: if hasAssemblyAccess() && isOwner(userId);
       }
       
       match /auditLogs/{logId} {
-        allow read: if isAdmin();
-        // This should be moved to a backend function. 
-        // For now, only the user performing the action can log it.
-        allow create: if isVerifiedMensaUser() && request.resource.data.actorId == request.auth.uid;
+        allow read, list: if isAdmin();
+        allow create: if hasAssemblyAccess()
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.assemblyId == assemblyId;
         allow update, delete: if false;
       }
     }

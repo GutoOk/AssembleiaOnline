@@ -199,11 +199,12 @@ function RegisterDialog({
   const handleRegister = async (values: z.infer<typeof registerSchema>) => {
     if (!auth || !firestore) return;
     setIsLoading(true);
+    const normalizedEmail = email.trim().toLowerCase();
 
     try {
       const userCredential = await createUserWithEmailAndPassword(
         auth,
-        email,
+        normalizedEmail,
         values.password
       );
       const newUser = userCredential.user;
@@ -211,7 +212,7 @@ function RegisterDialog({
       const userProfileData = {
         id: newUser.uid,
         name: values.name,
-        email: email,
+        email: normalizedEmail,
         avatarDataUri:
           avatarPreview || `https://avatar.vercel.sh/${newUser.uid}.svg`,
         createdAt: serverTimestamp(),
@@ -219,8 +220,7 @@ function RegisterDialog({
 
       const userDocRef = doc(firestore, 'users', newUser.uid);
       await setDoc(userDocRef, userProfileData);
-
-      const normalizedEmail = email.trim().toLowerCase();
+      
       const memberEmailDocRef = doc(firestore, 'memberEmails', normalizedEmail);
       await setDoc(memberEmailDocRef, { uid: newUser.uid, name: values.name });
 
@@ -575,7 +575,9 @@ export default function LoginPage() {
     }
     setIsLoadingEmail(true);
 
-    if (!email.endsWith('@mensa.org.br')) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail.endsWith('@mensa.org.br')) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
@@ -586,7 +588,7 @@ export default function LoginPage() {
     }
 
     try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       if (!result.user.emailVerified) {
         await signOut(auth);
         toast({
@@ -601,7 +603,7 @@ export default function LoginPage() {
     } catch (error: any) {
       // Login failed, now we diagnose the error.
       try {
-        const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+        const signInMethods = await fetchSignInMethodsForEmail(auth, normalizedEmail);
 
         if (signInMethods.length === 0) {
           // If signIn fails and there are no methods, user truly doesn't exist.
@@ -654,8 +656,9 @@ export default function LoginPage() {
     }
 
     setIsLoadingEmail(true);
+    const normalizedEmail = email.trim().toLowerCase();
     try {
-      const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+      const signInMethods = await fetchSignInMethodsForEmail(auth, normalizedEmail);
 
       if (signInMethods.length === 0) {
         toast({
@@ -669,7 +672,7 @@ export default function LoginPage() {
 
       // If user exists, always allow attempting a password reset.
       // This enables adding a password to a social-only account.
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, normalizedEmail);
       toast({
         title: 'Email de Redefinição Enviado',
         description: `Um link para redefinir sua senha foi enviado para ${email}. Verifique sua caixa de entrada e spam.`,
@@ -697,51 +700,45 @@ export default function LoginPage() {
       });
       return;
     }
-  
     const provider = new GoogleAuthProvider();
-  
     provider.setCustomParameters({
       prompt: 'select_account',
-      hd: 'mensa.org.br',
     });
-  
     setIsLoadingGoogle(true);
-  
-    if (isMobile) {
-      try {
-        await signInWithRedirect(auth, provider);
-      } catch (error: any) {
-        console.error('Google Sign-In redirect error:', error);
-  
-        toast({
-          variant: 'destructive',
-          title: 'Erro no Login com Google',
-          description: `Ocorreu um erro: ${error.code ?? ''} - ${error.message ?? ''}`,
-        });
-  
-        setIsLoadingGoogle(false);
-      }
-  
-      return;
-    }
-  
     try {
       const result = await signInWithPopup(auth, provider);
       const loginSuccessful = await processGoogleUser(result.user);
-  
       if (loginSuccessful) {
         router.replace('/dashboard');
       }
     } catch (error: any) {
-      if (error.code !== 'auth/popup-closed-by-user') {
-        console.error('Google Sign-In popup error:', error);
-  
+      console.error('Google Sign-In error:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        return;
+      }
+      if (error.code === 'auth/unauthorized-domain') {
         toast({
           variant: 'destructive',
-          title: 'Erro no Login com Google',
-          description: `Ocorreu um erro: ${error.code ?? ''} - ${error.message ?? ''}`,
+          title: 'Domínio não autorizado',
+          description:
+            'O domínio atual não está autorizado no Firebase Authentication.',
         });
+        return;
       }
+      if (error.code === 'auth/popup-blocked') {
+        toast({
+          variant: 'destructive',
+          title: 'Pop-up bloqueado',
+          description:
+            'O navegador bloqueou a janela do Google. Permita pop-ups para este site ou tente outro navegador.',
+        });
+        return;
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Erro no Login com Google',
+        description: `Ocorreu um erro: ${error.code ?? ''} - ${error.message ?? ''}`,
+      });
     } finally {
       setIsLoadingGoogle(false);
     }
@@ -768,7 +765,7 @@ export default function LoginPage() {
     setIsRegisterDialogOpen(true);
   };
 
-  const isLoading = isLoadingEmail || isLoadingGoogle || isMobile === undefined;
+  const isLoading = isLoadingEmail || isLoadingGoogle;
 
   if (isProcessingRedirect || (isUserLoading && !user)) {
     return (
@@ -803,7 +800,7 @@ export default function LoginPage() {
                 placeholder="seu.email@mensa.org.br"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
                 disabled={isLoading}
               />
             </div>

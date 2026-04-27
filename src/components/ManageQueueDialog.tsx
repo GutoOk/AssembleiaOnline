@@ -48,8 +48,15 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
         const batch = writeBatch(firestore);
         const itemRef = doc(firestore, 'assemblies', assemblyId, 'speakerQueue', item.id);
         
-        // Grant Access
-        if (newStatus === 'Entrada Autorizada' && item.status === 'Na Fila') {
+        const shouldGrantZoomAccess =
+            (newStatus === 'Entrada Autorizada' || newStatus === 'Com a Fala') &&
+            item.status === 'Na Fila';
+        
+        const wasAuthorized =
+            item.status === 'Entrada Autorizada' || item.status === 'Com a Fala';
+        const willBeUnauthorized = newStatus === 'Na Fila';
+        
+        if (shouldGrantZoomAccess) {
             const configRef = doc(firestore, 'assemblies', assemblyId, 'private', 'config');
             const configSnap = await getDoc(configRef);
             const zoomUrl = configSnap.exists() ? configSnap.data().zoomUrl : null;
@@ -64,9 +71,9 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
                 return;
             }
 
-            const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.id);
+            const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.userId);
             batch.set(accessRef, {
-                userId: item.id,
+                userId: item.userId,
                 zoomUrl,
                 active: true,
                 createdAt: serverTimestamp(),
@@ -85,11 +92,11 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
             });
         }
         
-        // Revoke Access
-        if (newStatus === 'Na Fila' && (item.status === 'Entrada Autorizada' || item.status === 'Com a Fala')) {
-            const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.id);
+        if (wasAuthorized && willBeUnauthorized) {
+            const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.userId);
             batch.set(accessRef, {
                 active: false,
+                zoomUrl: null,
                 revokedAt: serverTimestamp(),
                 revokedBy: user.uid,
             }, { merge: true });
@@ -128,6 +135,7 @@ export function ManageQueueDialog({ open, onOpenChange, assemblyId, queue, userP
             const accessRef = doc(firestore, 'assemblies', assemblyId, 'speakerAccess', item.id);
             batch.set(accessRef, {
                 active: false,
+                zoomUrl: null,
                 revokedAt: serverTimestamp(),
                 revokedBy: user.uid,
             }, { merge: true });
