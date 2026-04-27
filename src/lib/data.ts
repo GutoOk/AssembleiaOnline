@@ -16,6 +16,8 @@ export type PollOption = {
   pollId: string;
   assemblyId: string;
   assemblyStatus: Assembly['status'];
+  createdAt: Timestamp;
+  order?: number;
 };
 
 export type VoteStatus = 'active' | 'withdrawn';
@@ -173,3 +175,5 @@ export type AuditLog = {
   metadata?: Record<string, unknown>;
   createdAt: Timestamp;
 };
+
+    

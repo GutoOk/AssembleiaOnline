@@ -162,7 +162,7 @@ export function CreatePollSheet({ open, onOpenChange, assembly, user }: CreatePo
       
       batch.set(newPollRef, pollData);
       
-      values.options.forEach(option => {
+      values.options.forEach((option, index) => {
         const optionRef = doc(collection(firestore, 'assemblies', assembly.id, 'polls', newPollRef.id, 'options'));
         const optionData = {
           text: option.text,
@@ -170,6 +170,7 @@ export function CreatePollSheet({ open, onOpenChange, assembly, user }: CreatePo
           assemblyId: assembly.id,
           assemblyStatus: assembly.status,
           createdAt: serverTimestamp(),
+          order: index,
         };
         batch.set(optionRef, optionData);
       });
@@ -419,3 +420,5 @@ export function CreatePollSheet({ open, onOpenChange, assembly, user }: CreatePo
     </>
   );
 }
+
+    

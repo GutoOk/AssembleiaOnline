@@ -38,7 +38,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
-import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp, where, writeBatch, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
 import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence, Reaction } from '@/lib/data';
@@ -164,9 +164,24 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
     return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes'), orderBy('timestamp', 'desc'));
   }, [firestore, assemblyId, poll.id, user]);
 
-  const { data: options, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
+  const { data: rawOptions, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
   const { data: votes, isLoading: isLoadingVotes } = useCollection<Vote>(votesQuery);
   
+  const options = useMemo(() => {
+    if (!rawOptions) return null;
+    return [...rawOptions].sort((a, b) => {
+      if (a.order !== undefined && b.order !== undefined) {
+        return a.order - b.order;
+      }
+      if (a.order !== undefined) return -1;
+      if (b.order !== undefined) return 1;
+      // Fallback to createdAt if order is not defined
+      const dateA = a.createdAt?.toDate() ?? new Date(0);
+      const dateB = b.createdAt?.toDate() ?? new Date(0);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }, [rawOptions]);
+
   const hasActiveProxyGrant = userProxyGrant?.status === 'active';
   const pollEnded = isTimeUp || poll.status === 'closed' || assemblyStatus === 'finished';
   const pollAnnulled = poll.status === 'annulled';
@@ -1358,18 +1373,25 @@ export default function AssemblyPage() {
 
     const presenceRef = doc(firestore, 'assemblies', assemblyId, 'presence', user.uid);
 
-    setDocumentNonBlocking(presenceRef, { 
+    setDoc(presenceRef, { 
         joinedAt: serverTimestamp(), 
         lastSeen: serverTimestamp() 
     }, { merge: true });
 
     const interval = setInterval(() => {
-        updateDocumentNonBlocking(presenceRef, { lastSeen: serverTimestamp() });
+        updateDoc(presenceRef, { lastSeen: serverTimestamp() });
     }, 15000);
+
+    const handleBeforeUnload = () => {
+      deleteDoc(presenceRef);
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
         clearInterval(interval);
-        deleteDocumentNonBlocking(presenceRef);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        deleteDoc(presenceRef);
     };
   }, [firestore, user, assemblyId]);
 
@@ -1728,3 +1750,5 @@ export default function AssemblyPage() {
     </>
   );
 }
+
+    
