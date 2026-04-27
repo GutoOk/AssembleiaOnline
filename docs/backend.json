@@ -40,7 +40,6 @@
         "description": { "type": "string" },
         "date": { "type": "string", "format": "date-time" },
         "youtubeUrl": { "type": "string", "format": "uri" },
-        "zoomUrl": { "type": "string", "format": "uri" },
         "imageUrl": { "type": "string", "format": "uri" },
         "status": { "type": "string", "enum": ["scheduled", "live", "finished", "cancelled"] },
         "administratorId": { "type": "string" },
@@ -241,6 +240,18 @@
     "/assemblies/{assemblyId}": {
       "schema": { "$ref": "#/entities/Assembly" },
       "description": "Stores assembly meeting details."
+    },
+    "/assemblies/{assemblyId}/private/config": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "zoomUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "description": "Stores private configuration for an assembly, like the Zoom link. Accessible only by admins."
     },
     "/assemblies/{assemblyId}/ata/{ataId}": {
       "schema": { "$ref": "#/entities/AtaItem" },

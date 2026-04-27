@@ -14,7 +14,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { useFirestore, updateDocumentNonBlocking } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 export function AssemblyInformationSheet() {
@@ -29,34 +29,55 @@ export function AssemblyInformationSheet() {
   const [isSaving, setIsSaving] = useState(false);
 
   if (!context) return null;
-  const { isInfoSheetOpen, setIsInfoSheetOpen, assembly } = context;
+  const { isInfoSheetOpen, setIsInfoSheetOpen, assembly, assemblyPrivateConfig } = context;
 
   useEffect(() => {
     if (assembly) {
       setYoutubeUrl(assembly.youtubeUrl || '');
-      setZoomUrl(assembly.zoomUrl || '');
       setOrdemDoDia(assembly.ordemDoDia || '');
     }
-  }, [assembly]);
+    if (assemblyPrivateConfig) {
+      setZoomUrl(assemblyPrivateConfig.zoomUrl || '');
+    }
+  }, [assembly, assemblyPrivateConfig]);
 
   if (!assembly) return null;
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     if (!firestore || !assembly) return;
     setIsSaving(true);
-    const assemblyRef = doc(firestore, 'assemblies', assembly.id);
-    updateDocumentNonBlocking(assemblyRef, {
-      youtubeUrl: youtubeUrl,
-      zoomUrl: zoomUrl,
-      ordemDoDia: ordemDoDia,
+    
+    const publicData = {
+      youtubeUrl,
+      ordemDoDia,
       updatedAt: serverTimestamp(),
-    });
-    setIsSaving(false);
-    toast({
-      title: 'Informações Atualizadas',
-      description: 'Os links e a ordem do dia foram salvos.',
-    });
-    setIsInfoSheetOpen(false);
+    };
+    const privateData = {
+      zoomUrl,
+    };
+    
+    const assemblyRef = doc(firestore, 'assemblies', assembly.id);
+    const privateConfigRef = doc(firestore, 'assemblies', assembly.id, 'private', 'config');
+
+    try {
+      await updateDoc(assemblyRef, publicData);
+      await setDoc(privateConfigRef, privateData, { merge: true });
+
+      toast({
+        title: 'Informações Atualizadas',
+        description: 'Os links e a ordem do dia foram salvos.',
+      });
+      setIsInfoSheetOpen(false);
+    } catch (error) {
+      console.error('Error saving assembly info:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao Salvar',
+        description: 'Não foi possível salvar as alterações.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   const assemblyDate = assembly.date.toDate();

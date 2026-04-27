@@ -15,7 +15,7 @@ import Image from 'next/image';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { useAuth, useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -527,7 +527,7 @@ export default function LoginPage() {
 
   // This effect handles navigation *after* the user state is confirmed and any redirect is processed.
   useEffect(() => {
-    if (!isProcessingRedirect && !isUserLoading && user) {
+    if (!isProcessingRedirect && !isUserLoading && user?.emailVerified) {
       router.replace('/dashboard');
     }
   }, [user, isUserLoading, isProcessingRedirect, router]);
@@ -555,7 +555,17 @@ export default function LoginPage() {
     }
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      if (!result.user.emailVerified) {
+        await signOut(auth);
+        toast({
+          variant: 'destructive',
+          title: 'E-mail não verificado',
+          description: 'Sua conta foi criada, mas seu e-mail ainda não foi verificado. Por favor, verifique sua caixa de entrada.',
+        });
+        setIsLoadingEmail(false);
+        return;
+      }
       // Success, onAuthStateChanged will handle the redirect.
     } catch (error: any) {
       // Login failed, now we diagnose the error.

@@ -41,7 +41,7 @@ import { cn, convertToEmbedUrl, convertToZoomEmbedUrl } from '@/lib/utils';
 import { useDoc, useFirestore, useMemoFirebase, useCollection, useUser } from '@/firebase';
 import { doc, collection, query, orderBy, serverTimestamp, where, writeBatch, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { useAdmin } from '@/hooks/use-admin';
-import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence, Reaction } from '@/lib/data';
+import type { Assembly, UserProfile, Poll, SpeakerQueueItem, PollOption, Vote, AtaItem, ProxyAssignment, AssemblyPresence, Reaction, AssemblyPrivateConfig } from '@/lib/data';
 import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -1248,16 +1248,24 @@ export default function AssemblyPage() {
   const [isSubmittingQueue, setIsSubmittingQueue] = useState(false);
 
   const assemblyContext = useAssemblyContext();
-  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems, isCreatePollOpen, setIsCreatePollOpen } = assemblyContext!;
+  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems, isCreatePollOpen, setIsCreatePollOpen, setAssemblyPrivateConfig } = assemblyContext!;
 
   // --- Data Fetching ---
   const assemblyRef = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
     return doc(firestore, 'assemblies', params.id);
   }, [firestore, params.id, user]);
+  
+  const privateConfigRef = useMemoFirebase(() => {
+    if (!firestore || !params.id || !isAdmin) return null;
+    return doc(firestore, 'assemblies', params.id, 'private', 'config');
+  }, [firestore, params.id, isAdmin]);
 
   const { data: assembly, isLoading: isAssemblyLoading } = useDoc<Assembly>(assemblyRef);
+  const { data: privateConfig } = useDoc<AssemblyPrivateConfig>(privateConfigRef);
+  
   const assemblyId = assembly?.id;
+  const assemblyZoomUrl = privateConfig?.zoomUrl;
 
   const pollsQuery = useMemoFirebase(() => {
     if (!firestore || !params.id || !user) return null;
@@ -1349,6 +1357,13 @@ export default function AssemblyPage() {
       setAssembly(null);
     };
   }, [assembly, setAssembly]);
+  
+  useEffect(() => {
+    if(privateConfig) {
+      setAssemblyPrivateConfig(privateConfig);
+    }
+    return () => setAssemblyPrivateConfig(null);
+  }, [privateConfig, setAssemblyPrivateConfig]);
 
   useEffect(() => {
     if (timelineItems) {
@@ -1551,7 +1566,7 @@ export default function AssemblyPage() {
           <div className="flex-1 overflow-y-auto p-6 pt-0">
              <SpeakingQueue 
               assemblyId={assembly.id}
-              assemblyZoomUrl={assembly.zoomUrl}
+              assemblyZoomUrl={assemblyZoomUrl}
               assemblyFinished={assemblyFinished}
               queue={queue}
               userInQueue={userInQueue}
@@ -1657,11 +1672,11 @@ export default function AssemblyPage() {
                       </div>
                     )
                   ) : isAdmin && assembly.status === 'live' ? (
-                    adminVideoSource === 'zoom' && assembly.zoomUrl ? (
+                    adminVideoSource === 'zoom' && assemblyZoomUrl ? (
                       <iframe
                         width="100%"
                         height="100%"
-                        src={convertToZoomEmbedUrl(assembly.zoomUrl)}
+                        src={convertToZoomEmbedUrl(assemblyZoomUrl)}
                         title="Zoom Meeting"
                         allow="fullscreen; microphone; camera; display-capture; autoplay"
                         className="border-0"

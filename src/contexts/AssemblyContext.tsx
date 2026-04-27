@@ -1,10 +1,12 @@
 'use client';
-import type { Assembly, UserProfile, AtaItem, Poll } from '@/lib/data';
+import type { Assembly, UserProfile, AtaItem, Poll, AssemblyPrivateConfig } from '@/lib/data';
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface AssemblyContextType {
   assembly: Assembly | null;
   setAssembly: (assembly: Assembly | null) => void;
+  assemblyPrivateConfig: AssemblyPrivateConfig | null;
+  setAssemblyPrivateConfig: (config: AssemblyPrivateConfig | null) => void;
   isQueueOpen: boolean;
   setIsQueueOpen: (isOpen: boolean) => void;
   isChatOpen: boolean;
@@ -29,6 +31,7 @@ const AssemblyContext = createContext<AssemblyContextType | undefined>(undefined
 
 export function AssemblyProvider({ children }: { children: ReactNode }) {
   const [assembly, setAssembly] = useState<Assembly | null>(null);
+  const [assemblyPrivateConfig, setAssemblyPrivateConfig] = useState<AssemblyPrivateConfig | null>(null);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen] = useState(false);
@@ -42,6 +45,7 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
   return (
     <AssemblyContext.Provider value={{ 
         assembly, setAssembly, 
+        assemblyPrivateConfig, setAssemblyPrivateConfig,
         isQueueOpen, setIsQueueOpen, 
         isChatOpen, setIsChatOpen, 
         isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, 

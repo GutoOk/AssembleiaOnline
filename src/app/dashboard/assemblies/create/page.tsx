@@ -10,7 +10,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAdmin } from '@/hooks/use-admin';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState, useRef } from 'react';
@@ -197,7 +197,7 @@ export default function CreateAssemblyPage() {
     }
 
     try {
-        const { locationAddress, locationCity, locationState, locationZip, locationDetails, ...restOfValues } = values;
+        const { locationAddress, locationCity, locationState, locationZip, locationDetails, zoomUrl, ...publicValues } = values;
 
         const location = locationAddress && locationCity && locationState && locationZip
             ? {
@@ -210,7 +210,7 @@ export default function CreateAssemblyPage() {
 
         const assembliesRef = collection(firestore, 'assemblies');
         const newAssemblyRef = await addDoc(assembliesRef, {
-            ...restOfValues,
+            ...publicValues,
             ...(location && { location }),
             date: new Date(values.date),
             imageUrl: imagePreview,
@@ -219,6 +219,11 @@ export default function CreateAssemblyPage() {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
+        
+        if (zoomUrl) {
+          const privateConfigRef = doc(firestore, 'assemblies', newAssemblyRef.id, 'private', 'config');
+          await setDoc(privateConfigRef, { zoomUrl });
+        }
         
         await createAuditLog({
             firestore,
@@ -353,7 +358,7 @@ export default function CreateAssemblyPage() {
                     <Input placeholder="https://zoom.us/j/..." {...field} />
                   </FormControl>
                   <FormDescription>
-                    Cole o link completo de entrada da reunião do Zoom.
+                    Cole o link completo de entrada da reunião do Zoom. Este link será privado e visível apenas para administradores e para quem for falar.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
