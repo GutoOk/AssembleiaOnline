@@ -24,6 +24,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ProfileSheet } from '../ProfileSheet';
+import { CreateAssemblySheet } from '../CreateAssemblySheet';
 
 export function Header() {
   const pathname = usePathname();
@@ -31,6 +32,7 @@ export function Header() {
   const [isMounted, setIsMounted] = useState(false);
   const assemblyContext = useAssemblyContext();
   const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
+  const [isCreateAssemblySheetOpen, setIsCreateAssemblySheetOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -113,16 +115,17 @@ export function Header() {
         </Link>
       )}
       {showCreateAssemblyButton && (
-          <Link
-            href="/dashboard/assemblies/create"
+          <Button
+            variant="ghost"
+            onClick={() => setIsCreateAssemblySheetOpen(true)}
             className={cn(
-              "flex items-center gap-4 text-lg font-medium transition-colors hover:text-foreground",
+              "flex items-center gap-4 text-lg font-medium transition-colors hover:text-foreground justify-start px-0",
               "text-muted-foreground"
             )}
           >
             <PlusCircle className="h-5 w-5" />
             Criar Assembleia
-          </Link>
+          </Button>
       )}
        {isAssemblyPage && (
           <Button variant="ghost" onClick={handleAtaClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
@@ -151,6 +154,7 @@ export function Header() {
   return (
     <>
       <ProfileSheet open={isProfileSheetOpen} onOpenChange={setIsProfileSheetOpen} />
+      {isAdmin && <CreateAssemblySheet open={isCreateAssemblySheetOpen} onOpenChange={setIsCreateAssemblySheetOpen} />}
       <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 md:px-6">
         <TooltipProvider>
           {/* Left side */}
@@ -227,11 +231,9 @@ export function Header() {
             )}
 
               {showCreateAssemblyButton && (
-                <Button asChild>
-                  <Link href="/dashboard/assemblies/create">
-                    <PlusCircle />
-                    Criar Assembleia
-                  </Link>
+                <Button onClick={() => setIsCreateAssemblySheetOpen(true)}>
+                  <PlusCircle />
+                  Criar Assembleia
                 </Button>
               )}
             </nav>
