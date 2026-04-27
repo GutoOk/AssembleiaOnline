@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText, XCircle, MoreVertical, ShieldBan, Play, AlertTriangle } from 'lucide-react';
+import { Clock, Mic, PlusCircle, Send, Users, Video, Hand, Loader2, Pencil, LogOut, MessageCircle, Home, BookText, Trash2, Info, CheckCircle2, MapPin, FileText, XCircle, MoreVertical, ShieldBan, Play, AlertTriangle, Download } from 'lucide-react';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
@@ -46,7 +46,7 @@ import { useUserProfiles } from '@/hooks/use-user-profiles';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAssemblyContext } from '@/contexts/AssemblyContext';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { EndAssemblyDialog } from '@/components/EndAssemblyDialog';
 import { StartAssemblyDialog } from '@/components/StartAssemblyDialog';
 import { z } from 'zod';
@@ -60,6 +60,9 @@ import { WhoReactedSheet } from '@/components/WhoReactedSheet';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { calculatePollResult } from '@/lib/domain/quorum';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { downloadAta } from '@/lib/ata-generator';
+import { AtaDownloadDialog } from '@/components/AtaDownloadDialog';
 
 
 const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
@@ -1250,12 +1253,30 @@ export default function AssemblyPage() {
   const isMobile = useIsMobile();
   const [adminZoomUrl, setAdminZoomUrl] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [isDownloadingAta, setIsDownloadingAta] = useState(false);
 
   const [mySpeakerAccess, setMySpeakerAccess] = useState<SpeakerAccess | null>(null);
   const [isLoadingSpeakerAccess, setIsLoadingSpeakerAccess] = useState(true);
 
   const assemblyContext = useAssemblyContext();
-  const { setAssembly, isQueueOpen, setIsQueueOpen, isChatOpen, setIsChatOpen, isEndAssemblyDialogOpen, setIsEndAssemblyDialogOpen, isStartAssemblyDialogOpen, setIsStartAssemblyDialogOpen, setAttendees, setTimelineItems, isCreatePollOpen, setIsCreatePollOpen, setAssemblyPrivateConfig } = assemblyContext!;
+  const { 
+      setAssembly, 
+      isQueueOpen, 
+      setIsQueueOpen, 
+      isChatOpen, 
+      setIsChatOpen, 
+      isEndAssemblyDialogOpen, 
+      setIsEndAssemblyDialogOpen, 
+      isStartAssemblyDialogOpen, 
+      setIsStartAssemblyDialogOpen, 
+      setAttendees, 
+      setTimelineItems, 
+      isCreatePollOpen, 
+      setIsCreatePollOpen, 
+      setAssemblyPrivateConfig,
+      isAtaSidebarOpen,
+      setIsAtaSidebarOpen,
+  } = assemblyContext!;
 
   // --- Data Fetching ---
   const assemblyRef = useMemoFirebase(() => {
@@ -1587,7 +1608,7 @@ export default function AssemblyPage() {
     setIsSubmittingQueue(true);
     try {
         const itemRef = doc(firestore, 'assemblies', queueItem.assemblyId, 'speakerQueue', queueItem.id);
-        await updateDoc(itemRef, { status: 'Com a Fala' });
+        await updateDoc(itemRef, { status: 'Com a Fala', speakerStartedAt: serverTimestamp() });
     } catch (error) {
         console.error("Error entering speaker mode:", error);
         toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível alterar seu status.' });
@@ -1629,6 +1650,23 @@ export default function AssemblyPage() {
 
   const isLoading = isAdminLoading || isAssemblyLoading;
   const isQueueComponentLoading = isQueueLoading || (!!queue && queue.length > 0 && areProfilesLoading);
+  
+  const handleDownloadAta = async (format: 'docx' | 'pdf') => {
+    if (!firestore || !assembly || !timelineItems) return;
+    setIsDownloadingAta(true);
+    try {
+        await downloadAta(firestore, assembly, timelineItems, format);
+    } catch (e) {
+        console.error("Failed to generate ATA document", e);
+        toast({
+            variant: "destructive",
+            title: "Erro ao gerar Ata",
+            description: "Não foi possível gerar o documento. Tente novamente.",
+        });
+    } finally {
+        setIsDownloadingAta(false);
+    }
+  };
   
   if (accessDenied) {
     return (
@@ -1709,7 +1747,62 @@ export default function AssemblyPage() {
             />
           </div>
         </SheetContent>
-      </Sheet>
+    </Sheet>
+    
+    <Sheet open={isAtaSidebarOpen} onOpenChange={setIsAtaSidebarOpen}>
+        <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col">
+            <SheetHeader className="p-6 pb-4">
+                <SheetTitle className="flex items-center gap-2">
+                    <BookText className="h-5 w-5" /> Ata da Assembleia
+                </SheetTitle>
+                {hasOpenPolls && (
+                  <SheetDescription>
+                    <Badge variant="destructive" className="animate-pulse">
+                        VOTAÇÃO EM ANDAMENTO
+                    </Badge>
+                  </SheetDescription>
+                )}
+            </SheetHeader>
+            <ScrollArea className="flex-1">
+                <div className="p-6 space-y-4">
+                    {isAdmin && assembly.status === 'live' && (
+                        <>
+                            <AdminActionCard assembly={assembly} user={user} />
+                            <Button onClick={() => setIsCreatePollOpen(true)} className="w-full">
+                                <PlusCircle className="h-4 w-4" /> Criar Votação
+                            </Button>
+                        </>
+                    )}
+                     <CreatePollSheet open={isCreatePollOpen} onOpenChange={setIsCreatePollOpen} assembly={assembly} user={user} />
+
+                    {(arePollsLoading || areAtaItemsLoading) && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
+                    
+                    {timelineItems && timelineItems.length > 0 ? (
+                        timelineItems.map(item => (
+                           'question' in item
+                            ? <PollCard key={item.id} poll={item as Poll} assemblyId={assembly.id} assemblyStatus={assembly.status} isAdmin={isAdmin} representedAssignments={representedAssignments} userProxyGrant={userProxyGrant} userProfiles={userProfiles} />
+                            : <AtaCard key={item.id} ataItem={item as AtaItem} isAdmin={isAdmin} user={user} assemblyFinished={assemblyFinished} userProfiles={userProfiles} />
+                        ))
+                    ) : (
+                        !arePollsLoading && !areAtaItemsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação ou registro na ata para esta assembleia.</p>
+                    )}
+                </div>
+            </ScrollArea>
+            <SheetFooter className="p-4 border-t">
+                 <AtaDownloadDialog 
+                  onConfirmDocx={() => handleDownloadAta('docx')}
+                  onConfirmPdf={() => handleDownloadAta('pdf')}
+                  disabled={isDownloadingAta} 
+                  isAdmin={isAdmin}
+                >
+                  <Button disabled={isDownloadingAta} className="w-full">
+                    {isDownloadingAta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Baixar Ata
+                  </Button>
+                </AtaDownloadDialog>
+            </SheetFooter>
+        </SheetContent>
+    </Sheet>
 
       <Dialog open={showWelcomeDialog} onOpenChange={setShowWelcomeDialog}>
         <DialogContent className="sm:max-w-md">
@@ -1851,46 +1944,6 @@ export default function AssemblyPage() {
                 </div>
               </CardContent>
             </Card>
-
-            {isAdmin && assembly.status === 'live' && (
-              <AdminActionCard
-                assembly={assembly}
-                user={user}
-              />
-            )}
-            
-            {isAdmin && assembly.status === 'live' && (
-              <CreatePollSheet
-                open={isCreatePollOpen}
-                onOpenChange={setIsCreatePollOpen}
-                assembly={assembly}
-                user={user}
-              />
-            )}
-
-            <div className="flex items-center gap-2 pt-4 pb-2">
-                <BookText className="h-5 w-5 text-muted-foreground" />
-                <h2 className="text-xl font-semibold tracking-tight">Ata da Assembleia</h2>
-                {hasOpenPolls && (
-                  <Badge variant="destructive" className="animate-pulse ml-2">
-                    VOTAÇÃO EM ANDAMENTO
-                  </Badge>
-                )}
-            </div>
-
-            <div className="space-y-4">
-              {(arePollsLoading || areAtaItemsLoading) && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
-              
-              {timelineItems && timelineItems.length > 0 ? (
-                  timelineItems.map(item => (
-                     'question' in item
-                      ? <PollCard key={item.id} poll={item as Poll} assemblyId={assembly.id} assemblyStatus={assembly.status} isAdmin={isAdmin} representedAssignments={representedAssignments} userProxyGrant={userProxyGrant} userProfiles={userProfiles} />
-                      : <AtaCard key={item.id} ataItem={item as AtaItem} isAdmin={isAdmin} user={user} assemblyFinished={assemblyFinished} userProfiles={userProfiles} />
-                  ))
-              ) : (
-                  !arePollsLoading && !areAtaItemsLoading && <p className="text-sm text-center text-muted-foreground pt-4">Nenhuma votação ou registro na ata para esta assembleia.</p>
-              )}
-            </div>
         </div>
       </div>
     </>

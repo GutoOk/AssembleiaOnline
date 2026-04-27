@@ -25,6 +25,8 @@ interface AssemblyContextType {
   setIsCreatePollOpen: (isOpen: boolean) => void;
   isInfoSheetOpen: boolean;
   setIsInfoSheetOpen: (isOpen: boolean) => void;
+  isAtaSidebarOpen: boolean;
+  setIsAtaSidebarOpen: (isOpen: boolean) => void;
 }
 
 const AssemblyContext = createContext<AssemblyContextType | undefined>(undefined);
@@ -41,6 +43,7 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
   const [timelineItems, setTimelineItems] = useState<(AtaItem | Poll)[]>([]);
   const [isCreatePollOpen, setIsCreatePollOpen] = useState(false);
   const [isInfoSheetOpen, setIsInfoSheetOpen] = useState(false);
+  const [isAtaSidebarOpen, setIsAtaSidebarOpen] = useState(false);
 
   return (
     <AssemblyContext.Provider value={{ 
@@ -54,7 +57,8 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
         isAttendeesSheetOpen, setIsAttendeesSheetOpen,
         timelineItems, setTimelineItems,
         isCreatePollOpen, setIsCreatePollOpen,
-        isInfoSheetOpen, setIsInfoSheetOpen
+        isInfoSheetOpen, setIsInfoSheetOpen,
+        isAtaSidebarOpen, setIsAtaSidebarOpen
       }}>
       {children}
     </AssemblyContext.Provider>

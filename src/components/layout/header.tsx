@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, MessageCircle, Users, Home, PlusCircle, PowerOff, Play, Download, Loader2, Mic, Info } from 'lucide-react';
+import { Menu, MessageCircle, Users, Home, PlusCircle, PowerOff, Play, Download, Loader2, Mic, Info, BookText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -23,10 +23,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useFirestore } from '@/firebase';
-import { downloadAta } from '@/lib/ata-generator';
-import { useToast } from '@/hooks/use-toast';
-import { AtaDownloadDialog } from '../AtaDownloadDialog';
 import { ProfileSheet } from '../ProfileSheet';
 
 export function Header() {
@@ -34,9 +30,6 @@ export function Header() {
   const { isAdmin } = useAdmin();
   const [isMounted, setIsMounted] = useState(false);
   const assemblyContext = useAssemblyContext();
-  const firestore = useFirestore();
-  const { toast } = useToast();
-  const [isDownloadingAta, setIsDownloadingAta] = useState(false);
   const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
 
   useEffect(() => {
@@ -73,6 +66,12 @@ export function Header() {
       assemblyContext.setIsInfoSheetOpen(true);
     }
   };
+  
+  const handleAtaClick = () => {
+    if (assemblyContext) {
+      assemblyContext.setIsAtaSidebarOpen(true);
+    }
+  };
 
   const handleStartAssemblyClick = () => {
     if (assemblyContext) {
@@ -86,32 +85,8 @@ export function Header() {
     }
   };
 
-  const handleCreatePollClick = () => {
-    if (assemblyContext) {
-      assemblyContext.setIsCreatePollOpen(true);
-    }
-  };
-
-  const handleDownloadAta = async (format: 'docx' | 'pdf') => {
-    if (!firestore || !assemblyContext?.assembly || !assemblyContext?.timelineItems) return;
-    setIsDownloadingAta(true);
-    try {
-        await downloadAta(firestore, assemblyContext.assembly, assemblyContext.timelineItems, format);
-    } catch (e) {
-        console.error("Failed to generate ATA document", e);
-        toast({
-            variant: "destructive",
-            title: "Erro ao gerar Ata",
-            description: "Não foi possível gerar o documento. Tente novamente.",
-        });
-    } finally {
-        setIsDownloadingAta(false);
-    }
-  };
-
   const isAssemblyPage = pathname.startsWith('/assemblies/');
   const showCreateAssemblyButton = isAdmin && pathname === '/dashboard';
-  const showDownloadAtaButton = isAssemblyPage && (assemblyStatus === 'live' || assemblyStatus === 'finished');
 
   const mobileNavLinks = (
     <>
@@ -149,23 +124,12 @@ export function Header() {
             Criar Assembleia
           </Link>
       )}
-       {showDownloadAtaButton && (
-        <AtaDownloadDialog 
-          onConfirmDocx={() => handleDownloadAta('docx')}
-          onConfirmPdf={() => handleDownloadAta('pdf')}
-          disabled={isDownloadingAta} 
-          isAdmin={isAdmin}
-        >
-          <Button
-            variant="ghost"
-            disabled={isDownloadingAta}
-            className="flex items-center gap-4 text-lg font-medium text-muted-foreground hover:text-foreground justify-start w-full text-left p-0"
-          >
-            {isDownloadingAta ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-            Baixar Ata
+       {isAssemblyPage && (
+          <Button variant="ghost" onClick={handleAtaClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
+              <BookText className="h-5 w-5" />
+              Ver Ata
           </Button>
-        </AtaDownloadDialog>
-      )}
+        )}
       {isAssemblyPage && (
         <>
             <Separator className="my-2" />
@@ -177,12 +141,6 @@ export function Header() {
                     <Button variant="ghost" onClick={handleQueueClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
                         Fila de Inscrição
                     </Button>
-                    {isAdmin && assemblyStatus === 'live' && (
-                      <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground justify-start px-0 text-lg font-normal">
-                        <PlusCircle className="h-5 w-5" />
-                        Criar Votação
-                      </Button>
-                    )}
                 </>
             )}
         </>
@@ -238,22 +196,13 @@ export function Header() {
                 </Button>
               )}
               
-              {showDownloadAtaButton && (
-                <AtaDownloadDialog 
-                  onConfirmDocx={() => handleDownloadAta('docx')}
-                  onConfirmPdf={() => handleDownloadAta('pdf')}
-                  disabled={isDownloadingAta} 
-                  isAdmin={isAdmin}
-                >
-                  <Button disabled={isDownloadingAta} variant="ghost" className="text-muted-foreground hover:text-foreground">
-                    {isDownloadingAta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    Baixar Ata
-                  </Button>
-                </AtaDownloadDialog>
-              )}
 
               {isAssemblyPage && (
                 <div className="flex items-center gap-1">
+                    <Button variant="outline" onClick={handleAtaClick}>
+                        <BookText className="h-4 w-4" />
+                        Ver Ata
+                    </Button>
                     <Button variant="ghost" onClick={handleInfoClick} className="text-muted-foreground hover:text-foreground">
                         <Info className="h-4 w-4" />
                         Informações
@@ -272,12 +221,6 @@ export function Header() {
                               <Mic className="h-4 w-4" />
                               Fila de Inscrição
                           </Button>
-                          {isAdmin && assemblyStatus === 'live' && (
-                            <Button variant="ghost" onClick={handleCreatePollClick} className="text-muted-foreground hover:text-foreground">
-                              <PlusCircle className="h-4 w-4" />
-                              Criar Votação
-                            </Button>
-                          )}
                       </>
                     )}
                 </div>
