@@ -47,6 +47,12 @@ function AssemblyCard({ assembly, isAdmin }: { assembly: Assembly, isAdmin: bool
             data-ai-hint="meeting conference"
           />
           <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+            {assembly.accessMode === 'restricted_email_list' && (
+              <Badge variant="outline">Restrita</Badge>
+            )}
+            {assembly.authorizedParticipantsImportStatus === 'failed' && isAdmin && (
+              <Badge variant="destructive">Erro na lista</Badge>
+            )}
             {isAdmin && (
               <Button asChild variant="secondary" size="icon" className="h-7 w-7">
                 <Link href={`/dashboard/assemblies/${assembly.id}/edit`}>

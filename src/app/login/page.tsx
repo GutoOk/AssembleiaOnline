@@ -718,7 +718,9 @@ export default function LoginPage() {
   };
 
   const handleOpenRegisterDialog = () => {
-    if (!email) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
       toast({
         variant: 'destructive',
         title: 'Email Obrigatório',
@@ -726,7 +728,8 @@ export default function LoginPage() {
       });
       return;
     }
-    if (!email.endsWith('@mensa.org.br')) {
+
+    if (!normalizedEmail.endsWith('@mensa.org.br')) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
@@ -735,6 +738,8 @@ export default function LoginPage() {
       });
       return;
     }
+
+    setEmail(normalizedEmail);
     setIsRegisterDialogOpen(true);
   };
 
