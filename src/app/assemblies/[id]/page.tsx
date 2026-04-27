@@ -59,7 +59,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal
 import { WhoReactedSheet } from '@/components/WhoReactedSheet';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { calculatePollResult } from '@/lib/domain/quorum';
-import { createAuditLog } from '@/lib/services/audit.service';
 
 
 const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
@@ -156,7 +155,7 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
 
   const optionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'options'), orderBy('createdAt', 'asc'));
+    return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'options'), orderBy('order', 'asc'));
   }, [firestore, assemblyId, poll.id, user]);
 
   const votesQuery = useMemoFirebase(() => {
@@ -164,24 +163,9 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
     return query(collection(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes'), orderBy('timestamp', 'desc'));
   }, [firestore, assemblyId, poll.id, user]);
 
-  const { data: rawOptions, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
+  const { data: options, isLoading: isLoadingOptions } = useCollection<PollOption>(optionsQuery);
   const { data: votes, isLoading: isLoadingVotes } = useCollection<Vote>(votesQuery);
   
-  const options = useMemo(() => {
-    if (!rawOptions) return null;
-    return [...rawOptions].sort((a, b) => {
-      if (a.order !== undefined && b.order !== undefined) {
-        return a.order - b.order;
-      }
-      if (a.order !== undefined) return -1;
-      if (b.order !== undefined) return 1;
-      // Fallback to createdAt if order is not defined
-      const dateA = a.createdAt?.toDate() ?? new Date(0);
-      const dateB = b.createdAt?.toDate() ?? new Date(0);
-      return dateA.getTime() - dateB.getTime();
-    });
-  }, [rawOptions]);
-
   const hasActiveProxyGrant = userProxyGrant?.status === 'active';
   const pollEnded = isTimeUp || poll.status === 'closed' || assemblyStatus === 'finished';
   const pollAnnulled = poll.status === 'annulled';
@@ -297,19 +281,13 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
         ...current,
         [voter.effectiveVoterId]: true,
       }));
-  
-      const voteRef = doc(
-        firestore,
-        'assemblies',
-        assemblyId,
-        'polls',
-        poll.id,
-        'votes',
-        voter.effectiveVoterId
-      );
+      
+      const batch = writeBatch(firestore);
+      const voteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', voter.effectiveVoterId);
+      const auditRef = doc(collection(firestore, 'assemblies', assemblyId, 'auditLogs'));
   
       if (!existingVote) {
-        await setDoc(voteRef, {
+        batch.set(voteRef, {
           effectiveVoterId: voter.effectiveVoterId,
           userId: user.uid,
           representedUserId: voter.representedUserId,
@@ -326,11 +304,10 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
           votedAgainBy: null,
         });
   
-        await createAuditLog({
-          firestore,
+        batch.set(auditRef, {
+          type: 'VOTE_CAST',
           assemblyId,
           actorId: user.uid,
-          type: 'VOTE_CAST',
           targetId: poll.id,
           metadata: {
             pollId: poll.id,
@@ -338,11 +315,12 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
             representedUserId: voter.representedUserId,
             optionId: selectedOption,
           },
+          createdAt: serverTimestamp(),
         });
       }
   
       if (existingVote?.status === 'withdrawn') {
-        await updateDoc(voteRef, {
+        batch.update(voteRef, {
           status: 'active',
           pollOptionId: selectedOption,
           votedAgainAt: serverTimestamp(),
@@ -351,11 +329,10 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
           withdrawnBy: null,
         });
   
-        await createAuditLog({
-          firestore,
+        batch.set(auditRef, {
+          type: 'VOTE_RECAST',
           assemblyId,
           actorId: user.uid,
-          type: 'VOTE_RECAST',
           targetId: poll.id,
           metadata: {
             pollId: poll.id,
@@ -364,9 +341,12 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
             optionId: selectedOption,
             previousPollOptionId: existingVote.previousPollOptionId ?? null,
           },
+          createdAt: serverTimestamp(),
         });
       }
   
+      await batch.commit();
+
       toast({
         title: existingVote?.status === 'withdrawn' ? 'Voto registrado novamente' : 'Voto registrado',
         description: `O voto de ${voter.label} foi computado com sucesso.`,
@@ -416,38 +396,34 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
         [voter.effectiveVoterId]: true,
       }));
   
-      const voteRef = doc(
-        firestore,
-        'assemblies',
-        assemblyId,
-        'polls',
-        poll.id,
-        'votes',
-        voter.effectiveVoterId
-      );
-  
-      await updateDoc(voteRef, {
+      const batch = writeBatch(firestore);
+      const voteRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id, 'votes', voter.effectiveVoterId);
+      const auditRef = doc(collection(firestore, 'assemblies', assemblyId, 'auditLogs'));
+
+      batch.update(voteRef, {
         status: 'withdrawn',
         pollOptionId: null,
         previousPollOptionId: existingVote.pollOptionId,
         withdrawnAt: serverTimestamp(),
         withdrawnBy: user.uid,
       });
-  
-      await createAuditLog({
-        firestore,
-        assemblyId,
-        actorId: user.uid,
-        type: 'VOTE_WITHDRAWN',
-        targetId: poll.id,
-        metadata: {
-          pollId: poll.id,
-          effectiveVoterId: voter.effectiveVoterId,
-          representedUserId: voter.representedUserId,
-          previousPollOptionId: existingVote.pollOptionId,
-        },
+
+      batch.set(auditRef, {
+          type: 'VOTE_WITHDRAWN',
+          assemblyId,
+          actorId: user.uid,
+          targetId: poll.id,
+          metadata: {
+            pollId: poll.id,
+            effectiveVoterId: voter.effectiveVoterId,
+            representedUserId: voter.representedUserId,
+            previousPollOptionId: existingVote.pollOptionId,
+          },
+          createdAt: serverTimestamp(),
       });
-  
+      
+      await batch.commit();
+
       toast({
         title: 'Voto retirado',
         description: `O voto de ${voter.label} foi retirado. Será possível votar novamente enquanto a votação estiver aberta.`,
@@ -476,22 +452,27 @@ function PollCard({ poll, assemblyId, assemblyStatus, isAdmin, representedAssign
     setIsSubmitting(true);
     try {
         const pollRef = doc(firestore, 'assemblies', assemblyId, 'polls', poll.id);
-        await updateDoc(pollRef, {
+        const batch = writeBatch(firestore);
+        
+        batch.update(pollRef, {
             status: 'annulled',
             annulmentReason: annulReason,
             annulledBy: user.uid,
             annulledAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
-
-        await createAuditLog({
-            firestore,
+        
+        const auditRef = doc(collection(firestore, 'assemblies', assemblyId, 'auditLogs'));
+        batch.set(auditRef, {
+            type: 'POLL_ANNULLED',
             assemblyId: assemblyId,
             actorId: user.uid,
-            type: 'POLL_ANNULLED',
             targetId: poll.id,
-            metadata: { reason: annulReason }
+            metadata: { reason: annulReason },
+            createdAt: serverTimestamp(),
         });
+        
+        await batch.commit();
 
         toast({ title: 'Votação Anulada', description: 'A votação foi anulada com sucesso.' });
         setAnnulConfirmOpen(false);
@@ -1057,8 +1038,10 @@ function AdminActionCard({
   const onSubmit = async (values: z.infer<typeof ataSchema>) => {
     if (!user || !firestore) return;
     try {
-        const ataRef = collection(firestore, 'assemblies', assembly.id, 'ata');
-        const newAtaRef = await addDoc(ataRef, {
+        const batch = writeBatch(firestore);
+        const ataRef = doc(collection(firestore, 'assemblies', assembly.id, 'ata'));
+        
+        batch.set(ataRef, {
             text: values.text,
             assemblyId: assembly.id,
             administratorId: user.uid,
@@ -1066,15 +1049,18 @@ function AdminActionCard({
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
-        
-        await createAuditLog({
-            firestore,
+
+        const auditRef = doc(collection(firestore, 'assemblies', assembly.id, 'auditLogs'));
+        batch.set(auditRef, {
+            type: 'ATA_ITEM_CREATED',
             assemblyId: assembly.id,
             actorId: user.uid,
-            type: 'ATA_ITEM_CREATED',
-            targetId: newAtaRef.id,
-            metadata: { textLength: values.text.length }
+            targetId: ataRef.id,
+            metadata: { textLength: values.text.length },
+            createdAt: serverTimestamp(),
         });
+        
+        await batch.commit();
 
         toast({ title: 'Registro de Ata Publicado!' });
         form.reset();
@@ -1136,15 +1122,20 @@ function AtaCard({ ataItem, isAdmin, user, assemblyFinished, userProfiles }: { a
     setIsSubmitting(true);
     try {
         const itemRef = doc(firestore, 'assemblies', ataItem.assemblyId, 'ata', ataItem.id);
-        await updateDoc(itemRef, { text: editText, updatedAt: serverTimestamp() });
+        const batch = writeBatch(firestore);
+
+        batch.update(itemRef, { text: editText, updatedAt: serverTimestamp() });
         
-        await createAuditLog({
-            firestore,
+        const auditRef = doc(collection(firestore, 'assemblies', ataItem.assemblyId, 'auditLogs'));
+        batch.set(auditRef, {
+            type: 'ATA_ITEM_UPDATED',
             assemblyId: ataItem.assemblyId,
             actorId: user.uid,
-            type: 'ATA_ITEM_UPDATED',
             targetId: ataItem.id,
+            createdAt: serverTimestamp(),
         });
+        
+        await batch.commit();
 
         toast({ title: 'Registro atualizado!' });
         setIsEditing(false);
@@ -1309,12 +1300,24 @@ export default function AssemblyPage() {
   const userIdsInAta = useMemo(() => ataItems?.map(a => a.administratorId) ?? [], [ataItems]);
   const proxyGranteeId = userProxyGrant?.proxyId;
   const grantorIds = useMemo(() => representedAssignments?.map(a => a.grantorId) ?? [], [representedAssignments]);
+  const pollAdminIds = useMemo(() => {
+    return polls?.flatMap((poll) => [
+      poll.administratorId,
+      poll.annulledBy,
+    ]).filter(Boolean) as string[] ?? [];
+  }, [polls]);
 
   const allUserIdsToFetch = useMemo(() => {
-      const ids = new Set([...userIdsInQueue, ...userIdsInAta, ...grantorIds]);
+      const ids = new Set([
+        ...userIdsInQueue, 
+        ...userIdsInAta, 
+        ...grantorIds,
+        ...pollAdminIds,
+      ]);
+      if (user?.uid) ids.add(user.uid);
       if (proxyGranteeId) ids.add(proxyGranteeId);
       return Array.from(ids);
-  }, [userIdsInQueue, userIdsInAta, proxyGranteeId, grantorIds]);
+  }, [userIdsInQueue, userIdsInAta, grantorIds, pollAdminIds, user?.uid, proxyGranteeId]);
 
   const { profiles: userProfiles, isLoading: areProfilesLoading } = useUserProfiles(allUserIdsToFetch);
   const userInQueue = useMemo(() => queue?.find(s => s.userId === user?.uid), [queue, user]);

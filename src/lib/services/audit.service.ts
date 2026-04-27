@@ -39,7 +39,8 @@ export async function createAuditLog({
     'auditLogs'
   );
 
-  await addDoc(auditRef, {
+  // This is intentionally not awaited to avoid blocking UI rendering
+  addDoc(auditRef, {
     type,
     assemblyId,
     actorId,
