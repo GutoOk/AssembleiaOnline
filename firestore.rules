@@ -94,6 +94,7 @@ service cloud.firestore {
               (
                 voteId == request.auth.uid
                 && request.resource.data.representedUserId == null
+                && (!exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)) || get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)).data.status != 'active')
               )
               ||
               (
@@ -134,6 +135,7 @@ service cloud.firestore {
               (
                 voteId == request.auth.uid
                 && resource.data.userId == request.auth.uid
+                && (!exists(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)) || get(/databases/$(database)/documents/assemblies/$(assemblyId)/proxies/$(request.auth.uid)).data.status != 'active')
               )
               ||
               (
