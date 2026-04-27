@@ -31,13 +31,9 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && isMensaEmail()
         && request.resource.data.email == request.auth.token.email;
-
-      allow get: if isOwner(userId) && isMensaEmail() || isAdmin();
-
-      allow list: if isAdmin();
-
+      allow get: if isVerifiedMensaUser();
+      allow list: if isVerifiedMensaUser();
       allow update: if (isOwner(userId) && isVerifiedMensaUser()) || isAdmin();
-
       allow delete: if isAdmin();
     }
 
