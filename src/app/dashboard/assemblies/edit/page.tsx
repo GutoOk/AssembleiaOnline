@@ -41,7 +41,7 @@ const assemblySchema = z.object({
   youtubeUrl: z.string().optional().or(z.literal('')),
   zoomUrl: z.string().url("Por favor, insira um link de reunião válido.").optional().or(z.literal('')),
   allowProxyVoting: z.boolean().default(false),
-  maxProxiesPerUser: z.coerce.number().int().min(0, "O valor deve ser positivo.").default(4),
+  maxProxiesPerUser: z.coerce.number().int().min(0, "O valor deve ser positivo.").default(2),
   ordemDoDia: z.string().optional(),
   locationAddress: z.string().optional(),
   locationCity: z.string().optional(),
@@ -112,7 +112,7 @@ export default function EditAssemblyPage() {
       youtubeUrl: '',
       zoomUrl: '',
       allowProxyVoting: false,
-      maxProxiesPerUser: 4,
+      maxProxiesPerUser: 2,
       ordemDoDia: '',
       locationAddress: '',
       locationCity: '',
@@ -143,7 +143,7 @@ export default function EditAssemblyPage() {
         youtubeUrl: assembly.youtubeUrl || '',
         zoomUrl: privateConfig?.zoomUrl || '',
         allowProxyVoting: assembly.allowProxyVoting || false,
-        maxProxiesPerUser: assembly.maxProxiesPerUser || 4,
+        maxProxiesPerUser: assembly.maxProxiesPerUser || 2,
         ordemDoDia: assembly.ordemDoDia || '',
         locationAddress: assembly.location?.address || '',
         locationCity: assembly.location?.city || '',
@@ -544,7 +544,7 @@ export default function EditAssemblyPage() {
                         <Input type="number" {...field} />
                       </FormControl>
                       <FormDescription>
-                        O número máximo de pessoas que um único membro pode representar (padrão: 4).
+                        O número máximo de pessoas que um único membro pode representar (padrão: 2).
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

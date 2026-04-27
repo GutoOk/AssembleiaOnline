@@ -182,7 +182,7 @@ export default function ProxyPage() {
             return;
         }
 
-        const maxProxies = assembly.maxProxiesPerUser ?? 4;
+        const maxProxies = assembly.maxProxiesPerUser ?? 2;
         const existingProxiesQuery = query(
             collection(firestore, 'assemblies', values.assemblyId, 'proxies'),
             where('proxyId', '==', proxyId),
