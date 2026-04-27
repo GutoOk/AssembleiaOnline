@@ -329,23 +329,24 @@ service cloud.firestore {
             (
               resource.data.status == 'active'
               && request.resource.data.status == 'revoked'
+              && request.resource.data.proxyId == resource.data.proxyId
               && request.resource.data.revokedBy == request.auth.uid
             )
-      
             ||
-      
             (
               resource.data.status == 'revoked'
               && request.resource.data.status == 'active'
               && request.resource.data.proxyId != request.auth.uid
+              && request.resource.data.revokedAt == null
+              && request.resource.data.revokedBy == null
             )
-      
             ||
-      
             (
               resource.data.status == 'active'
               && request.resource.data.status == 'active'
               && request.resource.data.proxyId != request.auth.uid
+              && request.resource.data.revokedAt == null
+              && request.resource.data.revokedBy == null
             )
           );
       

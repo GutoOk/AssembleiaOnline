@@ -332,7 +332,11 @@ export default function ProxyPage() {
                   <FormItem>
                     <FormLabel>Email do Representante</FormLabel>
                     <FormControl>
-                      <Input placeholder="email.do.membro@mensa.org.br" {...field} />
+                      <Input
+                        placeholder="email.do.membro@mensa.org.br"
+                        {...field}
+                        onChange={(e) => field.onChange(e.target.value.trim().toLowerCase())}
+                      />
                     </FormControl>
                     <FormDescription>Insira o email do membro que irá lhe representar.</FormDescription>
                     <FormMessage />
